@@ -6,7 +6,7 @@ Lector de comprobantes y tesorería: una web app de Google Apps Script vinculada
 
 ```
 src/
-  Code.gs          Código del servidor (Apps Script)
+  Código.gs        Código del servidor (Apps Script)
   Index.html       Interfaz (HTML, CSS y JS)
   appsscript.json  Manifiesto del proyecto
 docs/
@@ -21,7 +21,7 @@ docs/
 Cada cambio en `src/` que llega a `main` lo publica la Action `.github/workflows/apps-script.yml`:
 
 1. Guarda un respaldo: crea una versión con el código que está hoy en Apps Script.
-2. Sube `Code.gs` e `Index.html`. El manifiesto (`appsscript.json`) se toma del proyecto de Apps Script, no del repositorio.
+2. Sube `Código.gs` e `Index.html`. El manifiesto (`appsscript.json`) se toma del proyecto de Apps Script, no del repositorio.
 3. Publica una versión nueva en la misma implementación, así el link `/exec` no cambia.
 
 También se puede correr a mano desde la pestaña **Actions → Publicar en Apps Script → Run workflow**.
