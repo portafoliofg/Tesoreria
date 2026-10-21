@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Marcellus&display=swap" rel="stylesheet">
 <style>
   /* =====================================================================
      ESTÉTICA INSTITUCIONAL MODERNA (banca digital)
@@ -884,20 +884,64 @@
   .pie-in { max-width: 1280px; margin: 0 auto; padding: 16px 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--faint); }
 
   /* ---------- Acceso (login) ---------- */
-  .acceso { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px; position: relative; overflow: hidden;
-    background: radial-gradient(900px 520px at 85% -10%, rgba(var(--accent-rgb), .22), transparent 60%), radial-gradient(800px 520px at -10% 110%, rgba(var(--primary-rgb), .45), transparent 60%), var(--side-bg); }
-  .acceso::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px); background-size: 40px 40px; -webkit-mask-image: radial-gradient(circle at 50% 40%, #000, transparent 75%); mask-image: radial-gradient(circle at 50% 40%, #000, transparent 75%); }
+  /* Misma identidad que la portada de bgpsammar.com: azul noche, plata, verde bolsa y dorado.
+     Panel de marca a la izquierda y formulario a la derecha; en celular se apilan. */
+  .acceso { --bgp-noche: #060d1c; --bgp-noche-2: #0c1b35; --bgp-plata: #e6ebf2; --bgp-tenue: #93a0b5; --bgp-verde: #2fd38a; --bgp-oro: #d8b36a; --bgp-oro-osc: #b8924a; --bgp-display: "Marcellus", "IBM Plex Serif", Georgia, serif;
+    display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px; position: relative; overflow: hidden;
+    background: radial-gradient(900px 520px at 85% -10%, rgba(216, 179, 106, .14), transparent 60%), radial-gradient(800px 520px at -10% 110%, rgba(47, 211, 138, .10), transparent 60%), radial-gradient(70% 60% at 50% 40%, rgba(46, 92, 178, .28), transparent 70%), linear-gradient(180deg, var(--bgp-noche-2), var(--bgp-noche)); }
+  .acceso::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(170, 190, 220, .06) 1px, transparent 1px), linear-gradient(90deg, rgba(170, 190, 220, .06) 1px, transparent 1px); background-size: 44px 44px; -webkit-mask-image: radial-gradient(circle at 50% 45%, #000, transparent 78%); mask-image: radial-gradient(circle at 50% 45%, #000, transparent 78%); }
   body.sin-sesion { padding-left: 0; }
   body.sin-sesion .acceso { display: flex; }
   body.sin-sesion .masthead, body.sin-sesion .navbar, body.sin-sesion main, body.sin-sesion .pie { display: none; }
-  .acceso-caja { position: relative; width: 100%; max-width: 410px; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, .06); padding: 30px 30px 24px; }
-  .acceso-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
-  .acceso-marca b { display: block; font-family: var(--font-serif); font-size: 19px; line-height: 1.1; }
-  .acceso-marca span { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-  .acceso h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }
-  .acceso form > label { margin-top: 14px; }
-  .acceso form button[type=submit] { width: 100%; margin-top: 20px; height: 44px; font-size: 14.5px; }
-  .acceso-pie { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); text-align: center; }
+  .acceso-caja { position: relative; width: 100%; max-width: 940px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); border-radius: 22px; overflow: hidden; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(214, 226, 242, .10); }
+
+  .acceso-lado { position: relative; display: flex; flex-direction: column; gap: 22px; padding: 38px 36px 30px; color: var(--bgp-plata);
+    background: linear-gradient(160deg, rgba(22, 40, 74, .92), rgba(6, 13, 28, .96)); }
+  .acceso-lado::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 1px; background: linear-gradient(180deg, transparent, rgba(216, 179, 106, .45), transparent); }
+  .bgp-regla { width: 56px; height: 1px; background: linear-gradient(90deg, var(--bgp-oro), transparent); }
+  .bgp-nombre { margin: 10px 0 0; font-family: var(--bgp-display); font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: .16em; white-space: nowrap;
+    background: linear-gradient(180deg, #f6f9fc, #c7d0dc 50%, #8b98ac); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .bgp-nombre i { font-style: normal; -webkit-text-fill-color: var(--bgp-oro); }
+  .bgp-sub { margin: 10px 0 0; font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--bgp-tenue); }
+  .bgp-modulo { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(216, 179, 106, .45); background: rgba(216, 179, 106, .08);
+    font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bgp-oro); }
+  .bgp-modulo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bgp-verde); box-shadow: 0 0 8px var(--bgp-verde); }
+  .bgp-grafico { border-radius: 14px; padding: 14px 14px 8px; background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .07); }
+  .bgp-grafico-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--bgp-tenue); }
+  .bgp-grafico-cab b { font-family: var(--font-mono); font-weight: 500; letter-spacing: 0; color: var(--bgp-verde); font-variant-numeric: tabular-nums; }
+  .bgp-grafico svg { display: block; width: 100%; height: auto; margin-top: 6px; }
+  .bgp-traza { stroke-dasharray: 600; stroke-dashoffset: 600; animation: bgp-traza 1.8s cubic-bezier(.3, .7, .2, 1) .2s forwards; }
+  @keyframes bgp-traza { to { stroke-dashoffset: 0; } }
+  .bgp-pilares { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .bgp-pilares li { display: grid; justify-items: center; gap: 8px; padding: 12px 6px 10px; border-radius: 14px; text-align: center; font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--bgp-tenue);
+    background: linear-gradient(145deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .09); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12); }
+  .bgp-pilares svg { width: 28px; height: 28px; }
+  .bgp-lado-pie { margin-top: auto; font-size: 11.5px; color: var(--bgp-tenue); }
+
+  .acceso-form { display: flex; flex-direction: column; justify-content: center; padding: 38px 36px 26px; background: var(--surface); }
+  .acceso-marca { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .acceso-marca::before { content: ""; width: 18px; height: 1px; background: var(--bgp-oro); }
+  .acceso h2 { font-family: var(--bgp-display); font-weight: 400; font-size: 28px; letter-spacing: .02em; }
+  .acceso .sub { margin-top: 4px; }
+  .acceso form > label { margin-top: 16px; }
+  .acceso form input { height: 44px; }
+  .acceso form input:focus { border-color: var(--bgp-oro-osc); box-shadow: 0 0 0 3px rgba(216, 179, 106, .25); outline: none; }
+  .acceso form button[type=submit] { width: 100%; margin-top: 22px; height: 46px; font-size: 14.5px; font-weight: 650; letter-spacing: .02em; border: 0; color: #0b1a33;
+    background: linear-gradient(180deg, #e3c27a, var(--bgp-oro) 55%, var(--bgp-oro-osc)); box-shadow: 0 10px 22px -10px rgba(184, 146, 74, .8), inset 0 1px 0 rgba(255, 255, 255, .4); }
+  .acceso form button[type=submit]:hover:not(:disabled) { filter: brightness(1.05); background: linear-gradient(180deg, #e8c983, #dcb86f 55%, #be9850); }
+  .acceso form button[type=submit]:focus-visible { outline: 2px solid var(--bgp-noche-2); outline-offset: 2px; }
+  .acceso-pie { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); text-align: center; }
+
+  @media (max-width: 780px) {
+    .acceso { padding: 16px; align-items: flex-start; }
+    .acceso-caja { grid-template-columns: minmax(0, 1fr); max-width: 440px; }
+    .acceso-lado { padding: 26px 24px 22px; gap: 0; }
+    .acceso-lado::after { top: auto; left: 0; width: auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(216, 179, 106, .45), transparent); }
+    .bgp-nombre { font-size: 27px; letter-spacing: .12em; }
+    .bgp-grafico, .bgp-pilares, .bgp-lado-pie { display: none; }
+    .acceso-form { padding: 26px 24px 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bgp-traza { animation: none; stroke-dashoffset: 0; } }
 
   /* ---------- Modales ---------- */
   .modal-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--overlay); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .18s, visibility 0s linear .18s; }
@@ -1065,13 +1109,60 @@
 <body class="sin-sesion">
 <div class="acceso" id="acceso">
   <div class="acceso-caja">
-    <div class="acceso-marca">
-      <div class="marca-sello" aria-hidden="true">T</div>
-      <div><b>Tesorería</b><span id="accesoEmpresa">SAMMARTINO</span></div>
-    </div>
+    <aside class="acceso-lado">
+      <div>
+        <div class="bgp-regla" aria-hidden="true"></div>
+        <p class="bgp-nombre">B<i>.</i>G<i>.</i>P SAMMAR</p>
+        <p class="bgp-sub">Bolsas · Granos · Propiedades</p>
+        <span class="bgp-modulo">Tesorería</span>
+      </div>
+      <div class="bgp-grafico" aria-hidden="true">
+        <div class="bgp-grafico-cab"><span>Flujo de fondos</span><b>ARS · 30 días</b></div>
+        <svg viewBox="0 0 320 110" fill="none">
+          <defs>
+            <linearGradient id="bgpTrazo" x1="0" x2="1"><stop offset="0" stop-color="#2fd38a"/><stop offset=".75" stop-color="#8be3b8"/><stop offset="1" stop-color="#d8b36a"/></linearGradient>
+            <linearGradient id="bgpArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2fd38a" stop-opacity=".22"/><stop offset="1" stop-color="#2fd38a" stop-opacity="0"/></linearGradient>
+          </defs>
+          <g stroke="rgba(170,190,220,.10)" stroke-width="1"><path d="M0 22H320M0 50H320M0 78H320M0 106H320"/></g>
+          <g stroke-width="1.2">
+            <path d="M22 78V98M46 72V94M70 76V96M94 62V86M118 66V88M142 52V76M166 56V80M190 44V68M214 48V70M238 34V58M262 38V60M286 22V46M310 18V40" stroke="#2fd38a" stroke-opacity=".6"/>
+            <path d="M70 76V96M166 56V80M262 38V60" stroke="#e2556b" stroke-opacity=".7"/>
+          </g>
+          <g>
+            <rect x="18" y="82" width="8" height="12" rx="1.5" fill="#2fd38a" fill-opacity=".55"/><rect x="42" y="76" width="8" height="14" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="66" y="80" width="8" height="10" rx="1.5" fill="#e2556b" fill-opacity=".6"/><rect x="90" y="66" width="8" height="16" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="114" y="70" width="8" height="12" rx="1.5" fill="#2fd38a" fill-opacity=".55"/><rect x="138" y="56" width="8" height="16" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="162" y="60" width="8" height="12" rx="1.5" fill="#e2556b" fill-opacity=".6"/><rect x="186" y="48" width="8" height="16" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="210" y="52" width="8" height="12" rx="1.5" fill="#2fd38a" fill-opacity=".55"/><rect x="234" y="38" width="8" height="16" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="258" y="42" width="8" height="12" rx="1.5" fill="#e2556b" fill-opacity=".6"/><rect x="282" y="26" width="8" height="16" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+            <rect x="306" y="22" width="8" height="14" rx="1.5" fill="#2fd38a" fill-opacity=".55"/>
+          </g>
+          <path d="M6 96 C40 92 60 88 94 78 S150 66 190 58 S250 44 286 34 L314 28 V110 H6 Z" fill="url(#bgpArea)"/>
+          <path class="bgp-traza" d="M6 96 C40 92 60 88 94 78 S150 66 190 58 S250 44 286 34 L314 28" stroke="url(#bgpTrazo)" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="314" cy="28" r="3.5" fill="#d8b36a"/>
+        </svg>
+      </div>
+      <ul class="bgp-pilares">
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><g stroke-linecap="round"><line x1="12" y1="12" x2="12" y2="38" stroke="#e2556b" stroke-width="2"/><rect x="8" y="18" width="8" height="13" rx="1.6" fill="#e2556b"/><line x1="24" y1="8" x2="24" y2="34" stroke="#2fd38a" stroke-width="2"/><rect x="20" y="13" width="8" height="15" rx="1.6" fill="#2fd38a"/><line x1="36" y1="4" x2="36" y2="27" stroke="#2fd38a" stroke-width="2"/><rect x="32" y="7" width="8" height="15" rx="1.6" fill="#2fd38a"/><path d="M6 42 H42" stroke="#c9d3e0" stroke-opacity=".55" stroke-width="1.8"/></g></svg>
+          Bolsas
+        </li>
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M7 19 Q13.5 9 20 19 V42 H7 Z" fill="#c3cdda"/><path d="M15 12 Q18.5 14 20 19 V42 H15 Z" fill="#8d98a8"/><path d="M7 26 H20 M7 33 H20" stroke="#4f5a6b" stroke-width="1.2"/><path d="M33 44 C33 34 33 24 34 12" stroke="#d8b36a" stroke-width="1.8" fill="none" stroke-linecap="round"/><g fill="#e3c27a"><ellipse cx="30.6" cy="15" rx="2.4" ry="4.2" transform="rotate(-28 30.6 15)"/><ellipse cx="37.2" cy="15" rx="2.4" ry="4.2" transform="rotate(28 37.2 15)"/><ellipse cx="30.4" cy="21" rx="2.4" ry="4.2" transform="rotate(-28 30.4 21)"/><ellipse cx="36.8" cy="21" rx="2.4" ry="4.2" transform="rotate(28 36.8 21)"/><ellipse cx="30.2" cy="27" rx="2.4" ry="4.2" transform="rotate(-28 30.2 27)"/><ellipse cx="36.4" cy="27" rx="2.4" ry="4.2" transform="rotate(28 36.4 27)"/><ellipse cx="34" cy="9" rx="2.2" ry="4"/></g><path d="M33 39 Q40 35 43 28 Q36 31 33 35 Z" fill="#4fbf7a"/></svg>
+          Granos
+        </li>
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M9 42 V14 L23 8 V42 Z" fill="#c3cdda"/><path d="M23 42 V8 L29 11 V42 Z" fill="#7d8aa0"/><path d="M29 42 V22 L38 20 V42 Z" fill="#9aa6b6"/><path d="M38 42 V20 L41 21.5 V42 Z" fill="#5b6676"/><g fill="#1b2a44"><rect x="12" y="16" width="3" height="3"/><rect x="17.5" y="15" width="3" height="3"/><rect x="12" y="22" width="3" height="3"/><rect x="17.5" y="22" width="3" height="3"/><rect x="12" y="28" width="3" height="3"/><rect x="17.5" y="28" width="3" height="3"/><rect x="12" y="34" width="3" height="3"/><rect x="17.5" y="34" width="3" height="3"/><rect x="31.5" y="25" width="2.6" height="2.6"/><rect x="34.8" y="25" width="2.6" height="2.6"/><rect x="31.5" y="31" width="2.6" height="2.6"/><rect x="34.8" y="31" width="2.6" height="2.6"/></g><path d="M5 42 H43" stroke="#d8b36a" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Propiedades
+        </li>
+      </ul>
+      <p class="bgp-lado-pie">Cuentas, cheques, conciliaciones y flujo de fondos en un solo lugar.</p>
+    </aside>
+    <div class="acceso-form">
+    <div class="acceso-marca">Tesorería · <span id="accesoEmpresa">SAMMARTINO</span></div>
     <form id="formLogin" hidden>
       <h2>Ingresar</h2>
-      <p class="sub">Usá tu usuario y contraseña.</p>
+      <p class="sub">Usá tu usuario y contraseña de Tesorería.</p>
       <label>Usuario<input type="text" id="loginUsuario" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
       <label>Contraseña<input type="password" id="loginClave" autocomplete="current-password"></label>
       <button type="submit" id="btnLogin">Ingresar</button>
@@ -1088,6 +1179,7 @@
       <p class="hint" id="inicialStatus"></p>
     </form>
     <div class="acceso-pie">Uso interno · Toda actividad queda registrada</div>
+    </div>
   </div>
 </div>
 <header class="masthead">
