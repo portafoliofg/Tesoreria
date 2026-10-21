@@ -801,6 +801,15 @@
   .viz-det-txt .dt-principal { -webkit-line-clamp: 1; }
   .viz-pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); }
   .viz-tabla { margin-top: 8px; }
+  .viz-resumen { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0 0; }
+  .viz-resumen .kpi { padding: 12px 14px; box-shadow: none; background: var(--surface-2); }
+  .viz-resumen .k-val { margin-top: 6px; }
+  .kpi .k-val.neg { color: var(--bad); }
+  .viz-ver { align-self: flex-start; margin-top: 12px; }
+  .viz-cuerpo { display: flex; flex-direction: column; min-width: 0; margin-top: 4px; }
+  .viz-cuerpo[hidden] { display: none; }
+  .viz-modos:empty { display: none; }
+  .viz-modos { margin-top: 10px; }
   .viz-tabla table { font-size: 12.5px; }
   @media (max-width: 900px) { .viz-grid { grid-template-columns: minmax(0, 1fr); } .viz-ancho { grid-column: auto; } }
   @media print { .viz-grid { display: none !important; } }
@@ -13365,6 +13374,19 @@ $("parteCopiar").addEventListener("click", async () => {
 // ---------------- Guías de lectura de los gráficos ----------------
 // Cada gráfico tiene un botón "i" que abre esta explicación paso a paso.
 const GUIAS_GRAFICOS = {
+  semana: {
+    titulo: "Semana corta: ¿me alcanza la caja?",
+    que: "Compara la plata disponible hoy en las cuentas en pesos con los cheques que hay que pagar hasta el viernes, y suma los cheques de terceros depositados esta semana que todavía no se acreditaron.",
+    pasos: [
+      ["Mirá las cuatro fichas", "Disponible hoy, cheques a pagar hasta el viernes, pendiente de acreditación y con cuánto queda la caja el viernes. Es el resumen: si te alcanza, no hace falta abrir nada más."],
+      ["Leé la frase de arriba", "Si en algún día la caja no alcanza (queda negativa o debajo del mínimo), se pone en rojo y te dice qué día."],
+      ["Tocá “Ver detalle”", "Se abre el gráfico día por día. La línea es el disponible al cierre de cada día. Las barras verdes, hacia arriba, son los cheques depositados que se acreditan; las de abajo, los cheques emitidos y los de bolsa que se debitan."],
+      ["Tocá un día", "Abajo aparece la lista de cheques de ese día, de mayor a menor."],
+      ["Mirá más lejos", "Con “Próximas 12 semanas” ves la proyección completa (cheques, bolsa, compromisos y alertas) y las opciones para cubrir un faltante."]
+    ],
+    ejemplo: "Si hoy hay $ 50 M, el jueves vencen cheques por $ 60 M y hay $ 15 M depositados por acreditar, el viernes quedan $ 5 M: alcanza, pero justo.",
+    ojo: "Pendiente de acreditación solo cuenta cheques de terceros en estado Depositado, que vencen esta semana, depositados esta semana y todavía sin conciliar. Los cheques vencidos sin debitar se cuentan hoy y lo que vence el fin de semana, el lunes. No incluye dólares."
+  },
   semanas: {
     titulo: "¿Qué semana me quedo corto?",
     que: "Muestra las próximas 12 semanas: cuánta plata entra, cuánta sale y con cuánto quedarían las cuentas en pesos al terminar cada semana.",
@@ -13845,8 +13867,42 @@ function tarjetaViz(titulo, subtitulo, guia) {
   tabla.hidden = true;
   btnTabla.addEventListener("click", () => { tabla.hidden = !tabla.hidden; btnTabla.textContent = tabla.hidden ? "Ver datos" : "Ocultar datos"; });
   const extra = el("div", "viz-extra");
-  card.append(head, dato, leyenda, plot, extra, detalle, pie, tabla);
-  return { card: card, dato: dato, leyenda: leyenda, plot: plot, tip: tip, extra: extra, detalle: detalle, ayuda: ayuda, tabla: tabla, btnTabla: btnTabla };
+  // En Inicio solo se ve el resumen; el gráfico y el detalle se abren con "Ver detalle".
+  const resumen = el("div", "kpis viz-resumen");
+  const modos = el("div", "viz-modos");
+  const datoDet = el("div", "viz-dato");
+  const cuerpo = el("div", "viz-cuerpo");
+  cuerpo.append(modos, datoDet, leyenda, plot, extra, detalle, pie, tabla);
+  const abierto = !!vizAbiertos[guia || titulo];
+  cuerpo.hidden = !abierto;
+  const btnDetalle = el("button", "secondary small viz-ver", abierto ? "Ocultar detalle" : "Ver detalle");
+  btnDetalle.type = "button";
+  btnDetalle.setAttribute("aria-expanded", abierto ? "true" : "false");
+  btnDetalle.addEventListener("click", () => {
+    cuerpo.hidden = !cuerpo.hidden;
+    vizAbiertos[guia || titulo] = !cuerpo.hidden;
+    btnDetalle.textContent = cuerpo.hidden ? "Ver detalle" : "Ocultar detalle";
+    btnDetalle.setAttribute("aria-expanded", cuerpo.hidden ? "false" : "true");
+    if (!cuerpo.hidden && plot._dibujar) plot._dibujar();
+  });
+  card.append(head, dato, resumen, btnDetalle, cuerpo);
+  return { card: card, dato: dato, resumen: resumen, modos: modos, datoDet: datoDet, cuerpo: cuerpo, btnDetalle: btnDetalle,
+    leyenda: leyenda, plot: plot, tip: tip, extra: extra, detalle: detalle, ayuda: ayuda, tabla: tabla, btnTabla: btnTabla };
+}
+
+// Qué tarjetas tiene abiertas el usuario (se mantiene al actualizar Inicio).
+const vizAbiertos = {};
+
+// Fichas del resumen de una tarjeta: [{label, valor, sub, tono, neg}].
+function resumenViz(t, items) {
+  t.resumen.replaceChildren();
+  items.forEach(it => {
+    const k = el("div", "kpi");
+    if (it.tono) k.style.setProperty("--tono", it.tono);
+    k.append(el("div", "k-label", it.label), el("div", "k-val" + (it.neg ? " neg" : ""), it.valor));
+    if (it.sub) k.append(el("div", "k-sub", it.sub));
+    t.resumen.append(k);
+  });
 }
 
 function leyendaViz(box, items) {
@@ -14054,6 +14110,7 @@ function vacioViz(t, texto) {
   t.plot.append(el("div", "viz-vacio", texto));
   t.leyenda.replaceChildren();
   t.btnTabla.hidden = true;
+  if (t.btnDetalle && !t.modos.childNodes.length) { t.btnDetalle.hidden = true; t.cuerpo.hidden = true; }
 }
 
 function datoViz(t, partes, alerta) {
@@ -14271,6 +14328,176 @@ function graficoSemanas(t, saldoHoy) {
   tablaViz(t.tabla, ["Semana", "Cobros", "Pagos", "Saldo al cierre"], semanas.map(s => [rango(s), fmtImp(s.entra), fmtImp(s.sale), fmtImp(s.saldo)]));
 }
 
+// ----- 1 bis. Semana corta: la caja de hoy contra lo que vence hasta el viernes -----
+// Cheques emitidos y de bolsa pendientes hasta terminar la semana (los vencidos sin
+// debitar cuentan hoy) y cheques de terceros depositados esta semana que vencen esta
+// semana y todavía no se acreditaron. Lo que cae en fin de semana pasa al lunes.
+const VZ_SEMANA_CORTA = [
+  { k: "acred", label: "Pendiente de acreditación", color: "var(--vz-3)" },
+  { k: "cheques", label: "Cheques emitidos", color: "var(--vz-1)" },
+  { k: "bolsa", label: "Cheques en bolsa", color: "var(--vz-2)" }
+];
+const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function diaDeSemana(iso) {
+  const p = iso.split("-");
+  return new Date(+p[0], +p[1] - 1, +p[2]).getDay();
+}
+
+function semanaCorta(saldoHoy) {
+  const hoy = hoyIso();
+  const dow = diaDeSemana(hoy);
+  // Hasta el viernes de esta semana; el sábado y el domingo miran la semana que viene.
+  const fin = sumarDiasIso(hoy, dow === 6 ? 6 : dow === 0 ? 5 : 5 - dow);
+  const lunes = sumarDiasIso(fin, -4);
+  const dias = [];
+  for (let d = hoy; d <= fin; d = sumarDiasIso(d, 1)) {
+    const w = diaDeSemana(d);
+    if (d === hoy || (w !== 0 && w !== 6)) dias.push({ iso: d, ev: [] });
+  }
+  // Día en que pega cada movimiento: hoy si ya venció; si cae en fin de semana, el día hábil siguiente.
+  const diaDe = iso => {
+    if (iso <= hoy) return dias[0];
+    return dias.find(d => d.iso >= iso) || null;
+  };
+  const vencido = (iso, fecha, que) => iso < hoy ? " (venció el " + fecha + ", " + que + ")" : "";
+  chequesDatos.forEach(c => {
+    if (monedaCheque(c) === "USD") return;
+    const fecha = c["Fecha de Pago"] || c["Fecha de Emisión"];
+    const iso = fechaAOrden(fecha);
+    if (!iso || iso > fin) return;
+    const imp = Math.abs(parseImporte(c["Importe"]));
+    if (!imp) return;
+    if (c["Tipo"] === "Emitido") {
+      if (!chequeAbierto(c)) return;
+      diaDe(iso).ev.push({ k: "cheques", iso: iso, importe: -imp, tipo: "Cheque emitido",
+        concepto: "Cheque N° " + c["N° de Cheque"] + (c["Titular"] ? " · " + c["Titular"] : "") + vencido(iso, fecha, "sin debitar") });
+      return;
+    }
+    // De terceros: depositado esta semana, vence esta semana y sin acreditar (sin conciliar).
+    if (normalizar(c["Estado"] || "").trim() !== "DEPOSITADO" || c["Conciliación"] || iso < lunes) return;
+    const dep = fechaAOrden(c["Fecha de Débito"]);
+    if (dep && (dep < lunes || dep > fin)) return;
+    diaDe(iso).ev.push({ k: "acred", iso: iso, importe: imp, tipo: "A acreditar",
+      concepto: "Cheque de terceros N° " + c["N° de Cheque"] + (c["Titular"] ? " · " + c["Titular"] : "") + (dep ? " · depositado el " + isoADma(dep).substring(0, 5) : "") + vencido(iso, fecha, "sin acreditar") });
+  });
+  bolsaDatos.forEach(b => {
+    if (!bolsaAbierta(b) || normalizar(b["Moneda"]).indexOf("US") === 0) return;
+    const iso = fechaAOrden(b["Fecha de pago"]);
+    const imp = parseImporte(b["Monto"]);
+    if (!iso || iso > fin || !(imp < 0)) return;
+    diaDe(iso).ev.push({ k: "bolsa", iso: iso, importe: imp, tipo: "Bolsa",
+      concepto: "Bolsa · cheque N° " + (b["Numero de cheque"] || b["ID"]) + (b["ALYC"] ? " · " + b["ALYC"] : "") + (b["Destino"] ? " · " + b["Destino"] : "") + vencido(iso, b["Fecha de pago"], "sin pagar") });
+  });
+  let saldo = saldoHoy;
+  const tot = { acred: 0, cheques: 0, bolsa: 0, nAcred: 0, nCheques: 0 };
+  dias.forEach(d => {
+    d.datos = {};
+    VZ_SEMANA_CORTA.forEach(x => { d.datos[x.k] = [0, 0]; });
+    d.ev.forEach(e => {
+      d.datos[e.k][e.importe >= 0 ? 0 : 1] += e.importe;
+      tot[e.k] += e.importe;
+      if (e.k === "acred") tot.nAcred++; else tot.nCheques++;
+    });
+    d.entra = d.datos.acred[0];
+    d.sale = d.datos.cheques[1] + d.datos.bolsa[1];
+    saldo += d.entra + d.sale;
+    d.saldo = saldo;
+  });
+  let peor = 0;
+  dias.forEach((d, i) => { if (d.saldo < dias[peor].saldo) peor = i; });
+  return { hoy: hoy, fin: fin, dias: dias, tot: tot, peor: peor, saldoHoy: saldoHoy };
+}
+
+function graficoSemanaCorta(t, saldoHoy) {
+  const minimo = $("flujoMinimo") && $("flujoMinimo").value.trim() ? parseImporte($("flujoMinimo").value) : 0;
+  const sc = semanaCorta(saldoHoy);
+  const dias = sc.dias, tot = sc.tot;
+  const etiqueta = iso => iso === sc.hoy ? "Hoy" : DIAS_CORTOS[diaDeSemana(iso)] + " " + isoADma(iso).substring(0, 2);
+  const largo = iso => (iso === sc.hoy ? "Hoy, " : "") + DIAS_CORTOS[diaDeSemana(iso)] + " " + isoADma(iso).substring(0, 5);
+  const finTxt = DIAS_CORTOS[diaDeSemana(sc.fin)].toLowerCase() + " " + isoADma(sc.fin).substring(0, 5);
+  const pagar = tot.cheques + tot.bolsa;
+  const cierre = dias[dias.length - 1].saldo;
+  const peor = dias[sc.peor];
+  const falta = peor.saldo < minimo;
+
+  // Resumen (lo único que se ve sin abrir el detalle)
+  resumenViz(t, [
+    { label: "Disponible hoy", valor: montoCorto(saldoHoy), sub: "Cuentas en pesos", tono: "var(--vz-saldo)", neg: saldoHoy < 0 },
+    { label: "Cheques a pagar", valor: montoCorto(-pagar), sub: tot.nCheques + " cheque(s) hasta el " + finTxt, tono: "var(--vz-1)" },
+    { label: "Pendiente de acreditación", valor: montoCorto(tot.acred), sub: tot.nAcred + " cheque(s) depositado(s) esta semana", tono: "var(--vz-3)" },
+    { label: "Queda al " + finTxt, valor: montoCorto(cierre), sub: cierre >= minimo ? "Alcanza" : "No alcanza", tono: cierre < minimo ? "var(--vz-crit)" : "var(--vz-3)", neg: cierre < 0 }
+  ]);
+  if (!tot.nCheques && !tot.nAcred) datoViz(t, ["No hay cheques pendientes ni por acreditar hasta el " + finTxt + ". Disponible hoy: ", el("b", null, fmtImp(saldoHoy)), "."], saldoHoy < minimo);
+  else if (falta) datoViz(t, [largo(peor.iso) + " la caja no alcanza: queda en ", el("b", null, fmtImp(peor.saldo)), minimo ? " contra un mínimo de " + fmtImp(minimo) + "." : ". Faltan " + fmtImp(-peor.saldo) + "."], true);
+  else datoViz(t, ["La caja de hoy cubre los cheques hasta el " + finTxt + ". Contando lo que se acredita, quedan ", el("b", null, fmtImp(cierre)), "."]);
+
+  // Detalle: esta semana o las próximas 12 semanas
+  t.modo = t.modo || "semana";
+  t.modos.replaceChildren();
+  const seg = el("div", "seg");
+  [["semana", "Esta semana"], ["semanas", "Próximas 12 semanas"]].forEach(m => {
+    const lab = el("label", "seg-op");
+    const r = el("input");
+    r.type = "radio";
+    r.name = "vizSemanaModo";
+    r.checked = t.modo === m[0];
+    r.addEventListener("change", () => { t.modo = m[0]; graficoSemanaCorta(t, saldoHoy); });
+    lab.append(r, document.createTextNode(m[1]));
+    seg.append(lab);
+  });
+  t.modos.append(seg);
+  t.plot.replaceChildren(t.tip);
+  t.extra.replaceChildren();
+  t.detalle.replaceChildren();
+  t.datoDet.replaceChildren();
+  t.btnTabla.hidden = false;
+  if (t.modo === "semanas") {
+    t.det12 = t.det12 || Object.assign({}, t, { dato: t.datoDet });
+    graficoSemanas(t.det12, saldoHoy);
+    return;
+  }
+
+  t.ayuda.textContent = "Disponible hoy " + montoCorto(saldoHoy) + " · cheques a pagar " + montoCorto(-pagar) + " · a acreditar " + montoCorto(tot.acred) + ". Tocá un día para ver qué vence.";
+  leyendaViz(t.leyenda, [{ label: "Disponible al cierre del día", color: "var(--vz-saldo)", linea: true }].concat(VZ_SEMANA_CORTA));
+  const verDia = i => {
+    const d = dias[i];
+    t.detalle.replaceChildren();
+    const hd = el("div", "viz-det-head");
+    hd.append(el("b", null, largo(d.iso)), el("span", null, d.ev.length + " cheque(s) · disponible al cierre " + fmtImp(d.saldo)));
+    t.detalle.append(hd);
+    if (!d.ev.length) { t.detalle.append(el("p", "hint", "Sin cheques para este día.")); return; }
+    d.ev.slice().sort((a, b) => a.importe - b.importe).slice(0, 8).forEach(e => t.detalle.append(filaDetalle(isoADma(e.iso).substring(0, 5), e.concepto, e.tipo, e.importe)));
+    if (d.ev.length > 8) t.detalle.append(el("p", "viz-mas", "… y " + (d.ev.length - 8) + " más. Están todos en Cheques y en FCI y Bolsa."));
+  };
+  let sel = sc.peor;
+  if (!dias[sel].ev.length) { const k = dias.findIndex(d => d.ev.length); if (k >= 0) sel = k; }
+  dibujarCombo(t, {
+    aria: "Disponible de caja contra cheques pendientes y por acreditar hasta el fin de semana",
+    cats: dias.map(d => ({ corto: etiqueta(d.iso), datos: d.datos, linea: { saldo: d.saldo } })),
+    lineas: [{ k: "saldo", color: "var(--vz-saldo)" }],
+    barras: VZ_SEMANA_CORTA,
+    tituloLinea: "Disponible al cierre de cada día",
+    tituloBarras: "Por acreditar (arriba) y cheques a pagar (abajo)",
+    umbral: minimo ? { valor: minimo, label: "Mínimo " + montoCorto(minimo) } : null,
+    marcarLinea: i => i === sc.peor,
+    etiquetaFinal: true,
+    altoLinea: 110,
+    altoBarras: 150,
+    seleccion: sel,
+    alClic: verDia,
+    tooltip: i => {
+      const d = dias[i];
+      const filas = [{ color: "var(--vz-saldo)", linea: true, valor: fmtImp(d.saldo), label: "Disponible al cierre" }];
+      VZ_SEMANA_CORTA.forEach(x => { const v = d.datos[x.k][0] + d.datos[x.k][1]; if (v) filas.push({ color: x.color, valor: fmtImp(v), label: x.label }); });
+      return { titulo: largo(d.iso), filas: filas, nota: d.ev.length ? d.ev.length + " cheque(s)" : "Sin cheques" };
+    }
+  });
+  verDia(sel);
+  tablaViz(t.tabla, ["Día", "A acreditar", "Cheques emitidos", "Bolsa", "Disponible al cierre"],
+    [["Disponible hoy", "", "", "", fmtImp(saldoHoy)]].concat(dias.map(d => [largo(d.iso), fmtImp(d.datos.acred[0]), fmtImp(d.datos.cheques[1]), fmtImp(d.datos.bolsa[1]), fmtImp(d.saldo)])));
+}
+
 // ----- 2. Deuda en bolsa por mes de pago -----
 function graficoBolsa(t) {
   const hoy = hoyIso();
@@ -14450,15 +14677,15 @@ function renderGraficosInicio(saldoHoy) {
   const box = $("inicioGraficos");
   if (!box) return;
   box.replaceChildren();
-  const t1 = tarjetaViz("¿Qué semana me quedo corto?", "Pagos y cobros previstos por semana y el saldo proyectado de las cuentas en pesos.", "semanas");
+  const t1 = tarjetaViz("Semana corta: ¿me alcanza la caja?", "Disponible de hoy contra los cheques pendientes hasta el viernes y los depositados por acreditar.", "semana");
   const t2 = tarjetaViz("¿Cuándo vence la deuda en bolsa?", "Cheques emitidos negociados en bolsa todavía sin pagar, por mes de pago y ALYC.", "bolsa");
   const t3 = tarjetaViz("¿Cuánto hay en fondos y cómo se mueve?", "Saldo de FCI por banco en los últimos 12 meses y lo que entró y salió cada mes.", "fci");
   const t4 = tarjetaViz("¿Cómo vengo mes a mes?", "Ingresos y egresos de los últimos 12 meses.", "ingresos");
   t1.card.classList.add("viz-ancho");
   t4.card.classList.add("viz-ancho");
   box.append(t1.card, t2.card, t3.card, t4.card);
-  const seguro = (t, fn) => { try { fn(); } catch (err) { vacioViz(t, "No se pudo armar el gráfico: " + msgErr(err)); } };
-  seguro(t1, () => graficoSemanas(t1, saldoHoy));
+  const seguro = (t, fn) => { try { fn(); } catch (err) { datoViz(t, ["No se pudo armar el gráfico: " + msgErr(err)], true); vacioViz(t, "No se pudo armar el gráfico."); } };
+  seguro(t1, () => graficoSemanaCorta(t1, saldoHoy));
   seguro(t2, () => graficoBolsa(t2));
   seguro(t3, () => graficoFci(t3));
   seguro(t4, () => graficoIngresosEgresos(t4));
