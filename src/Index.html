@@ -92,7 +92,7 @@
   .masthead { background: var(--header-bg); color: var(--header-text); }
   .masthead-in { max-width: 1280px; margin: 0 auto; padding: 0 20px; height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .marca { display: flex; align-items: center; gap: 11px; min-width: 0; }
-  .marca-sello { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; font-family: var(--font-serif); font-weight: 600; font-size: 16px; color: #fff; background: linear-gradient(135deg, var(--header-line), rgba(var(--accent-rgb), .55)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+  .marca-sello { width: 38px; height: 38px; flex-shrink: 0; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
   .marca-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
   .marca-txt b { font-family: var(--font-serif); font-weight: 600; font-size: 16.5px; white-space: nowrap; }
   .marca-txt span { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--header-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -941,8 +941,10 @@
   .bgp-funciones svg { flex: none; width: 26px; height: 26px; padding: 5px; border-radius: 8px; color: var(--bgp-oro); background: rgba(216, 179, 106, .10); border: 1px solid rgba(216, 179, 106, .25); }
 
   .acceso-form { display: flex; flex-direction: column; justify-content: center; padding: 38px 36px 26px; background: var(--surface); }
-  .acceso-marca { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
-  .acceso-marca::before { content: ""; width: 18px; height: 1px; background: var(--bgp-oro); }
+  .acceso-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .acceso-logo { width: 50px; height: 50px; flex: none; filter: drop-shadow(0 6px 10px rgba(11, 26, 51, .35)); }
+  .acceso-marca b { display: block; font-family: var(--bgp-display); font-weight: 400; font-size: 21px; line-height: 1.1; color: var(--text); }
+  .acceso-marca span { font-size: 10.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bgp-oro-osc); }
   .acceso h2 { font-family: var(--bgp-display); font-weight: 400; font-size: 28px; letter-spacing: .02em; }
   .acceso .sub { margin-top: 4px; }
   .acceso form > label { margin-top: 16px; }
@@ -1129,6 +1131,23 @@
 </script>
 </head>
 <body class="sin-sesion">
+<!-- Logo de Tesorería: dial de bóveda con la columna en forma de T (docs/logo-tesoreria.svg). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="lt-oro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dda4"/><stop offset=".5" stop-color="#d8b36a"/><stop offset="1" stop-color="#a5803c"/></linearGradient>
+    <radialGradient id="lt-fondo" cx=".35" cy=".28" r=".85"><stop offset="0" stop-color="#22457c"/><stop offset="1" stop-color="#071226"/></radialGradient></defs><symbol id="logoTesoreria" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="url(#lt-fondo)"/>
+  <circle cx="48" cy="48" r="43.2" fill="none" stroke="url(#lt-oro)" stroke-width="2.4"/>
+  <path d="M54.46 11.37L54.98 8.41M60.72 13.04L61.75 10.22M65.60 17.52L68.10 13.19M71.91 19.50L73.84 17.21M76.50 24.09L78.79 22.16M78.48 30.40L82.81 27.90M82.96 35.28L85.78 34.25M84.63 41.54L87.59 41.02M83.20 48.00L88.20 48.00M84.63 54.46L87.59 54.98M82.96 60.72L85.78 61.75M78.48 65.60L82.81 68.10M76.50 71.91L78.79 73.84M71.91 76.50L73.84 78.79M65.60 78.48L68.10 82.81M60.72 82.96L61.75 85.78M54.46 84.63L54.98 87.59M48.00 83.20L48.00 88.20M41.54 84.63L41.02 87.59M35.28 82.96L34.25 85.78M30.40 78.48L27.90 82.81M24.09 76.50L22.16 78.79M19.50 71.91L17.21 73.84M17.52 65.60L13.19 68.10M13.04 60.72L10.22 61.75M11.37 54.46L8.41 54.98M12.80 48.00L7.80 48.00M11.37 41.54L8.41 41.02M13.04 35.28L10.22 34.25M17.52 30.40L13.19 27.90M19.50 24.09L17.21 22.16M24.09 19.50L22.16 17.21M30.40 17.52L27.90 13.19M35.28 13.04L34.25 10.22M41.54 11.37L41.02 8.41" stroke="url(#lt-oro)" stroke-width="1.3" stroke-linecap="round" opacity=".85"/>
+  <path d="M48 12.6 L44.6 6.8 H51.4 Z" fill="#2fd38a"/>
+  <circle cx="48" cy="48" r="32.6" fill="none" stroke="#d8b36a" stroke-opacity=".28" stroke-width="1"/>
+  <g fill="url(#lt-oro)">
+    <rect x="24.5" y="24" width="47" height="3.2" rx="1.6"/>
+    <rect x="27.5" y="28.4" width="41" height="6.2" rx="1.4"/>
+    <path d="M34 35.4 H62 L59 39.4 H37 Z"/>
+    <rect x="40" y="40.4" width="16" height="23.2" rx="1"/>
+    <path d="M37.2 64.4 H58.8 L61 68.4 H35 Z"/>
+    <rect x="31.5" y="69.2" width="33" height="3.8" rx="1.2"/>
+  </g>
+  <path d="M45.3 42.4 V61.6 M50.7 42.4 V61.6" stroke="#0b1a33" stroke-opacity=".55" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M28.5 29.6 H67.5" stroke="#fff6de" stroke-opacity=".55" stroke-width=".8" stroke-linecap="round"/></symbol></svg>
 <div class="acceso" id="acceso">
   <div class="acceso-caja">
     <aside class="acceso-lado">
@@ -1163,7 +1182,7 @@
       </ul>
     </aside>
     <div class="acceso-form">
-    <div class="acceso-marca">Tesorería · <span id="accesoEmpresa">SAMMARTINO</span></div>
+    <div class="acceso-marca"><svg class="acceso-logo" aria-hidden="true"><use href="#logoTesoreria"/></svg><div><b>Tesorería</b><span id="accesoEmpresa">SAMMARTINO</span></div></div>
     <form id="formLogin" hidden>
       <h2>Ingresar</h2>
       <p class="sub">Usá tu usuario y contraseña de Tesorería.</p>
@@ -1190,7 +1209,7 @@
   <div class="masthead-in">
     <button class="btn-panel" id="btnPanel" type="button" aria-label="Ocultar el panel lateral" title="Ocultar el panel lateral (Ctrl+B)" aria-controls="nav" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path class="flecha" d="M15.5 10l-2 2 2 2"/></svg></button>
     <div class="marca">
-      <div class="marca-sello" aria-hidden="true">T</div>
+      <svg class="marca-sello" aria-hidden="true"><use href="#logoTesoreria"/></svg>
       <div class="marca-txt"><b>Tesorería</b><span><span id="marcaEmpresa">SAMMARTINO</span> · Lector de comprobantes</span></div>
     </div>
     <button class="buscador" id="btnBuscar" type="button" aria-label="Buscar (Ctrl+K)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><span class="buscador-txt">Buscar movimientos, cheques, cuentas…</span><kbd>Ctrl K</kbd></button>
@@ -1204,7 +1223,7 @@
 </header>
 <nav class="navbar" aria-label="Secciones">
   <div class="side-marca">
-    <div class="marca-sello" aria-hidden="true">T</div>
+    <svg class="marca-sello" aria-hidden="true"><use href="#logoTesoreria"/></svg>
     <div><b>Tesorería</b><span id="sideEmpresa">SAMMARTINO</span></div>
   </div>
   <div class="navbar-in" id="nav">

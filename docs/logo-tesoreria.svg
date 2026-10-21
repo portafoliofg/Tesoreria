@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Tesorería B.G.P Sammar">
+  <defs>
+    <linearGradient id="lt-oro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dda4"/><stop offset=".5" stop-color="#d8b36a"/><stop offset="1" stop-color="#a5803c"/></linearGradient>
+    <radialGradient id="lt-fondo" cx=".35" cy=".28" r=".85"><stop offset="0" stop-color="#22457c"/><stop offset="1" stop-color="#071226"/></radialGradient>
+  </defs>
+  <circle cx="48" cy="48" r="46" fill="url(#lt-fondo)"/>
+  <circle cx="48" cy="48" r="43.2" fill="none" stroke="url(#lt-oro)" stroke-width="2.4"/>
+  <path d="M54.46 11.37L54.98 8.41M60.72 13.04L61.75 10.22M65.60 17.52L68.10 13.19M71.91 19.50L73.84 17.21M76.50 24.09L78.79 22.16M78.48 30.40L82.81 27.90M82.96 35.28L85.78 34.25M84.63 41.54L87.59 41.02M83.20 48.00L88.20 48.00M84.63 54.46L87.59 54.98M82.96 60.72L85.78 61.75M78.48 65.60L82.81 68.10M76.50 71.91L78.79 73.84M71.91 76.50L73.84 78.79M65.60 78.48L68.10 82.81M60.72 82.96L61.75 85.78M54.46 84.63L54.98 87.59M48.00 83.20L48.00 88.20M41.54 84.63L41.02 87.59M35.28 82.96L34.25 85.78M30.40 78.48L27.90 82.81M24.09 76.50L22.16 78.79M19.50 71.91L17.21 73.84M17.52 65.60L13.19 68.10M13.04 60.72L10.22 61.75M11.37 54.46L8.41 54.98M12.80 48.00L7.80 48.00M11.37 41.54L8.41 41.02M13.04 35.28L10.22 34.25M17.52 30.40L13.19 27.90M19.50 24.09L17.21 22.16M24.09 19.50L22.16 17.21M30.40 17.52L27.90 13.19M35.28 13.04L34.25 10.22M41.54 11.37L41.02 8.41" stroke="url(#lt-oro)" stroke-width="1.3" stroke-linecap="round" opacity=".85"/>
+  <path d="M48 12.6 L44.6 6.8 H51.4 Z" fill="#2fd38a"/>
+  <circle cx="48" cy="48" r="32.6" fill="none" stroke="#d8b36a" stroke-opacity=".28" stroke-width="1"/>
+  <g fill="url(#lt-oro)">
+    <rect x="24.5" y="24" width="47" height="3.2" rx="1.6"/>
+    <rect x="27.5" y="28.4" width="41" height="6.2" rx="1.4"/>
+    <path d="M34 35.4 H62 L59 39.4 H37 Z"/>
+    <rect x="40" y="40.4" width="16" height="23.2" rx="1"/>
+    <path d="M37.2 64.4 H58.8 L61 68.4 H35 Z"/>
+    <rect x="31.5" y="69.2" width="33" height="3.8" rx="1.2"/>
+  </g>
+  <path d="M45.3 42.4 V61.6 M50.7 42.4 V61.6" stroke="#0b1a33" stroke-opacity=".55" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M28.5 29.6 H67.5" stroke="#fff6de" stroke-opacity=".55" stroke-width=".8" stroke-linecap="round"/>
+</svg>
