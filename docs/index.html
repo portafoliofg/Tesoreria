@@ -4,19 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060d1c">
-  <title>Tesorería · B.G.P Sammar</title>
+  <title>B.G.P Sammar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600&family=Marcellus&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&family=Marcellus&display=swap">
   <link rel="stylesheet" href="loader.css">
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #060d1c; }
+    :root {
+      --noche: #060d1c;
+      --plata: #d3dbe6;
+      --plata-clara: #eef2f7;
+      --tenue: #9aa6b8;
+      --verde: #2fd38a;
+      --oro: #d8b36a;
+      --display: "Marcellus", Georgia, serif;
+      --texto: "Manrope", "Segoe UI", system-ui, sans-serif;
+      --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      color-scheme: dark;
+    }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--noche); }
     #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
     #capa { position: fixed; inset: 0; z-index: 10; transition: opacity 0.7s ease, visibility 0.7s ease; }
     #capa.fuera { opacity: 0; visibility: hidden; }
 
-    /* Pantalla de carga con video */
-    .vc { position: absolute; inset: 0; overflow: hidden; background: #060d1c; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; color: #d3dbe6; }
+    /* ---------- Video de carga ---------- */
+    .vc { position: absolute; inset: 0; overflow: hidden; background: var(--noche); font-family: var(--texto); color: var(--plata); }
     .vc::before { content: ""; position: absolute; inset: -40px; background: url("carga.jpg") center / cover; filter: blur(28px) brightness(0.45); }
     .vc video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     @media (max-aspect-ratio: 1/1) { .vc video { object-fit: contain; } }
@@ -27,29 +39,93 @@
       padding-left: max(20px, env(safe-area-inset-left, 0px));
       padding-right: max(20px, env(safe-area-inset-right, 0px));
       background: linear-gradient(180deg, transparent, rgba(6, 13, 28, 0.88) 70%);
+      transition: opacity 0.5s ease;
     }
     .vc-fila { display: flex; align-items: baseline; gap: 8px 18px; flex-wrap: wrap; font-size: 13px; }
-    .vc-marca { font-family: "Marcellus", Georgia, serif; font-size: 17px; letter-spacing: 0.18em; color: #eef2f7; white-space: nowrap; }
-    .vc-marca i { font-style: normal; color: #d8b36a; }
-    .vc-marca b { font-family: "Manrope", system-ui, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #d8b36a; margin-left: 6px; }
+    .vc-marca { font-family: var(--display); font-size: 17px; letter-spacing: 0.18em; color: var(--plata-clara); white-space: nowrap; }
+    .vc-marca i, .sel-marca i { font-style: normal; color: var(--oro); }
+    .vc-marca b { font-family: var(--texto); font-weight: 600; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--oro); margin-left: 6px; }
     .vc-estado { flex: 1; min-width: 0; color: #c3cdda; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .vc-pct { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; color: #2fd38a; }
+    .vc-pct { font-family: var(--datos); font-variant-numeric: tabular-nums; color: var(--verde); }
     .vc-pista { height: 5px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
-    .vc-relleno { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1d8f63, #2fd38a 60%, #d8b36a); box-shadow: 0 0 12px rgba(47, 211, 138, 0.55); }
+    .vc-relleno { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1d8f63, var(--verde) 60%, var(--oro)); box-shadow: 0 0 12px rgba(47, 211, 138, 0.55); }
     .vc-saltar {
       position: absolute;
       top: max(16px, env(safe-area-inset-top, 0px));
       right: max(16px, env(safe-area-inset-right, 0px));
-      font: 600 13px/1 "Manrope", system-ui, sans-serif; color: #eef2f7; cursor: pointer;
+      font: 600 13px/1 var(--texto); color: var(--plata-clara); cursor: pointer;
       padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.22);
       background: rgba(6, 13, 28, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      transition: opacity 0.5s ease;
     }
+    .vc-saltar:hover { background: rgba(6, 13, 28, 0.7); }
     @media (max-width: 560px) {
       .vc-estado { order: 3; flex-basis: 100%; }
       .vc-pct { margin-left: auto; }
     }
-    .vc-saltar:hover { background: rgba(6, 13, 28, 0.7); }
-    .vc-saltar:focus-visible { outline: 2px solid #d8b36a; outline-offset: 2px; }
+    #capa.eligiendo .vc-pie, #capa.eligiendo .vc-saltar { opacity: 0; pointer-events: none; }
+
+    /* ---------- Selector sobre el último cuadro ---------- */
+    .sel {
+      position: absolute; inset: 0; z-index: 5;
+      display: grid; place-items: center; overflow-y: auto;
+      padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+      font-family: var(--texto); color: var(--plata);
+      background: radial-gradient(70% 60% at 50% 50%, rgba(6, 13, 28, 0.25), rgba(6, 13, 28, 0.7));
+      -webkit-backdrop-filter: blur(0px) brightness(1); backdrop-filter: blur(0px) brightness(1);
+      opacity: 0;
+      transition: opacity 0.7s ease, backdrop-filter 1.2s ease, -webkit-backdrop-filter 1.2s ease;
+    }
+    .sel[hidden] { display: none; }
+    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg") center / cover; }
+    .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(9px) brightness(0.75); backdrop-filter: blur(9px) brightness(0.75); }
+    .sel-caja { width: min(780px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
+    .sel-marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5.6vw, 52px); letter-spacing: 0.2em; padding-left: 0.2em; line-height: 1; color: var(--plata-clara); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); white-space: nowrap; }
+    .sel-sub { margin: 10px 0 0; font-size: clamp(10px, 1.5vw, 12.5px); letter-spacing: 0.3em; text-transform: uppercase; color: var(--tenue); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
+    .sel-pregunta { margin: 0; font-size: 15px; color: var(--plata); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
+    .sel-opciones { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(14px, 2.4vw, 24px); }
+    @media (max-width: 600px) { .sel-opciones { grid-template-columns: minmax(0, 1fr); } .sel-marca { letter-spacing: 0.12em; padding-left: 0.12em; } }
+
+    .cartel {
+      position: relative; display: grid; gap: 10px; align-content: start; text-align: left;
+      padding: clamp(20px, 3vw, 28px); border-radius: 20px; cursor: pointer;
+      font: inherit; color: inherit;
+      background: linear-gradient(150deg, rgba(30, 48, 82, 0.72), rgba(8, 16, 32, 0.78));
+      border: 1px solid rgba(214, 226, 242, 0.18);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 44px -20px rgba(0, 0, 0, 0.85);
+      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      opacity: 0; transform: translateY(18px) scale(0.98);
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+    .sel.visible .cartel { animation: cartel-entra 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; }
+    .sel.visible .cartel:nth-child(2) { animation-delay: 0.12s; }
+    @keyframes cartel-entra { to { opacity: 1; transform: none; } }
+    .cartel:hover:not([aria-disabled="true"]), .cartel:focus-visible:not([aria-disabled="true"]) {
+      border-color: rgba(216, 179, 106, 0.75);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(216, 179, 106, 0.35), 0 28px 50px -20px rgba(0, 0, 0, 0.9);
+      transform: translateY(-3px);
+    }
+    .cartel:focus-visible { outline: 2px solid var(--oro); outline-offset: 3px; }
+    .cartel-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cartel-icono { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)); border: 1px solid rgba(255, 255, 255, 0.14); }
+    .cartel-icono svg { width: 28px; height: 28px; }
+    .cartel h2 { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(24px, 3vw, 30px); letter-spacing: 0.08em; color: var(--plata-clara); }
+    .cartel p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--tenue); }
+    .cartel-ir { margin-top: 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--oro); }
+    .cartel-ir::after { content: " →"; }
+    .cartel[aria-disabled="true"] { cursor: default; }
+    .cartel[aria-disabled="true"] h2, .cartel[aria-disabled="true"] .cartel-icono { opacity: 0.6; }
+    .pronto { font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--oro); padding: 6px 10px; border-radius: 99px; border: 1px solid rgba(216, 179, 106, 0.45); background: rgba(216, 179, 106, 0.08); }
+    .pronto.avisa { animation: pronto-avisa 0.6s ease; }
+    @keyframes pronto-avisa { 30% { transform: scale(1.08); background: rgba(216, 179, 106, 0.25); } }
+    .cartel.abriendo .cartel-ir::after { content: ""; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sel, .cartel { transition: none; }
+      .sel.visible .cartel { animation: none; opacity: 1; transform: none; }
+    }
   </style>
 </head>
 <body>
@@ -59,7 +135,7 @@
           allow="clipboard-read; clipboard-write; camera"
           allowfullscreen></iframe>
   <div id="capa">
-    <div class="vc" id="vc" role="progressbar" aria-label="Cargando Tesorería B.G.P Sammar" aria-valuemin="0" aria-valuemax="100">
+    <div class="vc" id="vc" role="progressbar" aria-label="Cargando B.G.P Sammar" aria-valuemin="0" aria-valuemax="100">
       <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg">
         <source src="carga.webm" type="video/webm">
         <source src="carga.mp4" type="video/mp4">
@@ -74,12 +150,53 @@
         <div class="vc-pista"><div class="vc-relleno" id="vcRelleno"></div></div>
       </div>
     </div>
+
+    <section class="sel" id="sel" hidden aria-labelledby="selTitulo">
+      <div class="sel-caja">
+        <header>
+          <h1 class="sel-marca" id="selTitulo">B<i>.</i>G<i>.</i>P SAMMAR</h1>
+          <p class="sel-sub">Bolsas · Granos · Propiedades</p>
+        </header>
+        <p class="sel-pregunta">¿A dónde querés entrar?</p>
+        <div class="sel-opciones">
+          <button type="button" class="cartel" id="irInversiones" aria-disabled="true" aria-describedby="invPronto">
+            <span class="cartel-cabeza">
+              <span class="cartel-icono" aria-hidden="true">
+                <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 23 L10 15 L15 19 L25 7" stroke="#2fd38a" stroke-width="2.2"/>
+                  <path d="M19 7 H25 V13" stroke="#2fd38a" stroke-width="2.2"/>
+                  <path d="M3 26 H25" stroke="#d3dbe6" stroke-opacity=".5" stroke-width="1.6"/>
+                </svg>
+              </span>
+              <span class="pronto" id="invPronto">Próximamente</span>
+            </span>
+            <h2>Inversiones</h2>
+            <p>FCI, cheques en bolsa y rendimientos de cartera.</p>
+          </button>
+          <button type="button" class="cartel" id="irTesoreria">
+            <span class="cartel-cabeza">
+              <span class="cartel-icono" aria-hidden="true">
+                <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 10 L14 4 L25 10 Z" stroke="#d8b36a" stroke-width="1.8"/>
+                  <path d="M6 13 V21 M11 13 V21 M17 13 V21 M22 13 V21" stroke="#d3dbe6" stroke-width="2"/>
+                  <path d="M3 24.5 H25" stroke="#d8b36a" stroke-width="1.8"/>
+                </svg>
+              </span>
+            </span>
+            <h2>Tesorería</h2>
+            <p>Cuentas, cheques, conciliaciones y flujo de fondos.</p>
+            <span class="cartel-ir" id="tesIr">Entrar</span>
+          </button>
+        </div>
+      </div>
+    </section>
   </div>
   <script src="loader.js"></script>
   <script>
-    // Pantalla de carga: el video de 7 s. Se va cuando el video terminó (o se tocó
-    // Saltar) y la app ya cargó; como máximo a los 20 s. Si el video no puede
-    // reproducirse, o el sistema pide menos movimiento, se usa la animación de loader.js.
+    // Pantalla de inicio: el video de 7 s y, al terminar, el selector sobre su último
+    // cuadro. Tesorería abre la app (que ya se viene cargando detrás); Inversiones
+    // todavía no está disponible. Si el video no puede reproducirse, o el sistema
+    // pide menos movimiento, se usa la animación de loader.js antes del selector.
     (function () {
       var ESTADOS = [
         [0, "Conectando con la planilla de tesorería"],
@@ -95,7 +212,9 @@
       var estado = document.getElementById("vcEstado");
       var pct = document.getElementById("vcPct");
       var relleno = document.getElementById("vcRelleno");
-      var animacionLista = false, appLista = false, cerrada = false, arranco = false, carga = null, raf = 0;
+      var sel = document.getElementById("sel");
+      var btnTes = document.getElementById("irTesoreria");
+      var appLista = false, eligio = false, cerrada = false, arranco = false, selector = false, carga = null, raf = 0;
 
       function cerrar() {
         if (cerrada) return;
@@ -104,25 +223,45 @@
         capa.classList.add("fuera");
         setTimeout(function () { if (carga) carga.destroy(); video.pause(); capa.remove(); }, 800);
       }
-      function revisar() { if (animacionLista && appLista) cerrar(); }
-      function terminoAnimacion() {
-        animacionLista = true;
-        if (!appLista) {
-          if (carga) carga.estado("Abriendo la aplicación…");
-          else estado.textContent = "Abriendo la aplicación…";
-        }
-        revisar();
+
+      function mostrarSelector() {
+        if (selector) return;
+        selector = true;
+        cancelAnimationFrame(raf);
+        if (!vc.isConnected) sel.classList.add("con-fondo");
+        capa.classList.add("eligiendo");
+        sel.hidden = false;
+        void sel.offsetWidth;
+        sel.classList.add("visible");
+        setTimeout(function () { try { btnTes.focus({ preventScroll: true }); } catch (e) {} }, 400);
       }
 
+      btnTes.addEventListener("click", function () {
+        if (eligio) return;
+        eligio = true;
+        if (appLista) { cerrar(); return; }
+        btnTes.classList.add("abriendo");
+        document.getElementById("tesIr").textContent = "Abriendo…";
+        setTimeout(cerrar, 15000);
+      });
+      document.getElementById("irInversiones").addEventListener("click", function () {
+        var p = document.getElementById("invPronto");
+        p.classList.remove("avisa");
+        void p.offsetWidth;
+        p.classList.add("avisa");
+      });
+
+      app.addEventListener("load", function () { appLista = true; if (eligio) cerrar(); });
+
       function usarAnimacion() {
-        if (carga || cerrada) return;
+        if (carga || cerrada || selector) return;
         cancelAnimationFrame(raf);
         video.pause();
         vc.remove();
         try {
-          carga = BGPLoader.create(capa, { duracion: 7000, alTerminar: terminoAnimacion });
+          carga = BGPLoader.create(capa, { duracion: 7000, alTerminar: mostrarSelector });
         } catch (e) {
-          capa.remove();
+          mostrarSelector();
         }
       }
 
@@ -132,16 +271,11 @@
         var n = Math.floor(p * 100);
         pct.textContent = n + " %";
         vc.setAttribute("aria-valuenow", String(n));
-        if (!animacionLista) {
-          var texto = ESTADOS[0][1];
-          for (var k = 0; k < ESTADOS.length; k++) if (p >= ESTADOS[k][0]) texto = ESTADOS[k][1];
-          if (estado.textContent !== texto) estado.textContent = texto;
-        }
+        var texto = ESTADOS[0][1];
+        for (var k = 0; k < ESTADOS.length; k++) if (p >= ESTADOS[k][0]) texto = ESTADOS[k][1];
+        if (estado.textContent !== texto) estado.textContent = texto;
         raf = requestAnimationFrame(cuadro);
       }
-
-      app.addEventListener("load", function () { appLista = true; revisar(); });
-      setTimeout(function () { appLista = true; animacionLista = true; revisar(); }, 20000);
 
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         usarAnimacion();
@@ -156,16 +290,14 @@
       video.addEventListener("playing", alArrancar);
       // El video puede haber arrancado antes de que corra este código.
       if (!video.paused && video.currentTime > 0) alArrancar();
-      video.addEventListener("ended", function () {
-        relleno.style.width = "100%";
-        pct.textContent = "100 %";
-        terminoAnimacion();
-      });
+      // Al terminar, el video queda quieto en su último cuadro, detrás del selector.
+      video.addEventListener("ended", mostrarSelector);
       video.addEventListener("error", usarAnimacion);
       video.querySelector('source[type="video/mp4"]').addEventListener("error", usarAnimacion);
       document.getElementById("vcSaltar").addEventListener("click", function () {
         video.pause();
-        terminoAnimacion();
+        if (video.duration) video.currentTime = Math.max(0, video.duration - 0.05);
+        mostrarSelector();
       });
 
       var intento = video.play();
