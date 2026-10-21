@@ -2,18 +2,60 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tesorería</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060d1c">
+  <title>Tesorería · B.G.P Sammar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600&family=Marcellus&display=swap">
+  <link rel="stylesheet" href="loader.css">
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b1f3a; }
-    iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #060d1c; }
+    #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
+    #capa { position: fixed; inset: 0; z-index: 10; transition: opacity 0.7s ease, visibility 0.7s ease; }
+    #capa.fuera { opacity: 0; visibility: hidden; }
   </style>
 </head>
 <body>
-  <!-- Reemplazá TU_ID por el ID de la implementación (URL que termina en /exec). -->
-  <iframe src="https://script.google.com/macros/s/TU_ID/exec"
-          title="Tesorería"
+  <iframe id="app"
+          src="https://script.google.com/macros/s/AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ/exec"
+          title="Tesorería B.G.P Sammar"
           allow="clipboard-read; clipboard-write; camera"
           allowfullscreen></iframe>
+  <div id="capa"></div>
+  <script src="loader.js"></script>
+  <script>
+    // La pantalla de carga dura 7 s y se va cuando además la app terminó de cargar
+    // (como máximo 20 s, por si el evento de carga no llega).
+    (function () {
+      var capa = document.getElementById("capa");
+      var app = document.getElementById("app");
+      var animacionLista = false, appLista = false, cerrada = false, carga = null;
+
+      function cerrar() {
+        if (cerrada) return;
+        cerrada = true;
+        capa.classList.add("fuera");
+        setTimeout(function () { if (carga) carga.destroy(); capa.remove(); }, 800);
+      }
+      function revisar() { if (animacionLista && appLista) cerrar(); }
+
+      app.addEventListener("load", function () { appLista = true; revisar(); });
+      setTimeout(function () { appLista = true; animacionLista = true; revisar(); }, 20000);
+
+      try {
+        carga = BGPLoader.create(capa, {
+          duracion: 7000,
+          alTerminar: function () {
+            animacionLista = true;
+            if (!appLista) carga.estado("Abriendo la aplicación…");
+            revisar();
+          }
+        });
+      } catch (e) {
+        capa.remove();
+      }
+    })();
+  </script>
 </body>
 </html>

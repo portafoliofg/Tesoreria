@@ -1,0 +1,258 @@
+/* Pantalla de carga · B.G.P Sammar Tesorería
+   Concepto: un panel de cristal sobre la grilla de un terminal financiero;
+   la pickup recorre la curva de fondos mientras la barra marca el avance. */
+.bgp-loader {
+  --bgp-noche: #060d1c;
+  --bgp-noche-2: #0c1b35;
+  --bgp-plata: #d3dbe6;
+  --bgp-plata-tenue: #8a97ac;
+  --bgp-verde: #2fd38a;
+  --bgp-oro: #d8b36a;
+  --bgp-rojo: #e2556b;
+  --bgp-linea: rgba(160, 185, 220, 0.075);
+  --bgp-display: "Marcellus", "Cormorant Garamond", Georgia, serif;
+  --bgp-texto: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --bgp-datos: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  background: var(--bgp-noche);
+  color: var(--bgp-plata);
+  font-family: var(--bgp-texto);
+  color-scheme: dark;
+}
+.bgp-loader *, .bgp-loader *::before, .bgp-loader *::after { box-sizing: border-box; }
+
+/* Fondo: resplandores + grilla financiera + destellos plata */
+.bgp-fondo {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 50% at 50% 40%, rgba(46, 92, 178, 0.34), transparent 70%),
+    radial-gradient(40% 35% at 88% 92%, rgba(216, 179, 106, 0.10), transparent 70%),
+    radial-gradient(35% 30% at 8% 88%, rgba(47, 211, 138, 0.08), transparent 70%),
+    linear-gradient(180deg, var(--bgp-noche-2), var(--bgp-noche));
+}
+.bgp-fondo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--bgp-linea) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bgp-linea) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(75% 70% at 50% 45%, #000 35%, transparent 100%);
+  animation: bgp-grilla 16s linear infinite;
+}
+.bgp-fondo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1.5px 1.5px at 18% 22%, rgba(230, 238, 248, 0.9), transparent),
+    radial-gradient(1.5px 1.5px at 76% 16%, rgba(230, 238, 248, 0.8), transparent),
+    radial-gradient(1px 1px at 64% 78%, rgba(230, 238, 248, 0.7), transparent),
+    radial-gradient(1px 1px at 30% 70%, rgba(216, 179, 106, 0.8), transparent),
+    radial-gradient(1.5px 1.5px at 90% 50%, rgba(230, 238, 248, 0.7), transparent);
+  animation: bgp-titila 3.6s ease-in-out infinite alternate;
+}
+@keyframes bgp-grilla { to { background-position: -44px 0, -44px 0; } }
+@keyframes bgp-titila { from { opacity: 0.35; } to { opacity: 1; } }
+
+.bgp-contenido {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 3.2vh, 30px);
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Marca */
+.bgp-marca { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.bgp-regla { width: 72px; height: 1px; background: linear-gradient(90deg, transparent, var(--bgp-oro), transparent); }
+.bgp-nombre {
+  margin: 0;
+  font-family: var(--bgp-display);
+  font-weight: 400;
+  font-size: clamp(24px, 6.4vw, 60px);
+  line-height: 1;
+  letter-spacing: 0.2em;
+  padding-left: 0.2em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #f6f9fc 0%, #c7d0dc 48%, #8592a6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 2px 14px rgba(120, 160, 230, 0.28));
+}
+.bgp-nombre i { font-style: normal; -webkit-text-fill-color: var(--bgp-oro); color: var(--bgp-oro); }
+.bgp-sub {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: clamp(10px, 1.5vw, 12.5px);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--bgp-plata-tenue);
+}
+.bgp-sub b { color: var(--bgp-oro); font-weight: 600; }
+.bgp-sep { width: 1px; height: 1.1em; background: currentColor; opacity: 0.5; }
+
+/* Panel de cristal */
+.bgp-panel {
+  width: min(900px, 100%);
+  min-height: 0;
+  display: grid;
+  gap: clamp(10px, 2vh, 18px);
+  padding: clamp(16px, 3vw, 28px);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(22, 40, 74, 0.55), rgba(8, 16, 32, 0.45));
+  border: 1px solid rgba(214, 226, 242, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/* Pilares en relieve */
+.bgp-pilares { display: flex; justify-content: center; gap: clamp(18px, 5vw, 48px); perspective: 700px; }
+.bgp-pilar {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(26px) rotateX(55deg) scale(0.7);
+  transform-origin: 50% 100%;
+}
+.bgp-pilar span {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bgp-plata-tenue);
+  padding-left: 0.24em;
+}
+.bgp-vidrio {
+  position: relative;
+  width: clamp(60px, 11vw, 84px);
+  aspect-ratio: 1;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -12px 20px rgba(0, 0, 0, 0.28),
+    0 18px 28px -12px rgba(0, 0, 0, 0.75);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.bgp-vidrio::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.24), transparent 42%);
+  pointer-events: none;
+}
+.bgp-vidrio svg { width: 58%; height: 58%; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5)); }
+.bgp-sombra {
+  width: 62%;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+}
+.bgp-loader.corriendo .bgp-pilar.visible { animation: bgp-pop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+.bgp-pilar.visible .bgp-vidrio { animation: bgp-flota 3.2s ease-in-out 0.9s infinite; }
+.bgp-pilar.visible .bgp-sombra { animation: bgp-sombra 3.2s ease-in-out 0.9s infinite; }
+.bgp-pilar:nth-child(2).visible .bgp-vidrio, .bgp-pilar:nth-child(2).visible .bgp-sombra { animation-delay: 1.3s; }
+.bgp-pilar:nth-child(3).visible .bgp-vidrio, .bgp-pilar:nth-child(3).visible .bgp-sombra { animation-delay: 1.7s; }
+@keyframes bgp-pop {
+  0% { opacity: 0; transform: translateY(26px) rotateX(55deg) scale(0.7); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes bgp-flota { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes bgp-sombra { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.78); opacity: 0.55; } }
+
+/* Escena */
+.bgp-escena { display: block; width: 100%; height: auto; max-height: 36vh; overflow: visible; }
+.bgp-g-linea { stroke: rgba(170, 190, 220, 0.09); stroke-width: 1; }
+.bgp-g-v { stroke-dasharray: 2 6; }
+.bgp-g-texto { fill: var(--bgp-plata-tenue); font-family: var(--bgp-datos); font-size: 10px; }
+.bgp-g-titulo { letter-spacing: 0.18em; font-size: 9.5px; }
+.bgp-ruta { fill: none; stroke: rgba(201, 211, 224, 0.24); stroke-width: 2; stroke-dasharray: 2 7; stroke-linecap: round; }
+.bgp-traza, .bgp-traza-glow { fill: none; stroke: url(#bgp-traza-g); stroke-linecap: round; stroke-dasharray: 1000 1000; stroke-dashoffset: 1000; }
+.bgp-traza { stroke-width: 3; }
+.bgp-traza-glow { stroke-width: 9; opacity: 0.4; }
+
+/* Progreso */
+.bgp-progreso { display: grid; gap: 10px; }
+.bgp-progreso-fila { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
+.bgp-estado { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bgp-plata); }
+.bgp-datos { display: flex; gap: 14px; flex: none; font-family: var(--bgp-datos); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.bgp-seg { color: var(--bgp-plata-tenue); }
+.bgp-pct { color: var(--bgp-verde); min-width: 4.5ch; text-align: right; }
+.bgp-loader.completo .bgp-pct { color: var(--bgp-oro); }
+.bgp-pista {
+  position: relative;
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.bgp-relleno {
+  position: relative;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(90deg, #1d8f63, var(--bgp-verde) 60%, var(--bgp-oro));
+  box-shadow: 0 0 12px rgba(47, 211, 138, 0.55);
+}
+.bgp-relleno::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40px;
+  width: 40px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: bgp-reflejo 1.4s linear infinite;
+}
+@keyframes bgp-reflejo { to { left: 100%; } }
+
+/* Entrada */
+.bgp-loader.corriendo .bgp-nombre { animation: bgp-nombre 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.bgp-loader.corriendo .bgp-sub, .bgp-loader.corriendo .bgp-regla { animation: bgp-sube 1s ease 0.35s both; }
+.bgp-loader.corriendo .bgp-panel { animation: bgp-sube 0.9s ease 0.15s both; }
+@keyframes bgp-nombre {
+  from { opacity: 0; letter-spacing: 0.5em; }
+  to { opacity: 1; letter-spacing: 0.2em; }
+}
+@keyframes bgp-sube { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 520px) {
+  .bgp-nombre { letter-spacing: 0.12em; padding-left: 0.12em; }
+  .bgp-loader.corriendo .bgp-nombre { animation-name: bgp-sube; }
+  .bgp-g-titulo { display: none; }
+  .bgp-sep { display: none; }
+  .bgp-sub { flex-direction: column; gap: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bgp-loader *, .bgp-loader *::before, .bgp-loader *::after { animation: none !important; }
+  .bgp-pilar { opacity: 1; transform: none; }
+}

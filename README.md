@@ -10,7 +10,9 @@ src/
   Index.html       Interfaz (HTML, CSS y JS)
   appsscript.json  Manifiesto del proyecto
 docs/
-  index.html       Página para GitHub Pages que muestra la app con el dominio propio
+  index.html       Página de bgpsammar.com: pantalla de carga + la app en un iframe
+  loader.js/.css   Pantalla de carga de 7 s (B.G.P Sammar)
+  CNAME            Dominio propio para GitHub Pages
 .clasp.json.example
 ```
 
@@ -30,20 +32,33 @@ En el editor de Apps Script, entrá a **Implementar → Gestionar implementacion
 
 Con clasp: `clasp deploy -i <ID_DE_IMPLEMENTACION>`.
 
-## Dominio propio
+## Dominio propio (bgpsammar.com)
 
-Apps Script no permite usar un dominio propio directamente. La app se muestra dentro de una página de GitHub Pages que la carga en un `iframe`:
+Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.com` sirve `docs/index.html` desde GitHub Pages, y esa página carga la app en un `iframe`. Mientras carga, se ve una animación de 7 segundos. Se oculta cuando terminaron los 7 segundos y la app ya cargó, o a los 20 segundos como máximo.
 
-1. Abrí `docs/index.html` y reemplazá `https://script.google.com/macros/s/TU_ID/exec` por la URL `/exec` de la implementación.
-2. `doGet()` ya usa `setXFrameOptionsMode(ALLOWALL)`, que es lo que permite mostrar la app dentro del iframe. Publicá una versión nueva para que el cambio tome efecto.
+1. `doGet()` ya usa `setXFrameOptionsMode(ALLOWALL)`, que permite mostrar la app dentro del iframe. Para que tome efecto, publicá una **versión nueva** de la implementación existente, así la URL `/exec` no cambia.
+2. Si la URL `/exec` cambia algún día, actualizala en `docs/index.html`.
 3. En GitHub, andá a **Settings → Pages** y elegí:
    - Source: *Deploy from a branch*
    - Branch: `main`
    - Carpeta: `/docs`
-4. En el mismo lugar, en **Custom domain**, escribí tu dominio (por ejemplo `tesoreria.tuempresa.com`) y activá **Enforce HTTPS**.
-5. En el proveedor del dominio, configurá el DNS:
-   - **Subdominio** (`tesoreria.tuempresa.com`): un registro `CNAME` que apunte a `portafoliofg.github.io`.
-   - **Dominio raíz** (`tuempresa.com`): registros `A` a `185.199.108.153`, `185.199.109.153`, `185.199.110.153` y `185.199.111.153`.
+
+   El archivo `docs/CNAME` ya tiene `bgpsammar.com`. Cuando el DNS funcione, activá **Enforce HTTPS**.
+4. En el proveedor del dominio, cargá estos registros DNS:
+
+   | Tipo  | Nombre | Valor                   |
+   |-------|--------|-------------------------|
+   | A     | @      | 185.199.108.153         |
+   | A     | @      | 185.199.109.153         |
+   | A     | @      | 185.199.110.153         |
+   | A     | @      | 185.199.111.153         |
+   | CNAME | www    | portafoliofg.github.io  |
+
+   Borrá cualquier otro registro `A` o `CNAME` de `@` y `www` que apunte a otro lado. El DNS puede tardar de minutos a 24 horas en propagarse.
+
+### Pantalla de carga
+
+`docs/loader.js` expone `BGPLoader.create(contenedor, { duracion, alTerminar })`, que devuelve `reiniciar()`, `estado(texto)` y `destroy()`. Usa JS y SVG sin librerías, así carga al instante y no necesita compilarse.
 
 ## Limitaciones a tener en cuenta
 
