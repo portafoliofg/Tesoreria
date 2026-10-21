@@ -16,21 +16,36 @@ docs/
 .clasp.json.example
 ```
 
-## Sincronizar con Apps Script (clasp)
+## Publicación automática desde GitHub
 
-1. Instalá clasp: `npm install -g @google/clasp`
-2. Iniciá sesión: `clasp login`
-3. Copiá `.clasp.json.example` a `.clasp.json` y poné el **ID del script**. Lo encontrás en el editor de Apps Script, en Configuración del proyecto → ID de la secuencia de comandos.
-4. Subí el código: `clasp push`. Para traer cambios hechos en el editor: `clasp pull`.
+Cada cambio en `src/` que llega a `main` lo publica la Action `.github/workflows/apps-script.yml`:
 
-> `.clasp.json` está en `.gitignore`, así que cada persona usa su propio archivo.
-> Revisá que `src/appsscript.json` coincida con el manifiesto actual del proyecto (zona horaria y acceso de la web app) antes del primer `clasp push`.
+1. Guarda un respaldo: crea una versión con el código que está hoy en Apps Script.
+2. Sube `Code.gs` e `Index.html`. El manifiesto (`appsscript.json`) se toma del proyecto de Apps Script, no del repositorio.
+3. Publica una versión nueva en la misma implementación, así el link `/exec` no cambia.
 
-## Publicar una versión nueva
+También se puede correr a mano desde la pestaña **Actions → Publicar en Apps Script → Run workflow**.
 
-En el editor de Apps Script, entrá a **Implementar → Gestionar implementaciones**. Editá la implementación existente, elegí **Versión nueva** y guardá. Así la URL `/exec` no cambia.
+**Para volver atrás:** en Apps Script, entrá a Implementar → Gestionar implementaciones → Editar y elegí la versión "Respaldo antes de GitHub …".
 
-Con clasp: `clasp deploy -i <ID_DE_IMPLEMENTACION>`.
+> Desde que esto está activo, el código se edita solo en GitHub. Lo que se cambie en el editor de Apps Script se pisa en la próxima publicación.
+
+### Configuración (una sola vez, desde el navegador)
+
+1. Activá la API de Apps Script en https://script.google.com/home/usersettings.
+2. Abrí Google Cloud Shell (https://shell.cloud.google.com) y corré:
+   ```
+   npx @google/clasp@2.4.2 login --no-localhost
+   cat ~/.clasprc.json
+   ```
+   Autorizá con la cuenta dueña del script y copiá lo que muestra el segundo comando.
+3. En GitHub, andá a **Settings → Secrets and variables → Actions → New repository secret** y creá:
+   - `CLASPRC_JSON`: lo copiado en el paso 2. Es una credencial: no la pegues en ningún otro lado.
+   - `SCRIPT_ID`: el ID del script, que está en Configuración del proyecto de Apps Script.
+   - `DEPLOYMENT_ID`: `AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ`.
+4. Corré la Action a mano una vez (Actions → Run workflow) y revisá que la app siga funcionando.
+
+Si faltan los secretos, la Action no hace nada.
 
 ## Dominio propio (bgpsammar.com)
 

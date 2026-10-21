@@ -1,0 +1,69 @@
+# Publica src/ en Google Apps Script cada vez que cambia en main.
+# Antes de subir guarda un respaldo (versión) del código que está en Apps Script
+# y respeta el manifiesto (appsscript.json) que ya tiene el proyecto.
+# Necesita los secretos CLASPRC_JSON, SCRIPT_ID y DEPLOYMENT_ID; si falta alguno no hace nada.
+name: Publicar en Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    outputs:
+      listo: ${{ steps.config.outputs.listo }}
+    steps:
+      - id: config
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+            echo "::notice::Faltan los secretos CLASPRC_JSON, SCRIPT_ID o DEPLOYMENT_ID. No se publicó nada."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+
+  publicar:
+    needs: revisar
+    if: needs.revisar.outputs.listo == 'si'
+    runs-on: ubuntu-latest
+    env:
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Preparar clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          npm install -g @google/clasp@2.4.2
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: Respaldar lo que está hoy en Apps Script
+        run: |
+          mkdir -p /tmp/actual && cd /tmp/actual
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+          clasp pull
+          cp appsscript.json "$GITHUB_WORKSPACE/src/appsscript.json"
+          clasp version "Respaldo antes de GitHub ${GITHUB_SHA::7}"
+
+      - name: Subir el código y publicar una versión nueva
+        run: |
+          clasp push --force
+          clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}: $(git log -1 --pretty=%s | head -c 80)"
