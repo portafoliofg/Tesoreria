@@ -79,8 +79,8 @@
       transition: opacity 0.7s ease, backdrop-filter 1.2s ease, -webkit-backdrop-filter 1.2s ease;
     }
     .sel[hidden] { display: none; }
-    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg") center / cover; }
-    .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(9px) brightness(0.75); backdrop-filter: blur(9px) brightness(0.75); }
+    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg?v=2") center / cover; }
+    .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(4px) brightness(0.72); backdrop-filter: blur(4px) brightness(0.72); }
     .sel-caja { width: min(780px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
     .sel-marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5.6vw, 52px); letter-spacing: 0.2em; padding-left: 0.2em; line-height: 1; color: var(--plata-clara); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); white-space: nowrap; }
     .sel-sub { margin: 10px 0 0; font-size: clamp(10px, 1.5vw, 12.5px); letter-spacing: 0.3em; text-transform: uppercase; color: var(--tenue); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
@@ -137,8 +137,8 @@
   <div id="capa">
     <div class="vc" id="vc" role="progressbar" aria-label="Cargando B.G.P Sammar" aria-valuemin="0" aria-valuemax="100">
       <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg">
-        <source src="carga.webm" type="video/webm">
-        <source src="carga.mp4" type="video/mp4">
+        <source src="carga.webm?v=2" type="video/webm">
+        <source src="carga.mp4?v=2" type="video/mp4">
       </video>
       <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
       <div class="vc-pie">
