@@ -14,6 +14,42 @@
     #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
     #capa { position: fixed; inset: 0; z-index: 10; transition: opacity 0.7s ease, visibility 0.7s ease; }
     #capa.fuera { opacity: 0; visibility: hidden; }
+
+    /* Pantalla de carga con video */
+    .vc { position: absolute; inset: 0; overflow: hidden; background: #060d1c; font-family: "Manrope", "Segoe UI", system-ui, sans-serif; color: #d3dbe6; }
+    .vc::before { content: ""; position: absolute; inset: -40px; background: url("carga.jpg") center / cover; filter: blur(28px) brightness(0.45); }
+    .vc video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    @media (max-aspect-ratio: 1/1) { .vc video { object-fit: contain; } }
+    .vc-pie {
+      position: absolute; left: 0; right: 0; bottom: 0; display: grid; gap: 10px;
+      padding-top: 56px;
+      padding-bottom: max(22px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(20px, env(safe-area-inset-left, 0px));
+      padding-right: max(20px, env(safe-area-inset-right, 0px));
+      background: linear-gradient(180deg, transparent, rgba(6, 13, 28, 0.88) 70%);
+    }
+    .vc-fila { display: flex; align-items: baseline; gap: 8px 18px; flex-wrap: wrap; font-size: 13px; }
+    .vc-marca { font-family: "Marcellus", Georgia, serif; font-size: 17px; letter-spacing: 0.18em; color: #eef2f7; white-space: nowrap; }
+    .vc-marca i { font-style: normal; color: #d8b36a; }
+    .vc-marca b { font-family: "Manrope", system-ui, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #d8b36a; margin-left: 6px; }
+    .vc-estado { flex: 1; min-width: 0; color: #c3cdda; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .vc-pct { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; color: #2fd38a; }
+    .vc-pista { height: 5px; border-radius: 99px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+    .vc-relleno { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1d8f63, #2fd38a 60%, #d8b36a); box-shadow: 0 0 12px rgba(47, 211, 138, 0.55); }
+    .vc-saltar {
+      position: absolute;
+      top: max(16px, env(safe-area-inset-top, 0px));
+      right: max(16px, env(safe-area-inset-right, 0px));
+      font: 600 13px/1 "Manrope", system-ui, sans-serif; color: #eef2f7; cursor: pointer;
+      padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(6, 13, 28, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    }
+    @media (max-width: 560px) {
+      .vc-estado { order: 3; flex-basis: 100%; }
+      .vc-pct { margin-left: auto; }
+    }
+    .vc-saltar:hover { background: rgba(6, 13, 28, 0.7); }
+    .vc-saltar:focus-visible { outline: 2px solid #d8b36a; outline-offset: 2px; }
   </style>
 </head>
 <body>
@@ -22,39 +58,123 @@
           title="Tesorería B.G.P Sammar"
           allow="clipboard-read; clipboard-write; camera"
           allowfullscreen></iframe>
-  <div id="capa"></div>
+  <div id="capa">
+    <div class="vc" id="vc" role="progressbar" aria-label="Cargando Tesorería B.G.P Sammar" aria-valuemin="0" aria-valuemax="100">
+      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg">
+        <source src="carga.webm" type="video/webm">
+        <source src="carga.mp4" type="video/mp4">
+      </video>
+      <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
+      <div class="vc-pie">
+        <div class="vc-fila">
+          <span class="vc-marca">B<i>.</i>G<i>.</i>P SAMMAR<b>Tesorería</b></span>
+          <span class="vc-estado" id="vcEstado" aria-live="polite">Conectando con la planilla de tesorería</span>
+          <span class="vc-pct" id="vcPct">0 %</span>
+        </div>
+        <div class="vc-pista"><div class="vc-relleno" id="vcRelleno"></div></div>
+      </div>
+    </div>
+  </div>
   <script src="loader.js"></script>
   <script>
-    // La pantalla de carga dura 7 s y se va cuando además la app terminó de cargar
-    // (como máximo 20 s, por si el evento de carga no llega).
+    // Pantalla de carga: el video de 7 s. Se va cuando el video terminó (o se tocó
+    // Saltar) y la app ya cargó; como máximo a los 20 s. Si el video no puede
+    // reproducirse, o el sistema pide menos movimiento, se usa la animación de loader.js.
     (function () {
+      var ESTADOS = [
+        [0, "Conectando con la planilla de tesorería"],
+        [0.2, "Sincronizando cuentas y saldos"],
+        [0.42, "Leyendo cheques y vencimientos"],
+        [0.64, "Proyectando el flujo de fondos"],
+        [0.86, "Preparando el panel"]
+      ];
       var capa = document.getElementById("capa");
       var app = document.getElementById("app");
-      var animacionLista = false, appLista = false, cerrada = false, carga = null;
+      var vc = document.getElementById("vc");
+      var video = document.getElementById("vcVideo");
+      var estado = document.getElementById("vcEstado");
+      var pct = document.getElementById("vcPct");
+      var relleno = document.getElementById("vcRelleno");
+      var animacionLista = false, appLista = false, cerrada = false, arranco = false, carga = null, raf = 0;
 
       function cerrar() {
         if (cerrada) return;
         cerrada = true;
+        cancelAnimationFrame(raf);
         capa.classList.add("fuera");
-        setTimeout(function () { if (carga) carga.destroy(); capa.remove(); }, 800);
+        setTimeout(function () { if (carga) carga.destroy(); video.pause(); capa.remove(); }, 800);
       }
       function revisar() { if (animacionLista && appLista) cerrar(); }
+      function terminoAnimacion() {
+        animacionLista = true;
+        if (!appLista) {
+          if (carga) carga.estado("Abriendo la aplicación…");
+          else estado.textContent = "Abriendo la aplicación…";
+        }
+        revisar();
+      }
+
+      function usarAnimacion() {
+        if (carga || cerrada) return;
+        cancelAnimationFrame(raf);
+        video.pause();
+        vc.remove();
+        try {
+          carga = BGPLoader.create(capa, { duracion: 7000, alTerminar: terminoAnimacion });
+        } catch (e) {
+          capa.remove();
+        }
+      }
+
+      function cuadro() {
+        var p = video.duration ? Math.min(1, video.currentTime / video.duration) : 0;
+        relleno.style.width = (p * 100).toFixed(2) + "%";
+        var n = Math.floor(p * 100);
+        pct.textContent = n + " %";
+        vc.setAttribute("aria-valuenow", String(n));
+        if (!animacionLista) {
+          var texto = ESTADOS[0][1];
+          for (var k = 0; k < ESTADOS.length; k++) if (p >= ESTADOS[k][0]) texto = ESTADOS[k][1];
+          if (estado.textContent !== texto) estado.textContent = texto;
+        }
+        raf = requestAnimationFrame(cuadro);
+      }
 
       app.addEventListener("load", function () { appLista = true; revisar(); });
       setTimeout(function () { appLista = true; animacionLista = true; revisar(); }, 20000);
 
-      try {
-        carga = BGPLoader.create(capa, {
-          duracion: 7000,
-          alTerminar: function () {
-            animacionLista = true;
-            if (!appLista) carga.estado("Abriendo la aplicación…");
-            revisar();
-          }
-        });
-      } catch (e) {
-        capa.remove();
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        usarAnimacion();
+        return;
       }
+
+      function alArrancar() {
+        if (arranco) return;
+        arranco = true;
+        raf = requestAnimationFrame(cuadro);
+      }
+      video.addEventListener("playing", alArrancar);
+      // El video puede haber arrancado antes de que corra este código.
+      if (!video.paused && video.currentTime > 0) alArrancar();
+      video.addEventListener("ended", function () {
+        relleno.style.width = "100%";
+        pct.textContent = "100 %";
+        terminoAnimacion();
+      });
+      video.addEventListener("error", usarAnimacion);
+      video.querySelector('source[type="video/mp4"]').addEventListener("error", usarAnimacion);
+      document.getElementById("vcSaltar").addEventListener("click", function () {
+        video.pause();
+        terminoAnimacion();
+      });
+
+      var intento = video.play();
+      if (intento && intento.catch) intento.catch(usarAnimacion);
+      // Si en 3 s el video no arrancó (conexión lenta, ahorro de batería), va la animación.
+      setTimeout(function () {
+        if (!arranco && !video.paused && video.currentTime > 0) alArrancar();
+        if (!arranco) usarAnimacion();
+      }, 3000);
     })();
   </script>
 </body>
