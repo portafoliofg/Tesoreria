@@ -29,7 +29,7 @@
 
     /* ---------- Video de carga ---------- */
     .vc { position: absolute; inset: 0; overflow: hidden; background: var(--noche); font-family: var(--texto); color: var(--plata); }
-    .vc::before { content: ""; position: absolute; inset: -40px; background: url("carga.jpg") center / cover; filter: blur(28px) brightness(0.45); }
+    .vc::before { content: ""; position: absolute; inset: -40px; background: url("carga.jpg?v=4") center / cover; filter: blur(28px) brightness(0.45); }
     .vc video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     @media (max-aspect-ratio: 1/1) { .vc video { object-fit: contain; } }
     .vc-pie {
@@ -79,7 +79,7 @@
       transition: opacity 0.7s ease, backdrop-filter 1.2s ease, -webkit-backdrop-filter 1.2s ease;
     }
     .sel[hidden] { display: none; }
-    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg?v=3") center / cover; }
+    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg?v=4") center / cover; }
     .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(4px) brightness(0.72); backdrop-filter: blur(4px) brightness(0.72); }
     .sel-caja { width: min(780px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
     .sel-marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5.6vw, 52px); letter-spacing: 0.2em; padding-left: 0.2em; line-height: 1; color: var(--plata-clara); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); white-space: nowrap; }
@@ -136,9 +136,9 @@
           allowfullscreen></iframe>
   <div id="capa">
     <div class="vc" id="vc" role="progressbar" aria-label="Cargando B.G.P Sammar" aria-valuemin="0" aria-valuemax="100">
-      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg">
-        <source src="carga.webm?v=3" type="video/webm">
-        <source src="carga.mp4?v=3" type="video/mp4">
+      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg?v=4">
+        <source src="carga.webm?v=4" type="video/webm">
+        <source src="carga.mp4?v=4" type="video/mp4">
       </video>
       <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
       <div class="vc-pie">
