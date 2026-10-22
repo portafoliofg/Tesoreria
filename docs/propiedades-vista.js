@@ -221,7 +221,7 @@
     caja.replaceChildren();
     $("acciones").replaceChildren();
     if (!actual) {
-      $("tituloEdificio").textContent = "Liquidaciones de alquileres";
+      $("tituloEdificio").textContent = "Propiedades";
       $("subEdificio").textContent = "";
       var v = el("section", "panel vacio-grande");
       v.append(el("h2", null, "Todavía no hay liquidaciones"),
@@ -234,7 +234,7 @@
       return;
     }
     var d = datos();
-    $("tituloEdificio").textContent = d.edificio;
+    $("tituloEdificio").textContent = "Propiedades";
     $("subEdificio").textContent = "Período " + d.periodo + " · " + d.unidades.length + " unidades" + (editando() ? " · editando" : "");
     $("importar").hidden = editando();
     $("periodo").disabled = editando();
