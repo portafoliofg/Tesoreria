@@ -1087,6 +1087,16 @@
   .rep-auto-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
   .rep-previa { width: 100%; height: 70vh; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
   .sug-lista { max-height: 55vh; overflow: auto; }
+  .viz-cob-op.off { opacity: .6; cursor: default; }
+  .salida-otros { margin-top: 10px; }
+  .tabla-scroll { overflow-x: auto; }
+  .fci-mov-tabla { width: 100%; border-collapse: collapse; }
+  .fci-mov-tabla th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 6px 6px; }
+  .fci-mov-tabla th.num { text-align: right; }
+  .fci-mov-tabla td { padding: 3px 4px; vertical-align: middle; }
+  .fci-mov-tabla input, .fci-mov-tabla select { width: 100%; min-width: 90px; }
+  .fci-mov-tabla input.monto { text-align: right; min-width: 120px; }
+  .fci-mov-tabla .fci-mov-tipo { font-size: 12px; white-space: nowrap; }
   .fac-ventanas { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 16px; overflow-x: auto; }
   .op-desde { display: flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; font-size: 13px; color: var(--muted); }
   .op-desde input { width: auto; margin: 0; }
@@ -1413,6 +1423,7 @@
       </div>
       <div class="actions" style="margin-top:0">
         <button id="btnRefrescarCheques" class="secondary" type="button">Actualizar</button>
+        <button id="btnSalidaCheques" class="secondary" type="button" title="Foto con la numeración de los cheques que salieron y la fecha del pago">Salida de cheques</button>
         <button class="btn-entrada-manual" data-tipo-default="Cheque emitido" type="button">Entrada manual</button>
       </div>
     </div>
@@ -1460,6 +1471,7 @@
       </div>
       <div class="actions" style="margin-top:0">
         <button id="btnRefrescarInversiones" class="secondary" type="button">Actualizar</button>
+        <button id="btnMovFci" type="button" title="En negativo: rescate. En positivo: suscripción.">Rescates y suscripciones</button>
       </div>
     </div>
     <div id="kpisInversiones" class="kpis"></div>
@@ -2124,6 +2136,55 @@
     <div class="modal__foot">
       <button class="secondary" data-cerrar="modalSugBolsa" type="button">Cancelar</button>
       <button id="sugBolsaGuardar" type="button">Guardar las marcadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: SALIDA DE CHEQUES ===================== -->
+<div class="modal-overlay" id="modalSalidaCheques">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="salidaTitulo">
+    <div class="modal__head">
+      <div><h3 id="salidaTitulo">Salida de cheques</h3><div class="sub-dato">Cargá la foto con la numeración de los cheques que salieron y elegí la fecha del pago. Los cheques que coinciden pasan a Pagado.</div></div>
+      <button class="modal__close" data-cerrar="modalSalidaCheques" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="row">
+        <label>Foto con los números de cheque<input type="file" id="salidaArchivo" accept="image/*,.pdf"></label>
+        <label>Fecha del pago<input type="date" id="salidaFecha"></label>
+      </div>
+      <label style="margin-top:14px">Números escritos a mano (opcional, separados por espacio, coma o renglón)<textarea id="salidaNumeros" rows="2" placeholder="00012345, 00012346"></textarea></label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="salidaGuardarFoto" checked> Guardar la foto en Drive como comprobante de cada cheque</label>
+      <p id="salidaStatus" class="hint"></p>
+      <div id="salidaLista" class="sug-lista"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="secondary" data-cerrar="modalSalidaCheques" type="button">Cancelar</button>
+      <button id="salidaGuardar" type="button" disabled>Marcar como pagados</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: RESCATES Y SUSCRIPCIONES DE FCI ===================== -->
+<div class="modal-overlay" id="modalMovFci">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="movFciTitulo">
+    <div class="modal__head">
+      <div><h3 id="movFciTitulo">Rescates y suscripciones de FCI</h3><div class="sub-dato">Monto en negativo: rescate (sale del fondo). En positivo: suscripción (entra al fondo). Con estos movimientos y los saldos de FCI que cargás en Inicio se calcula el rendimiento.</div></div>
+      <button class="modal__close" data-cerrar="modalMovFci" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="tabla-scroll"><table class="fci-mov-tabla">
+        <thead><tr><th>Fecha</th><th>Banco</th><th>Fondo (opcional)</th><th>Moneda</th><th class="num">Monto</th><th></th><th></th></tr></thead>
+        <tbody id="movFciFilas"></tbody>
+      </table></div>
+      <div class="actions">
+        <button class="secondary small" id="movFciAgregar" type="button">Agregar fila</button>
+        <button class="secondary small" id="movFciTraer" type="button" title="Débitos y créditos de FCI de los últimos 90 días en Movimientos que todavía no están cargados">Traer de Movimientos</button>
+      </div>
+      <p id="movFciStatus" class="hint"></p>
+    </div>
+    <div class="modal__foot">
+      <button class="secondary" data-cerrar="modalMovFci" type="button">Cancelar</button>
+      <button id="movFciGuardar" type="button">Guardar</button>
     </div>
   </div>
 </div>
@@ -9788,6 +9849,15 @@ function renderInicio(conciliaciones) {
     const der = el("div", "ini-der");
     der.append(el("div", "importe " + (f.saldo < 0 ? "neg" : ""), (f.moneda === "USD" ? formatUsd : formatImporte)(f.saldo)));
     der.append(el("div", "dt-sub", "Informado al " + f.fecha + (f.viejo ? " · desactualizado, no suma" : "")));
+    // Rendimiento desde el saldo anterior (sin contar rescates ni suscripciones).
+    const r = rendimientoFciDe(f.banco, f.moneda);
+    const p = r && r.periodos.length ? r.periodos[r.periodos.length - 1] : null;
+    if (p) {
+      const txt = "Rindió " + (f.moneda === "USD" ? formatUsd : fmtImp)(p.rend) + " desde el " + isoADma(p.desde) + (p.dudoso ? " · revisar" : " · TNA " + pctTexto(p.rend / p.capital * 365 / p.d));
+      const d = el("div", "dt-sub" + (p.dudoso ? " alerta-txt" : ""), txt);
+      if (p.susc || p.resc) d.title = "Suscripciones " + fmtImp(p.susc) + " · rescates " + fmtImp(p.resc);
+      der.append(d);
+    }
     fila.append(izq, der);
     lista.append(fila);
   });
@@ -12718,7 +12788,10 @@ async function cargarInversiones(forzar) {
   const box = $("inversionesBox");
   if (!inversionesCargadas || forzar) box.replaceChildren(nodoCargando());
   try {
-    await asegurarInversiones(forzar);
+    // Los saldos de FCI por banco (cargados en Inicio) son la base del rendimiento.
+    await Promise.all([asegurarInversiones(forzar), forzar || !saldosGuardados.length
+      ? runJson("obtenerSaldos", {}).then(r => { saldosGuardados = r.saldos || []; versionAnalisisInv++; }).catch(() => {})
+      : null]);
     renderInversiones();
   } catch (err) {
     box.replaceChildren(nodoError("No se pudieron traer FCI y Bolsa: " + msgErr(err)));
@@ -12799,12 +12872,18 @@ function renderInversiones() {
   const mes = hoyIso().substring(0, 7);
   if (esFci) {
     const delMes = fciDatos.filter(f => fechaAOrden(f["Fecha"]).substring(0, 7) === mes);
-    const suma = mov => delMes.filter(f => normalizar(f["Movimiento"]).indexOf(mov) === 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
-    const ultimos = ultimoFciPorBanco().slice(0, 3);
-    renderKpis($("kpisInversiones"), ultimos.map(x => ({ label: "FCI · " + x.banco, valor: x.saldo, formato: formatImporte, sub: "Último saldo informado: " + x.fecha, tono: "var(--primary)" }))
+    const suma = tipo => delMes.filter(f => tipoMovFci(f) === tipo).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
+    // Saldos de FCI cargados en Inicio; si todavía no hay, los de la planilla.
+    const deInicio = fciQueSuma(fciVigentes(hoyIso())).sort((a, b) => b.saldo - a.saldo).slice(0, 3);
+    const ultimos = deInicio.length
+      ? deInicio.map(x => ({ banco: x.banco, saldo: x.saldo, fecha: x.fecha, fmt: x.moneda === "USD" ? formatUsd : formatImporte }))
+      : ultimoFciPorBanco().slice(0, 3).map(x => Object.assign(x, { fmt: formatImporte }));
+    const rend30 = calcularRendimientoFciSaldos().filter(x => x.moneda !== "USD").reduce((a, x) => a + tnaVentana(x.periodos, sumarDiasIso(hoyIso(), -30)).rend, 0);
+    renderKpis($("kpisInversiones"), ultimos.map(x => ({ label: "FCI · " + x.banco, valor: x.saldo, formato: x.fmt, sub: "Último saldo informado: " + x.fecha, tono: "var(--primary)" }))
       .concat([
-        { label: "Rescates del mes", valor: suma("RESCATE"), formato: formatImporte, sub: "Pasan del fondo a la cuenta", tono: "var(--ok)" },
-        { label: "Suscripciones del mes", valor: suma("SUSCRIP"), formato: formatImporte, sub: "Pasan de la cuenta al fondo", tono: "var(--bad)" }
+        { label: "Rendimiento 30 días", valor: rend30, formato: formatImporte, sub: "Saldos de Inicio sin rescates ni suscripciones", tono: "var(--accent)" },
+        { label: "Rescates del mes", valor: suma("RESCATE"), formato: formatImporte, sub: "En negativo · pasan del fondo a la cuenta", tono: "var(--ok)" },
+        { label: "Suscripciones del mes", valor: suma("SUSCRIPCION"), formato: formatImporte, sub: "En positivo · pasan de la cuenta al fondo", tono: "var(--bad)" }
       ]));
   } else {
     const abiertos = bolsaDatos.filter(bolsaAbierta);
@@ -12821,11 +12900,16 @@ function renderInversiones() {
 
   // Análisis arriba de la tabla (no se recalcula al filtrar).
   const analisis = $("invAnalisis");
-  if (analisis._ventana !== ventanaInv || analisis._datos !== datos || analisis._ver !== versionAnalisisInv) {
+  if (analisis._ventana !== ventanaInv || analisis._datos !== datos || analisis._ver !== versionAnalisisInv || analisis._saldos !== saldosGuardados) {
     analisis._ventana = ventanaInv;
     analisis._datos = datos;
     analisis._ver = versionAnalisisInv;
+    analisis._saldos = saldosGuardados;
     analisis.replaceChildren();
+    if (esFci) {
+      try { renderRendimientoFciSaldos(analisis); }
+      catch (err) { console.error(err); analisis.append(nodoError("No se pudo calcular el rendimiento por banco: " + msgErr(err))); }
+    }
     if (datos.length) {
       try { if (esFci) renderAnalisisFci(analisis); else renderAnalisisBolsa(analisis); }
       catch (err) { console.error(err); analisis.append(nodoError("No se pudo armar el análisis: " + msgErr(err))); }
@@ -12841,7 +12925,7 @@ function renderInversiones() {
         orden: f => esFecha ? (fechaAOrden(f[k]) || "0000") : esMonto ? parseImporte(f[k]) : normalizar(f[k] || ""),
         celda: f => k === "Importe recibido" ? (f[k] ? celdaImporteNodo(parseImporte(f[k]), "Pesos") : el("span", "dt-sub", "Cargar"))
           : esMonto ? celdaImporteNodo(parseImporte(f[k]), normalizar(f["Moneda"]).indexOf("US") === 0 ? "USD" : "Pesos")
-          : k === campoTipo ? pillInversion(k, f[k]) : (f[k] || "")
+          : k === campoTipo ? (esFci ? pillMovFci(f) : pillInversion(k, f[k])) : (f[k] || "")
       };
     });
   if (!esFci) columnasTabla.push({
@@ -12852,7 +12936,8 @@ function renderInversiones() {
 
   renderTabla($("inversionesBox"), {
     id: "inv-" + ventanaInv,
-    alClic: esFci ? null : abrirRecibidoBolsa,
+    // FCI: los rescates y suscripciones cargados en la app se pueden borrar.
+    alClic: esFci ? eliminarMovFci : abrirRecibidoBolsa,
     filas: filas,
     orden: { clave: campoFecha, dir: "desc" },
     desempate: (a, b) => a.__i - b.__i,
@@ -12861,8 +12946,8 @@ function renderInversiones() {
     pie: lista => {
       let texto;
       if (esFci) {
-        const s = mov => lista.filter(f => normalizar(f["Movimiento"]).indexOf(mov) === 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
-        texto = lista.length + " fila(s) · Rescates " + textoImporte(s("RESCATE"), "Pesos") + " · Suscripciones " + textoImporte(s("SUSCRIP"), "Pesos");
+        const s = tipo => lista.filter(f => tipoMovFci(f) === tipo).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
+        texto = lista.length + " fila(s) · Rescates " + textoImporte(s("RESCATE"), "Pesos") + " · Suscripciones " + textoImporte(s("SUSCRIPCION"), "Pesos");
       } else {
         texto = lista.length + " cheque(s) · Total " + textoImporte(lista.reduce((a, b) => a + parseImporte(b["Monto"]), 0), "Pesos");
       }
@@ -13195,6 +13280,406 @@ $("sugBolsaGuardar").addEventListener("click", async () => {
   const ok = await guardarRecibidos(elegidos.map(s => ({ id: s.b["ID Planilla"], recibido: formatMonto(s.recibido), origen: "Sugerido" })), $("sugBolsaGuardar"), $("sugBolsaStatus"));
   if (ok) { cerrarModal("modalSugBolsa"); renderInversiones(); }
 });
+
+// ---------------- Salida de cheques ----------------
+// Foto (o lista escrita) con la numeración de los cheques que salieron + la fecha
+// del pago: los cheques cargados con esos números pasan a "Pagado" (de emitido o
+// pendiente) y la fecha queda como fecha de débito. El OCR lee todos los números
+// de la foto; solo se proponen los que coinciden con un cheque cargado.
+let salidaTextoFoto = "";
+let salidaPropuestos = [];
+
+function claveNumeroCheque(n) {
+  return soloDigitos(n).replace(/^0+/, "");
+}
+
+// El OCR confunde O con 0 e I/l con 1 dentro de los números.
+function numerosDeTexto(texto) {
+  const t = String(texto || "")
+    .replace(/(\d)[Oo]/g, "$10").replace(/[Oo](\d)/g, "0$1")
+    .replace(/(\d)[Il|](?=\d)/g, "$11");
+  const vistos = {};
+  return (t.match(/\d+/g) || []).map(claveNumeroCheque).filter(n => n.length >= 3 && !vistos[n] && (vistos[n] = true));
+}
+
+async function abrirSalidaCheques() {
+  $("salidaArchivo").value = "";
+  $("salidaNumeros").value = "";
+  $("salidaFecha").value = hoyIso();
+  salidaTextoFoto = "";
+  salidaPropuestos = [];
+  $("salidaLista").replaceChildren();
+  $("salidaGuardar").disabled = true;
+  setStatus($("salidaStatus"), "Cargá la foto o escribí los números.", "hint");
+  abrirModal("modalSalidaCheques");
+  try { await asegurarCheques(); }
+  catch (err) { setStatus($("salidaStatus"), "No se pudieron traer los cheques: " + msgErr(err), "hint msg-error"); }
+}
+
+function renderSalidaCheques() {
+  const box = $("salidaLista");
+  box.replaceChildren();
+  const escritos = numerosDeTexto($("salidaNumeros").value);
+  const deFoto = numerosDeTexto(salidaTextoFoto);
+  const porNumero = {};
+  chequesDatos.forEach(c => {
+    const k = claveNumeroCheque(c["N° de Cheque"]);
+    if (k) (porNumero[k] = porNumero[k] || []).push(c);
+  });
+  salidaPropuestos = [];
+  const noEncontrados = [];
+  const otrosFoto = [];
+  const buscados = escritos.map(n => ({ n: n, escrito: true })).concat(deFoto.filter(n => escritos.indexOf(n) < 0).map(n => ({ n: n, escrito: false })));
+  buscados.forEach(b => {
+    const lista = porNumero[b.n] || [];
+    if (!lista.length) {
+      if (b.escrito) noEncontrados.push(b.n);
+      else if (b.n.length >= 6 && b.n.length <= 10) otrosFoto.push(b.n);
+      return;
+    }
+    const abiertos = lista.filter(c => normalizar(c["Estado"] || "").trim() !== "PAGADO");
+    lista.forEach(c => {
+      const yaPagado = normalizar(c["Estado"] || "").trim() === "PAGADO";
+      // Varios cheques abiertos con el mismo número (distinto banco): se elige a mano.
+      // Números cortos leídos de la foto: pueden ser otra cosa (importe, fecha), se marcan a mano.
+      const marcar = !yaPagado && abiertos.length === 1 && (b.escrito || b.n.length >= 5);
+      salidaPropuestos.push({ c: c, yaPagado: yaPagado, marcar: marcar, varios: abiertos.length > 1 });
+    });
+  });
+  salidaPropuestos.forEach((p, i) => {
+    const c = p.c;
+    const lab = el("label", "viz-cob-op " + (p.yaPagado ? "off" : p.marcar ? "on" : ""));
+    const chk = el("input");
+    chk.type = "checkbox";
+    chk.checked = p.marcar;
+    chk.disabled = p.yaPagado;
+    chk.dataset.i = String(i);
+    chk.addEventListener("change", () => { lab.classList.toggle("on", chk.checked); actualizarBotonSalida(); });
+    const tx = el("div", "viz-cob-txt");
+    const cuenta = c["Tipo"] === "De terceros" ? "De terceros" + (c["Banco Emisor"] ? " · " + c["Banco Emisor"] : "") : (c["Banco"] || "Sin banco") + (c["N° de Cuenta"] ? " · " + c["N° de Cuenta"] : "");
+    tx.append(el("div", "viz-cob-tit", "Cheque N° " + c["N° de Cheque"] + " · " + (c["Titular"] || c["Destino"] || "Sin titular")),
+      el("div", "dt-sub", cuenta + " · vence " + (c["Fecha de Pago"] || "—") + " · estado: " + (c["Estado"] || (c["Tipo"] === "Emitido" ? "Emitido" : "Pendiente")) +
+        (p.yaPagado ? " · ya estaba pagado" + (c["Fecha de Débito"] ? " el " + c["Fecha de Débito"] : "") : p.varios ? " · hay otro cheque abierto con este número: marcá el que corresponde" : "")));
+    lab.append(chk, tx, el("span", "viz-cob-monto", textoImporte(importeCheque(c), monedaCheque(c))));
+    box.append(lab);
+  });
+  if (noEncontrados.length) box.append(el("p", "hint msg-error", "Sin cheque cargado con estos números: " + noEncontrados.join(", ") + "."));
+  if (otrosFoto.length) {
+    const det = el("details", "salida-otros");
+    det.append(el("summary", "dt-sub", "Otros números leídos en la foto que no coinciden con ningún cheque (" + otrosFoto.length + ")"), el("p", "dt-sub", otrosFoto.join(", ")));
+    box.append(det);
+  }
+  if (!buscados.length) setStatus($("salidaStatus"), "Cargá la foto o escribí los números.", "hint");
+  else if (!salidaPropuestos.length) setStatus($("salidaStatus"), "Ningún número coincide con un cheque cargado. Revisá la foto o escribí los números.", "hint msg-error");
+  else setStatus($("salidaStatus"), salidaPropuestos.length + " cheque(s) encontrado(s). Revisá los marcados antes de guardar.", "hint");
+  actualizarBotonSalida();
+}
+
+function actualizarBotonSalida() {
+  const n = document.querySelectorAll("#salidaLista input:checked").length;
+  $("salidaGuardar").disabled = !n;
+  $("salidaGuardar").textContent = n ? "Marcar " + n + " como pagado" + (n > 1 ? "s" : "") : "Marcar como pagados";
+}
+
+$("btnSalidaCheques").addEventListener("click", abrirSalidaCheques);
+$("salidaNumeros").addEventListener("input", () => {
+  clearTimeout(renderSalidaCheques._t);
+  renderSalidaCheques._t = setTimeout(renderSalidaCheques, 300);
+});
+$("salidaArchivo").addEventListener("change", async () => {
+  const file = $("salidaArchivo").files[0];
+  salidaTextoFoto = "";
+  if (!file) { renderSalidaCheques(); return; }
+  const previo = ocrProgress;
+  ocrProgress = (e, pr) => setStatus($("salidaStatus"), (e === "recognizing text" ? "Leyendo la foto " : "Preparando el lector ") + Math.round(pr * 100) + "%", "hint");
+  setStatus($("salidaStatus"), "Leyendo la foto…", "hint");
+  $("salidaLista").replaceChildren(nodoCargando());
+  try {
+    await asegurarCheques();
+    salidaTextoFoto = await ocrFromFile(file);
+    renderSalidaCheques();
+  } catch (err) {
+    $("salidaLista").replaceChildren();
+    setStatus($("salidaStatus"), "No se pudo leer la foto: " + msgErr(err), "hint msg-error");
+  } finally {
+    ocrProgress = previo;
+  }
+});
+$("salidaGuardar").addEventListener("click", async () => {
+  const elegidos = Array.from(document.querySelectorAll("#salidaLista input:checked")).map(c => salidaPropuestos[parseInt(c.dataset.i, 10)].c);
+  if (!elegidos.length) return;
+  if (!$("salidaFecha").value) { setStatus($("salidaStatus"), "Elegí la fecha del pago.", "hint msg-error"); return; }
+  const fecha = isoADma($("salidaFecha").value);
+  const btn = $("salidaGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  try {
+    const file = $("salidaArchivo").files[0];
+    const archivo = file && $("salidaGuardarFoto").checked ? { base64: await archivoABase64(file), nombre: file.name, mime: file.type } : null;
+    const res = await runJson("registrarSalidaCheques", {
+      fecha: fecha, archivo: archivo,
+      cheques: elegidos.map(c => ({ numero: c["N° de Cheque"], banco: c["Banco"], importe: c["Importe"], id: c["ID Planilla"] }))
+    });
+    elegidos.forEach(c => {
+      if (res.noEncontrados.indexOf(String(c["N° de Cheque"])) >= 0) return;
+      c["Estado"] = "Pagado";
+      c["Fecha de Débito"] = fecha;
+      if (res.archivo && !c["Comprobante"]) c["Comprobante"] = res.archivo;
+    });
+    cerrarModal("modalSalidaCheques");
+    toast(res.pagados + " cheque(s) marcado(s) como pagado(s) el " + fecha + (res.noEncontrados.length ? ". No se encontraron: " + res.noEncontrados.join(", ") : "") + ".", res.noEncontrados.length ? "error" : "ok");
+    if (chequesCargados) aplicarFiltrosCheques();
+  } catch (err) {
+    setStatus($("salidaStatus"), msgErr(err), "hint msg-error");
+  } finally {
+    btn.classList.remove("is-loading");
+    actualizarBotonSalida();
+  }
+});
+
+// ---------------- Rescates y suscripciones de FCI ----------------
+// El signo manda: en negativo es un rescate (sale del fondo) y en positivo una
+// suscripción (entra al fondo). Se cargan a mano o se traen de Movimientos (ahí el
+// signo es el de la cuenta, al revés: un rescate entra a la cuenta).
+const RE_FCI_MOV = /\bFCI\b|FONDO COMUN|FONDOS COMUNES|RESCATE|SUSCRIP/;
+
+function tipoMovFci(f) {
+  const n = normalizar(f["Movimiento"] || "").trim();
+  if (n === "SALDO") return "SALDO";
+  const m = parseImporte(f["Monto"]);
+  if (m < 0) return "RESCATE";
+  if (m > 0) return "SUSCRIPCION";
+  return n.indexOf("RESCATE") === 0 ? "RESCATE" : n.indexOf("SUSCRIP") === 0 ? "SUSCRIPCION" : n;
+}
+
+function pillMovFci(f) {
+  const t = tipoMovFci(f);
+  const texto = f["Movimiento"] || (t === "RESCATE" ? "Rescate" : t === "SUSCRIPCION" ? "Suscripción" : "—");
+  return pill(texto, t === "RESCATE" ? "pill-ing" : t === "SUSCRIPCION" ? "pill-egr" : "pill-neutro");
+}
+
+function bancosParaFci() {
+  const o = {};
+  nombresBancos().forEach(b => { o[b] = true; });
+  saldosGuardados.filter(esFilaFci).forEach(s => { if (s["Banco"]) o[s["Banco"]] = true; });
+  return Object.keys(o).sort((a, b) => a.localeCompare(b));
+}
+
+function filaMovFci(m) {
+  m = m || {};
+  const tr = el("tr");
+  if (m.ref) tr.dataset.ref = m.ref;
+  const fecha = el("input");
+  fecha.type = "date";
+  fecha.value = m.iso || hoyIso();
+  const banco = el("select");
+  llenarSelect(banco, bancosParaFci().map(b => ({ value: b, label: b })), "Elegí el banco");
+  if (m.banco && !Array.from(banco.options).some(o => o.value === m.banco)) banco.append(new Option(m.banco, m.banco));
+  banco.value = m.banco || "";
+  const fondo = el("input");
+  fondo.type = "text";
+  fondo.value = m.fondo || "";
+  const moneda = el("select");
+  [["Pesos", "Pesos"], ["USD", "Dólares"]].forEach(x => moneda.append(new Option(x[1], x[0])));
+  moneda.value = m.moneda === "USD" ? "USD" : "Pesos";
+  const monto = el("input", "monto");
+  monto.type = "text";
+  monto.inputMode = "decimal";
+  monto.placeholder = "-1.000,00";
+  monto.value = m.monto ? textoSaldo(m.monto) : "";
+  const tipo = el("span", "fci-mov-tipo");
+  const pintar = () => {
+    const v = parseImporte(monto.value);
+    tipo.replaceChildren(v < 0 ? pill("Rescate", "pill-ing") : v > 0 ? pill("Suscripción", "pill-egr") : el("span", "dt-sub", "—"));
+  };
+  monto.addEventListener("input", pintar);
+  pintar();
+  const quitar = el("button", "link-btn", "Quitar");
+  quitar.type = "button";
+  quitar.addEventListener("click", () => tr.remove());
+  [fecha, banco, fondo, moneda, monto, tipo, quitar].forEach(x => { const td = el("td", x === monto ? "num" : ""); td.append(x); tr.append(td); });
+  if (m.desc) tr.title = m.desc;
+  $("movFciFilas").append(tr);
+}
+
+async function abrirMovFci() {
+  $("movFciFilas").replaceChildren();
+  setStatus($("movFciStatus"), "", "hint");
+  filaMovFci();
+  abrirModal("modalMovFci");
+}
+
+// Débitos y créditos de FCI de los últimos 90 días en Movimientos que todavía no
+// están en la pestaña FCI (ni como movimiento traído ni como uno de la planilla
+// por el mismo importe, banco y fecha cercana).
+async function traerMovFciDeMovimientos() {
+  setStatus($("movFciStatus"), "Buscando en Movimientos…", "hint");
+  await Promise.all([asegurarTransferencias(), asegurarInversiones()]);
+  const desde = sumarDiasIso(hoyIso(), -90);
+  const enForm = Array.from($("movFciFilas").querySelectorAll("tr[data-ref]")).map(tr => tr.dataset.ref);
+  const traidos = {};
+  fciDatos.forEach(f => { const m = /Mov\. N° (\S+)/.exec(f["Solicitud o rendimiento"] || ""); if (m) traidos[m[1]] = true; });
+  const bancoFci = f => normalizar(nombreBancoCanonico(interpretarEtiqueta(f["Banco"]).bancoTexto || f["Banco"]));
+  const encontrados = transferenciasDatos.filter(f => {
+    const iso = fechaAOrden(fechaMov(f));
+    if (!iso || iso < desde || traidos[f["N° Interno"]] || enForm.indexOf(String(f["N° Interno"])) >= 0) return false;
+    if (!parseImporte(f["Monto"]) || !RE_FCI_MOV.test(normalizar([f["Concepto"], f["Destinatario"], f["Ordenante"], f["Instrumento"]].join(" ")))) return false;
+    const monto = -parseImporte(f["Monto"]);
+    const banco = normalizar(nombreBancoCanonico(f["Banco"]));
+    return !fciDatos.some(x => tipoMovFci(x) !== "SALDO" && bancoFci(x) === banco && Math.abs(parseImporte(x["Monto"]) - monto) < 0.01 && diasEntre(fechaAOrden(x["Fecha"]), iso) <= 3);
+  });
+  if (!encontrados.length) { setStatus($("movFciStatus"), "No hay movimientos de FCI nuevos en Movimientos (últimos 90 días).", "hint"); return; }
+  // Si la única fila está vacía, se reemplaza.
+  const filas = $("movFciFilas").querySelectorAll("tr");
+  if (filas.length === 1 && !filas[0].querySelector("input.monto").value.trim()) filas[0].remove();
+  encontrados.forEach(f => filaMovFci({
+    iso: fechaAOrden(fechaMov(f)), banco: nombreBancoCanonico(f["Banco"]) || f["Banco"], moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
+    monto: -parseImporte(f["Monto"]), ref: String(f["N° Interno"]), desc: "Movimiento N° " + f["N° Interno"] + " · " + (f["Concepto"] || "")
+  }));
+  setStatus($("movFciStatus"), encontrados.length + " movimiento(s) traído(s) con el signo del fondo (un crédito en la cuenta es un rescate). Revisalos antes de guardar.", "hint");
+}
+
+$("btnMovFci").addEventListener("click", abrirMovFci);
+$("movFciAgregar").addEventListener("click", () => filaMovFci());
+$("movFciTraer").addEventListener("click", () => traerMovFciDeMovimientos().catch(err => setStatus($("movFciStatus"), msgErr(err), "hint msg-error")));
+$("movFciGuardar").addEventListener("click", async () => {
+  const movs = [];
+  Array.from($("movFciFilas").querySelectorAll("tr")).forEach(tr => {
+    const c = tr.querySelectorAll("input, select");
+    const monto = parseImporte(c[4].value);
+    if (!monto && !c[2].value.trim()) return;
+    movs.push({ fecha: isoADma(c[0].value), banco: c[1].value, fondo: c[2].value.trim(), moneda: c[3].value, monto: montoTexto(monto), ref: tr.dataset.ref || "" });
+  });
+  if (!movs.length) { setStatus($("movFciStatus"), "Cargá al menos un movimiento con monto.", "hint msg-error"); return; }
+  const btn = $("movFciGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  try {
+    const res = await runJson("guardarMovimientosFci", { movs: movs });
+    cerrarModal("modalMovFci");
+    toast(res.nuevos + " movimiento(s) de FCI guardado(s)" + (res.sinCambios ? " · " + res.sinCambios + " ya estaba(n) cargado(s)" : "") + ".", "ok");
+    await cargarInversiones(true);
+  } catch (err) {
+    setStatus($("movFciStatus"), msgErr(err), "hint msg-error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
+});
+
+async function eliminarMovFci(f) {
+  if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) return;
+  const ok = await confirmar("Borrar movimiento de FCI", f["Movimiento"] + " de " + f["Banco"] + " del " + f["Fecha"] + " por " + fmtImp(parseImporte(f["Monto"])) + ". Se deja de contar en el rendimiento.");
+  if (!ok) return;
+  try {
+    await runJson("eliminarMovimientoFci", { id: f["ID Planilla"] });
+    toast("Movimiento de FCI borrado.", "ok");
+    await cargarInversiones(true);
+  } catch (err) {
+    toast(msgErr(err), "error");
+  }
+}
+
+// ---------------- Rendimiento del FCI con los saldos de Inicio ----------------
+// Los saldos de FCI de cada banco que se cargan en Inicio ("Cargar saldos") son la
+// base. Entre dos saldos seguidos de un banco:
+//   rendimiento = saldo nuevo − saldo anterior − suscripciones − rescates del medio
+// (las suscripciones en positivo y los rescates en negativo, de la pestaña FCI).
+// Un movimiento del mismo día que el saldo nuevo se toma como incluido en ese saldo.
+let memoRendSaldos = { saldos: null, fci: null, res: null };
+
+function calcularRendimientoFciSaldos() {
+  if (memoRendSaldos.saldos === saldosGuardados && memoRendSaldos.fci === fciDatos && memoRendSaldos.res) return memoRendSaldos.res;
+  const claveBanco = (banco, moneda) => normalizar(nombreBancoCanonico(banco) || banco) + "|" + moneda;
+  const grupos = {};
+  saldosGuardados.filter(esFilaFci).forEach(s => {
+    const iso = fechaAOrden(s["Fecha"]);
+    if (!iso) return;
+    const moneda = s["Moneda"] === "USD" ? "USD" : "Pesos";
+    const k = claveBanco(s["Banco"], moneda);
+    const g = grupos[k] || (grupos[k] = { k: k, banco: s["Banco"], moneda: moneda, porFecha: {} });
+    const prev = g.porFecha[iso];
+    if (!prev || String(s["Fecha de Carga"]) > String(prev["Fecha de Carga"])) g.porFecha[iso] = s;
+  });
+  const movs = fciDatos.filter(f => tipoMovFci(f) !== "SALDO").map(f => ({
+    iso: fechaAOrden(f["Fecha"]), monto: parseImporte(f["Monto"]),
+    k: claveBanco(interpretarEtiqueta(f["Banco"]).bancoTexto || f["Banco"], monedaDeTexto(f["Moneda"]))
+  })).filter(m => m.iso && m.monto);
+  const res = Object.keys(grupos).map(k => {
+    const g = grupos[k];
+    const fechas = Object.keys(g.porFecha).sort();
+    const delBanco = movs.filter(m => m.k === k);
+    const periodos = [];
+    for (let i = 1; i < fechas.length; i++) {
+      const desde = fechas[i - 1], hasta = fechas[i];
+      const ini = parseImporte(g.porFecha[desde]["Saldo"]), fin = parseImporte(g.porFecha[hasta]["Saldo"]);
+      let susc = 0, resc = 0;
+      delBanco.forEach(m => { if (m.iso > desde && m.iso <= hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
+      const capital = ini + susc + resc;
+      const d = Math.max(1, diasEntre(desde, hasta));
+      const rend = fin - capital;
+      const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
+      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend, dudoso: dudoso, informado: null });
+    }
+    const ultima = fechas[fechas.length - 1];
+    return {
+      k: k, banco: g.banco, moneda: g.moneda, periodos: periodos, ultimo: { iso: ultima, saldo: parseImporte(g.porFecha[ultima]["Saldo"]) },
+      posteriores: delBanco.filter(m => m.iso > ultima).reduce((a, m) => a + m.monto, 0)
+    };
+  }).sort((a, b) => (a.moneda + a.banco).localeCompare(b.moneda + b.banco));
+  memoRendSaldos = { saldos: saldosGuardados, fci: fciDatos, res: res };
+  return res;
+}
+
+function rendimientoFciDe(banco, moneda) {
+  const k = normalizar(nombreBancoCanonico(banco) || banco) + "|" + (moneda === "USD" ? "USD" : "Pesos");
+  return calcularRendimientoFciSaldos().find(x => x.k === k) || null;
+}
+
+function renderRendimientoFciSaldos(box) {
+  const hoy = hoyIso();
+  const bancos = calcularRendimientoFciSaldos();
+  const t = tarjetaViz("Rendimiento del FCI por banco", "Con los saldos de FCI cargados en Inicio y los rescates (en negativo) y suscripciones (en positivo) del medio.", "rendimientoBanco");
+  box.append(t.card);
+  t.plot.remove();
+  t.leyenda.remove();
+  t.btnTabla.hidden = true;
+  if (!bancos.length) {
+    datoViz(t, ["Todavía no hay saldos de FCI. Cargalos en Inicio con ", el("b", null, "Cargar saldos"), " (opción “Registrar también el FCI de cada banco”)."]);
+    t.btnDetalle.hidden = true;
+    return;
+  }
+  const filas = bancos.map(x => ({ x: x, ult: x.periodos[x.periodos.length - 1] || null, r30: tnaVentana(x.periodos, sumarDiasIso(hoy, -30)) }));
+  const pesos = filas.filter(f => f.x.moneda !== "USD");
+  const ganado = pesos.reduce((a, f) => a + f.r30.rend, 0);
+  const conPeriodo = filas.filter(f => f.ult);
+  if (!conPeriodo.length) datoViz(t, ["Hace falta un segundo saldo de FCI de cada banco para calcular el rendimiento."]);
+  else datoViz(t, ["En los últimos 30 días el FCI en pesos ganó ", el("b", null, fmtImp(ganado)), " sin contar rescates ni suscripciones."]);
+  const tabla = el("table");
+  const trh = el("tr");
+  ["Banco", "Saldo anterior", "Suscripciones", "Rescates", "Saldo actual", "Rendimiento", "TNA del período", "Ganado 30 días", "TNA 30 días"].forEach((h, i) => trh.append(el("th", i ? "num" : "", h)));
+  tabla.append(trh);
+  filas.forEach(f => {
+    const fmt = f.x.moneda === "USD" ? formatUsd : fmtImp;
+    const p = f.ult;
+    const tr = el("tr");
+    const tdB = el("td");
+    tdB.append(el("div", "strong", f.x.banco), el("div", "dt-sub", (f.x.moneda === "USD" ? "Dólares" : "Pesos") + (p && p.dudoso ? " · período dudoso: revisá si falta un movimiento" : "") + (f.x.posteriores ? " · " + fmt(f.x.posteriores) + " después del último saldo" : "")));
+    const conFecha = (v, iso) => { const td = el("td", "num"); td.append(el("div", null, fmt(v)), el("div", "dt-sub", isoADma(iso))); return td; };
+    tr.append(tdB,
+      p ? conFecha(p.ini, p.desde) : el("td", "num", "—"),
+      el("td", "num", p && p.susc ? fmt(p.susc) : "—"),
+      el("td", "num", p && p.resc ? fmt(p.resc) : "—"),
+      conFecha(f.x.ultimo.saldo, f.x.ultimo.iso),
+      el("td", "num " + (p && p.rend < 0 ? "neg" : ""), p ? fmt(p.rend) : "—"),
+      el("td", "num", p && !p.dudoso ? pctTexto(p.rend / p.capital * 365 / p.d) : "—"),
+      el("td", "num", fmt(f.r30.rend)),
+      el("td", "num", f.r30.tna === null ? "—" : pctTexto(f.r30.tna)));
+    tabla.append(tr);
+  });
+  t.detalle.append(envolverTabla(tabla));
+  t.ayuda.textContent = "Rendimiento = saldo actual − saldo anterior − suscripciones − rescates. TNA = rendimiento ÷ capital × 365 ÷ días.";
+}
 
 // ---------------- Reporte mensual automático ----------------
 function pintarReporteConfig(c) {

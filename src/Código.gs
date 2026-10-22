@@ -211,6 +211,9 @@ const ACCIONES = {
   obtenerFci: obtenerFci_,
   obtenerBolsa: obtenerBolsa_,
   guardarRecibidoBolsa: guardarRecibidoBolsa_,
+  guardarMovimientosFci: guardarMovimientosFci_,
+  eliminarMovimientoFci: eliminarMovimientoFci_,
+  registrarSalidaCheques: registrarSalidaCheques_,
   obtenerReporteConfig: obtenerReporteConfig_,
   guardarReporteConfig: guardarReporteConfig_,
   enviarReporteAhora: enviarReporteAhora_,
@@ -875,6 +878,68 @@ function guardarCheques_(d, u) {
     delete res.guardadas;
     res.ok = true;
     return res;
+  });
+}
+
+// ======================= Salida de cheques =======================
+// La página lee la foto con la numeración de los cheques que salieron (o los
+// números escritos) y el usuario elige la fecha del pago. Los cheques cargados
+// con esos números pasan a "Pagado" y la fecha queda como fecha de débito.
+// La foto puede quedar como comprobante de cada cheque que no tenía uno.
+const CARPETA_SALIDA_CHEQUES = 'Salida de cheques';
+
+/**
+ * d: {fecha: dd/mm/aaaa, cheques: [{numero, banco, importe, id}], archivo: {base64, nombre, mime} | null}.
+ * Cada cheque se busca por N° (sin ceros a la izquierda), banco, importe e ID de la planilla.
+ */
+function registrarSalidaCheques_(d, u) {
+  const fecha = String(d.fecha || '').trim();
+  const p = fecha.split('/');
+  if (p.length !== 3 || p[2].length !== 4) return { ok: false, error: 'Elegí la fecha del pago.' };
+  const pedidos = (d.cheques || []).filter(c => c && soloDigitos(c.numero));
+  if (!pedidos.length) return { ok: false, error: 'No hay cheques marcados.' };
+
+  let archivoId = '';
+  if (d.archivo && d.archivo.base64) {
+    const bytes = Utilities.base64Decode(String(d.archivo.base64));
+    if (bytes.length > MAX_BYTES_COMPROBANTE) return { ok: false, error: 'La foto supera los 25 MB.' };
+    const carpeta = subcarpeta_(carpetaRaiz_(), CARPETA_SALIDA_CHEQUES);
+    const nombre = nombreLibre_(carpeta, nombreSeguro_(p[2] + '-' + p[1] + '-' + p[0] + ' - ' + (d.archivo.nombre || 'salida de cheques')));
+    const archivo = carpeta.createFile(Utilities.newBlob(bytes, String(d.archivo.mime || 'application/octet-stream'), nombre));
+    archivo.setDescription('Salida de cheques del ' + fecha + ' · cargado por ' + nombreDe_(u) + ' el ' + ahoraTexto_());
+    archivoId = archivo.getId();
+  }
+
+  return conLock_(() => {
+    const H = HEADERS_CHEQUES;
+    const hoja = obtenerHoja_(SHEET_CHEQUES, H);
+    const ult = hoja.getLastRow();
+    if (ult < 2) return { ok: false, error: 'No hay cheques cargados.' };
+    const filas = hoja.getRange(2, 1, ult - 1, H.length).getDisplayValues();
+    const iEstado = H.indexOf('Estado'), iDeb = H.indexOf('Fecha de Débito'), iImp = H.indexOf('Importe'), iId = H.indexOf('ID Planilla');
+    const usadas = {};
+    const cambiados = [], noEncontrados = [];
+    pedidos.forEach(c => {
+      const num = sinCerosIzq_(soloDigitos(c.numero));
+      const imp = Math.abs(importeANumero(c.importe));
+      const idx = filas.findIndex((f, i) => !usadas[i] &&
+        sinCerosIzq_(soloDigitos(f[COL_NUMERO_CHEQUE])) === num &&
+        claveTexto(f[COL_BANCO_CHEQUE]) === claveTexto(c.banco) &&
+        String(f[iId] || '').trim() === String(c.id || '').trim() &&
+        Math.abs(Math.abs(importeANumero(f[iImp])) - imp) < 0.01);
+      if (idx < 0) { noEncontrados.push(String(c.numero)); return; }
+      usadas[idx] = true;
+      const f = filas[idx];
+      const antes = { 'Estado': f[iEstado], 'Fecha de Débito': f[iDeb] };
+      hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue('Pagado');
+      hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(fecha);
+      if (archivoId && !String(f[COL_COMPROBANTE_CHEQUE] || '').trim()) hoja.getRange(idx + 2, COL_COMPROBANTE_CHEQUE + 1).setNumberFormat('@').setValue(archivoId);
+      cambiados.push({ 'Cheque': f[COL_NUMERO_CHEQUE], 'Tipo': f[H.indexOf('Tipo')], 'Importe': f[iImp], 'Antes': antes, 'Después': { 'Estado': 'Pagado', 'Fecha de Débito': fecha } });
+    });
+    if (!cambiados.length) return { ok: false, error: 'No se encontró ningún cheque. Actualizá la lista y volvé a intentar.' };
+    registrar_(u, 'Salida de cheques', cambiados.length + ' cheque(s) pagado(s) el ' + fecha + (noEncontrados.length ? ' · ' + noEncontrados.length + ' sin encontrar' : '') + (archivoId ? ' · con foto' : ''),
+      cambiados.map(c => c['Cheque']).join(', '), '', textoCorto_(cambiados));
+    return { ok: true, pagados: cambiados.length, noEncontrados: noEncontrados, archivo: archivoId };
   });
 }
 
@@ -2139,9 +2204,20 @@ function importarCheques_(filas, d, u) {
   const iId = H.indexOf('ID Planilla');
   const iTipo = H.indexOf('Tipo');
   const iImporte = H.indexOf('Importe');
+  // Un cheque que ya figura como pagado (por ejemplo, desde Salida de cheques) no
+  // vuelve a pendiente si la planilla todavía no lo tiene actualizado.
+  const pagados = {};
+  leerFilas_(SHEET_CHEQUES, H).forEach(f => {
+    if (String(f['ID Planilla'] || '').trim() && claveTexto(f['Estado']) === 'pagado') pagados[String(f['ID Planilla']).trim()] = f;
+  });
   filas.forEach(o => {
     if (o['Tipo'] === 'De terceros') { o['Banco'] = ''; o['N° de Cuenta'] = ''; o['Tipo de Cuenta'] = ''; }
     o['Moneda'] = o['Moneda'] === 'USD' ? 'USD' : 'Pesos';
+    const pagado = pagados[String(o['ID Planilla'] || '').trim()];
+    if (pagado && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(o['Estado'])) >= 0) {
+      o['Estado'] = pagado['Estado'];
+      if (!String(o['Fecha de Débito'] || '').trim()) o['Fecha de Débito'] = pagado['Fecha de Débito'];
+    }
   });
   return upsertPlanilla_(SHEET_CHEQUES, H, filas, {
     nueva: fila => {
@@ -2710,6 +2786,66 @@ function obtenerFci_(d) {
 function obtenerBolsa_(d) {
   if (d && d.formato === 'gz') return filasComprimidas_(SHEET_BOLSA, HEADERS_BOLSA, !!d.forzar);
   return { ok: true, filas: leerFilas_(SHEET_BOLSA, HEADERS_BOLSA) };
+}
+
+// ======================= Rescates y suscripciones de FCI =======================
+// Se cargan en la app (a mano o traídos de Movimientos) y van a la misma hoja que
+// el FCI de la planilla. El signo manda: en negativo es un rescate (sale del
+// fondo) y en positivo una suscripción (entra al fondo). Con estos movimientos y
+// los saldos de FCI que se cargan en Inicio, la página calcula el rendimiento.
+// ID Planilla "FCIM-…": así la importación de la planilla no los pisa ni los duplica.
+
+/** d.movs: [{fecha: dd/mm/aaaa, banco, fondo, moneda, monto, ref}] */
+function guardarMovimientosFci_(d, u) {
+  return conLock_(() => {
+    const H = HEADERS_FCI;
+    const iPor = H.indexOf('Importado por'), iFecha = H.indexOf('Fecha de Importación');
+    const errores = [];
+    const vistos = {};
+    const filas = [];
+    (d.movs || []).forEach((m, i) => {
+      const fecha = String(m.fecha || '').trim();
+      const p = fecha.split('/');
+      const banco = String(m.banco || '').trim();
+      const monto = importeANumero(m.monto);
+      if (p.length !== 3 || p[2].length !== 4) { errores.push('Fila ' + (i + 1) + ': falta la fecha.'); return; }
+      if (!banco) { errores.push('Fila ' + (i + 1) + ': falta el banco.'); return; }
+      if (!monto) { errores.push('Fila ' + (i + 1) + ': falta el monto.'); return; }
+      const moneda = m.moneda === 'USD' ? 'USD' : 'Pesos';
+      const fondo = String(m.fondo || '').trim();
+      const ref = String(m.ref || '').trim();
+      const base = [p[2] + p[1] + p[0], claveTexto(banco), claveTexto(fondo), moneda, monto.toFixed(2), ref].join('|');
+      vistos[base] = (vistos[base] || 0) + 1;
+      const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, base + '|' + vistos[base])
+        .slice(0, 5).map(b => ('0' + (b & 255).toString(16)).slice(-2)).join('');
+      filas.push({
+        'ID Planilla': 'FCIM-' + p[2] + p[1] + p[0] + '-' + hash, 'Persona': '', 'Fecha': fecha, 'Banco': banco, 'Fondo': fondo,
+        'Movimiento': monto < 0 ? 'Rescate' : 'Suscripción', 'Solicitud o rendimiento': ref ? 'Mov. N° ' + ref : '',
+        'Moneda': moneda, 'Monto': formatoPesos(monto).replace('$ ', '')
+      });
+    });
+    if (errores.length) return { ok: false, error: errores.join(' ') };
+    if (!filas.length) return { ok: false, error: 'No hay movimientos para guardar.' };
+    const res = upsertPlanilla_(SHEET_FCI, H, filas, { nueva: fila => { fila[iPor] = nombreDe_(u); fila[iFecha] = ahoraTexto_(); } });
+    registrar_(u, 'FCI: rescates y suscripciones', res.nuevos + ' movimiento(s) cargado(s)' + (res.sinCambios ? ' · ' + res.sinCambios + ' ya estaban' : ''),
+      '', '', textoCorto_(filas.map(f => ({ 'Fecha': f['Fecha'], 'Banco': f['Banco'], 'Movimiento': f['Movimiento'], 'Monto': f['Monto'] }))));
+    res.ok = true;
+    return res;
+  });
+}
+
+/** Borra un rescate o suscripción cargado en la app (no los de la planilla). d: {id} */
+function eliminarMovimientoFci_(d, u) {
+  return conLock_(() => {
+    const id = String(d.id || '').trim();
+    if (id.indexOf('FCIM-') !== 0) return { ok: false, error: 'Solo se pueden borrar los movimientos cargados en la app. Los de la planilla se corrigen en la planilla.' };
+    const iId = HEADERS_FCI.indexOf('ID Planilla');
+    const salen = eliminarFilasDonde_(SHEET_FCI, HEADERS_FCI, f => String(f[iId] || '').trim() === id);
+    if (!salen.length) return { ok: false, error: 'No se encontró el movimiento.' };
+    registrar_(u, 'FCI: movimiento eliminado', salen[0][HEADERS_FCI.indexOf('Movimiento')] + ' ' + salen[0][HEADERS_FCI.indexOf('Banco')] + ' del ' + salen[0][HEADERS_FCI.indexOf('Fecha')],
+      id, filaComoObjeto_(HEADERS_FCI, salen[0]), '');
+    return { ok: true };
+  });
 }
 
 /** Borra de una hoja las filas que cumplen test(fila). Reescribe la hoja de una vez (rápido con miles de filas). */
