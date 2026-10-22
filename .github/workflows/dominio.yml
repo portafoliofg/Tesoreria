@@ -124,7 +124,8 @@ jobs:
       - name: Probar el ingreso (Apps Script)
         run: |
           URL=$(grep -o 'https://script.google.com/macros/s/[^"]*/exec' docs/sesion.js)
-          RES=$(curl -sSL --max-time 30 -X POST -H "Content-Type: text/plain;charset=utf-8" -H "Origin: https://$DOMINIO" -D cabeceras.txt -d '{"accion":"estado"}' "$URL")
+          RES=$(curl -sSL --max-time 30 -H "Content-Type: text/plain;charset=utf-8" -H "Origin: https://$DOMINIO" -D cabeceras.txt -d '{"accion":"estado"}' "$URL")
+          # Sin -X POST: así curl sigue la redirección de Google con GET, como el navegador.
           echo "Respuesta: $RES"
           grep -i "access-control-allow-origin" cabeceras.txt || echo "::warning::La respuesta no trae Access-Control-Allow-Origin."
           echo "$RES" | jq -e '.ok == true' > /dev/null || { echo "::error::El ingreso de bgpsammar.com no responde bien. ¿Se publicó la última versión de Código.gs (doPost)?"; exit 1; }
