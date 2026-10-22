@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["docs/CNAME", ".github/workflows/dominio.yml"]
+    paths: ["docs/**", ".github/workflows/dominio.yml", ".github/scripts/seguridad.mjs"]
   schedule:
     - cron: "17 11 * * *"
 
@@ -109,3 +109,14 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           cat "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Abrir el sitio con Chrome (contenido sin https)
+        run: |
+          cd .github/scripts
+          npm install --no-save --silent playwright@1.47.2
+          npx playwright install --with-deps chromium > /dev/null
+          node seguridad.mjs "https://$DOMINIO"
