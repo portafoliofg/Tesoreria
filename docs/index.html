@@ -226,7 +226,7 @@
     </section>
   </div>
   <script src="loader.js"></script>
-  <script src="sesion.js"></script>
+  <script src="sesion.js?v=2"></script>
   <script>
     // Pantalla de inicio: el video de 7 s y, al terminar, el ingreso (si no hay sesión)
     // y el selector sobre su último cuadro. El ingreso usa los mismos usuarios de
@@ -245,8 +245,11 @@
       var appLista = false, eligio = false, cerrada = false, arranco = false, termino = false, carga = null;
       var usuario = null;
 
-      // La sesión se consulta mientras corre el video.
-      var consulta = BGPSesion.consultar().catch(function () { return null; });
+      // La sesión se confirma con el servidor mientras corre el video. No se espera esa
+      // respuesta para mostrar nada: con una sesión guardada aparece el selector al
+      // instante, y solo si el servidor dice que venció se vuelve al ingreso.
+      var consulta = BGPSesion.consultar();
+      consulta.catch(function () {});
 
       // ----- Sesión hacia la app de Tesorería -----
       // La app está en un iframe de Google con otros iframes adentro: se manda a todos.
@@ -284,9 +287,10 @@
         seccion.classList.add("visible");
       }
 
-      function mostrarSelector() {
+      function pintarUsuario() {
         var linea = document.getElementById("selUsuario");
         linea.replaceChildren();
+        linea.hidden = !usuario;
         if (usuario) {
           var salir = document.createElement("button");
           salir.type = "button";
@@ -298,9 +302,13 @@
               mostrarAcceso("");
             });
           });
-          linea.append("Ingresaste como " + (usuario.nombre || usuario.usuario) + " · ", salir);
-          linea.hidden = false;
+          var nombre = usuario.nombre || usuario.usuario;
+          linea.append(nombre ? "Ingresaste como " + nombre + " · " : "", salir);
         }
+      }
+
+      function mostrarSelector() {
+        pintarUsuario();
         mostrar(sel);
         setTimeout(function () { try { btnTes.focus({ preventScroll: true }); } catch (e) {} }, 400);
       }
@@ -317,11 +325,18 @@
         if (termino) return;
         termino = true;
         video.pause();
+        usuario = BGPSesion.usuario();
+        if (usuario) { enviarSesion(); mostrarSelector(); }
+        else mostrarAcceso("");
         consulta.then(function (u) {
-          usuario = u;
-          if (u) { enviarSesion(); mostrarSelector(); }
-          else mostrarAcceso("");
-        });
+          if (u) {
+            usuario = u;
+            if (!sel.hidden) pintarUsuario();
+          } else if (usuario && !BGPSesion.token() && !cerrada) {
+            usuario = null;
+            mostrarAcceso("Tu sesión venció. Volvé a ingresar.");
+          }
+        }, function () {});
       }
 
       document.getElementById("accesoForm").addEventListener("submit", function (e) {
@@ -381,6 +396,12 @@
           alTerminar();
         }
       }
+
+      // Volver con "atrás" después de salir (en Propiedades, por ejemplo): la página
+      // vuelve de la memoria del navegador tal como estaba; se recarga para pedir el ingreso.
+      window.addEventListener("pageshow", function (e) {
+        if (e.persisted && usuario && !BGPSesion.token()) { history.replaceState(null, "", "#elegir"); location.reload(); }
+      });
 
       // Al volver desde Propiedades o al salir (index.html#elegir) no se repite el video.
       if (location.hash === "#elegir") {

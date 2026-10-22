@@ -118,19 +118,22 @@
     </div>
   </div>
 
-  <script src="sesion.js"></script>
+  <script src="sesion.js?v=2"></script>
   <script>
-    // Solo con sesión iniciada (los mismos usuarios de Tesorería). Sin sesión, al ingreso.
+    // Solo con sesión iniciada (los mismos usuarios de Tesorería). Se muestra al
+    // instante con la sesión guardada y se confirma de fondo: solo si el servidor
+    // dice que venció se vuelve al ingreso (una demora o un corte de red no echa a nadie).
     function irAlIngreso() { location.replace("index.html#elegir"); }
-    if (!BGPSesion.token()) irAlIngreso();
-    BGPSesion.consultar().then(function (u) {
-      if (!u) { irAlIngreso(); return; }
-      document.getElementById("quien").textContent = u.nombre || u.usuario;
+    var guardado = BGPSesion.usuario();
+    if (!guardado) irAlIngreso();
+    else {
+      document.getElementById("quien").textContent = guardado.nombre || guardado.usuario || "";
       document.body.classList.remove("verificando");
-    }, function () {
-      // Sin conexión con el servidor: se muestra igual si había una sesión guardada.
-      document.body.classList.remove("verificando");
-    });
+      BGPSesion.consultar().then(function (u) {
+        if (!u) { irAlIngreso(); return; }
+        document.getElementById("quien").textContent = u.nombre || u.usuario;
+      }, function () {});
+    }
     document.getElementById("salir").addEventListener("click", function () { BGPSesion.salir().then(irAlIngreso); });
 
     // Datos de ejemplo: se reemplazan por los reales (o por una planilla) más adelante.
