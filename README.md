@@ -10,10 +10,10 @@ src/
   Index.html       Interfaz (HTML, CSS y JS)
   appsscript.json  Manifiesto del proyecto
 docs/
-  index.html       Página de bgpsammar.com: video de presentación, ingreso, selector y la app en un iframe
+  index.html       Página de bgpsammar.com: presentación animada, ingreso, selector y la app en un iframe
   sesion.js        Ingreso único (usuarios de Tesorería) compartido por las páginas
   propiedades.html Sección Propiedades (por ahora con datos de ejemplo)
-  carga.*, marca.png, logo-as-*.png  Video de presentación, logo y favicons (Andrés Sammartino)
+  intro-*.webp, marca.png, logo-as-*.png  Capas de la presentación, logo y favicons (Andrés Sammartino)
   CNAME            Dominio propio para GitHub Pages
 .clasp.json.example
 ```
@@ -51,7 +51,7 @@ Si faltan los secretos, la Action no hace nada.
 
 ## Dominio propio (bgpsammar.com)
 
-Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.com` sirve `docs/index.html` desde GitHub Pages, y esa página carga la app en un `iframe`. Mientras carga se ve el video de presentación (con "Saltar"); al terminar aparece el ingreso o, si ya hay sesión, el selector de secciones.
+Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.com` sirve `docs/index.html` desde GitHub Pages, y esa página carga la app en un `iframe`. Mientras carga se ve la presentación animada (con "Saltar"); al terminar aparece el ingreso o, si ya hay sesión, el selector de secciones.
 
 1. `doGet()` ya usa `setXFrameOptionsMode(ALLOWALL)`, que permite mostrar la app dentro del iframe. Para que tome efecto, publicá una **versión nueva** de la implementación existente, así la URL `/exec` no cambia.
 2. Si la URL `/exec` cambia algún día, actualizala en `docs/index.html`.
@@ -75,11 +75,11 @@ Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.c
 
 ### Ingreso
 
-Es el único ingreso: la app de Tesorería ya no tiene el suyo (si se abre sin sesión, manda a `bgpsammar.com`). Después del video, `bgpsammar.com` pide usuario y contraseña. Son los usuarios de la pestaña Usuarios de Tesorería: `docs/sesion.js` los valida contra `doPost()` de `Código.gs`, que solo atiende ingreso, consulta de sesión y salida. Con la sesión iniciada aparece el selector, y la página le pasa la sesión a la app de Tesorería por `postMessage` para que no la vuelva a pedir. `propiedades.html` también exige sesión. Salir desde la página o desde la app cierra las dos.
+Es el único ingreso: la app de Tesorería ya no tiene el suyo (si se abre sin sesión, manda a `bgpsammar.com`). Después de la presentación, `bgpsammar.com` pide usuario y contraseña. Son los usuarios de la pestaña Usuarios de Tesorería: `docs/sesion.js` los valida contra `doPost()` de `Código.gs`, que solo atiende ingreso, consulta de sesión y salida. Con la sesión iniciada aparece el selector, y la página le pasa la sesión a la app de Tesorería por `postMessage` para que no la vuelva a pedir. `propiedades.html` también exige sesión. Salir desde la página o desde la app cierra las dos.
 
-### Video de presentación
+### Presentación
 
-`docs/carga.webm` y `docs/carga.mp4` (sin sonido) son el mismo video; `carga.jpg` es su primer cuadro. Al cambiar el video, subir el `?v=` de esos archivos en `index.html` para que el navegador no use la copia vieja. Si el video no puede reproducirse, o el sistema pide menos movimiento, se pasa directo al ingreso o al selector.
+No es un video: es una animación hecha en la página con el logo separado en capas (`intro-verde.webp`, `intro-oro.webp`, `intro-nombre.webp`, `intro-lema.webp`, todas del mismo tamaño que `marca.png`). El anillo se dibuja desde arriba, pasa un brillo por lo dorado, aparecen el nombre y el lema, y el logo viaja hasta su lugar en el ingreso o el selector. Dura unos 4,5 s; "Saltar" la corta. Con "menos movimiento" activado en el sistema, el logo aparece directo. Al cambiar alguna imagen, subir su `?v=` en `index.html`.
 
 ## Limitaciones a tener en cuenta
 

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600;700&display=swap">
   <style>
-    /* Paleta del video de presentación: fondo crema, verde campo y dorado. */
+    /* Paleta del logo de Andrés Sammartino: fondo crema, verde campo y dorado. */
     :root {
       --crema: #ebe5dd;
       --crema-clara: #f6f2ec;
@@ -35,10 +35,52 @@
     #capa { position: fixed; inset: 0; z-index: 10; background: var(--crema); transition: opacity 0.7s ease, visibility 0.7s ease; }
     #capa.fuera { opacity: 0; visibility: hidden; }
 
-    /* ---------- Video de presentación ---------- */
-    .vc { position: absolute; inset: 0; overflow: hidden; background: var(--crema); transition: opacity 0.8s ease; }
-    .vc video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    @media (max-aspect-ratio: 1/1) { .vc video { object-fit: contain; } }
+    /* ---------- Presentación animada ----------
+       El logo está separado en capas (lo verde, lo dorado, el nombre y el lema) para
+       animarlo por partes: el anillo se dibuja desde arriba hacia los dos lados, pasa un
+       brillo por lo dorado, aparecen el nombre y el lema, y al final el logo viaja hasta
+       su lugar en el ingreso o el selector (sin corte). Centro del anillo: 49.4% 36.6%. */
+    @property --barrido { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+    .intro { position: absolute; inset: 0; z-index: 6; overflow: hidden; pointer-events: none; }
+    .intro .vc-saltar { pointer-events: auto; }
+    .intro-luz {
+      position: absolute; left: 50%; top: 46%; width: min(120vw, 1400px); aspect-ratio: 1; transform: translate(-50%, -50%);
+      background: radial-gradient(closest-side, rgba(217, 180, 106, 0.32), rgba(217, 180, 106, 0.08) 55%, transparent 72%);
+      opacity: 0; transition: opacity 0.6s ease;
+    }
+    .intro-logo {
+      position: absolute; left: 50%; top: 50%;
+      width: min(88vw, calc(66vh * 928 / 700)); aspect-ratio: 928 / 700;
+      transform: translate(-50%, -50%); transform-origin: 50% 50%;
+    }
+    .capa { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+    .capa.verde {
+      -webkit-mask-image: conic-gradient(from 0deg at 49.4% 36.6%, transparent calc(360deg - var(--barrido)), #000 calc(374deg - var(--barrido)));
+              mask-image: conic-gradient(from 0deg at 49.4% 36.6%, transparent calc(360deg - var(--barrido)), #000 calc(374deg - var(--barrido)));
+    }
+    .capa.oro {
+      -webkit-mask-image: conic-gradient(from 0deg at 49.4% 36.6%, #000 calc(var(--barrido) - 14deg), transparent var(--barrido));
+              mask-image: conic-gradient(from 0deg at 49.4% 36.6%, #000 calc(var(--barrido) - 14deg), transparent var(--barrido));
+    }
+    .capa.brillo {
+      background: linear-gradient(105deg, transparent 42%, rgba(255, 246, 220, 0.95) 50%, transparent 58%) 100% 0 / 300% 100% no-repeat;
+      -webkit-mask: url("intro-oro.webp?v=6") center / 100% 100% no-repeat;
+              mask: url("intro-oro.webp?v=6") center / 100% 100% no-repeat;
+      mix-blend-mode: screen;
+    }
+    .intro.anima .intro-luz { animation: luz 2.6s ease 1.1s both; }
+    .intro.anima .capa.verde, .intro.anima .capa.oro { animation: dibujar 1.7s cubic-bezier(0.45, 0.05, 0.25, 1) 0.25s both; }
+    .intro.anima .capa.brillo { animation: brillo 1.1s ease-in-out 1.95s both; }
+    .intro.anima .capa.nombre { animation: nombre 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 1.85s both; }
+    .intro.anima .capa.lema { animation: lema 0.7s ease 2.55s both; }
+    @keyframes dibujar { 0% { --barrido: 0deg; opacity: 0; } 8% { opacity: 1; } 100% { --barrido: 374deg; opacity: 1; } }
+    @keyframes brillo { 0% { opacity: 0; background-position: 100% 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; background-position: 0% 0; } }
+    @keyframes nombre { from { opacity: 0; clip-path: inset(0 50% 0 50%); transform: translateY(6px); } to { opacity: 1; clip-path: inset(0 0 0 0); transform: none; } }
+    @keyframes lema { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes luz { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: 0.55; } }
+    /* "Saltar" o menos movimiento: el logo completo, sin animación. */
+    .intro.saltado .capa { animation: none !important; opacity: 1; -webkit-mask-image: none; mask-image: none; clip-path: none; transform: none; }
+    .intro.saltado .capa.brillo { opacity: 0; }
     .vc-saltar {
       position: absolute;
       top: max(16px, env(safe-area-inset-top, 0px));
@@ -49,9 +91,18 @@
       transition: opacity 0.5s ease, background 0.2s ease;
     }
     .vc-saltar:hover { background: rgba(255, 255, 255, 0.85); }
-    /* Al terminar, el video se funde con el fondo y aparece el ingreso o el selector. */
-    #capa.eligiendo .vc { opacity: 0; }
-    #capa.eligiendo .vc-saltar { opacity: 0; pointer-events: none; }
+    /* Al terminar: el logo viaja a su lugar; lo demás de la presentación se apaga. */
+    #capa.eligiendo .vc-saltar, #capa.eligiendo .intro-luz { opacity: 0; pointer-events: none; animation: none; }
+    .intro-logo.viajando { transition: transform 0.95s cubic-bezier(0.65, 0, 0.25, 1); }
+    /* Mientras el logo de la presentación viaja, el del ingreso o selector espera oculto. */
+    #capa.desde-intro .sel.visible .sel-logo { animation: none; opacity: 0; }
+    #capa.desde-intro.logo-en-lugar .sel.visible .sel-logo { opacity: 1; }
+    #capa.desde-intro .sel.visible .cartel { animation-delay: 0.55s; }
+    #capa.desde-intro .sel.visible .cartel:nth-child(2) { animation-delay: 0.67s; }
+    #capa.desde-intro .sel.visible .cartel:nth-child(3) { animation-delay: 0.79s; }
+    #capa.desde-intro .sel.visible .acceso-form { animation-delay: 0.6s; }
+    #capa.desde-intro .sel.visible .sel-pregunta, #capa.desde-intro .sel.visible .sel-usuario { animation: aparecer 0.6s ease 0.5s both; }
+    @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
     /* ---------- Ingreso y selector ---------- */
     .sel {
@@ -144,7 +195,7 @@
     @media (max-height: 640px) { .sel-logo { height: clamp(110px, 24vh, 160px); } }
     @media (max-width: 600px) { .sel-logo { height: clamp(120px, 22vh, 180px); } }
     @media (prefers-reduced-motion: reduce) {
-      .sel, .vc, .cartel, .acceso-form { transition: none; }
+      .sel, .cartel, .acceso-form, .intro-logo.viajando { transition: none; }
       .sel.visible .cartel, .sel.visible .acceso-form, .sel.visible .sel-logo { animation: none; opacity: 1; transform: none; }
     }
   </style>
@@ -156,17 +207,21 @@
           allow="clipboard-read; clipboard-write; camera"
           allowfullscreen></iframe>
   <div id="capa">
-    <div class="vc" id="vc" aria-label="Andrés Sammartino">
-      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg?v=5">
-        <source src="carga.webm?v=5" type="video/webm">
-        <source src="carga.mp4?v=5" type="video/mp4">
-      </video>
+    <div class="intro" id="intro">
+      <div class="intro-luz" aria-hidden="true"></div>
+      <div class="intro-logo" id="introLogo" role="img" aria-label="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias">
+        <img class="capa verde" src="intro-verde.webp?v=6" alt="" width="928" height="700">
+        <img class="capa oro" src="intro-oro.webp?v=6" alt="" width="928" height="700">
+        <span class="capa brillo"></span>
+        <img class="capa nombre" src="intro-nombre.webp?v=6" alt="" width="928" height="700">
+        <img class="capa lema" src="intro-lema.webp?v=6" alt="" width="928" height="700">
+      </div>
       <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
     </div>
 
     <section class="sel" id="acceso" hidden aria-labelledby="accesoTitulo">
       <div class="sel-caja">
-        <img class="sel-logo" src="marca.png?v=5" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="763" height="558">
+        <img class="sel-logo" src="marca.png?v=6" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="928" height="700">
         <form class="acceso-form" id="accesoForm" novalidate>
           <h2 id="accesoTitulo">Ingresar</h2>
           <label>Usuario<input type="text" id="accesoUsuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
@@ -180,7 +235,7 @@
 
     <section class="sel" id="sel" hidden aria-labelledby="selTitulo">
       <div class="sel-caja">
-        <h1 style="margin:0"><img class="sel-logo" id="selTitulo" src="marca.png?v=5" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="763" height="558"></h1>
+        <h1 style="margin:0"><img class="sel-logo" id="selTitulo" src="marca.png?v=6" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="928" height="700"></h1>
         <p class="sel-pregunta">¿A dónde querés entrar?</p>
         <p class="sel-usuario" id="selUsuario" hidden></p>
         <div class="sel-opciones">
@@ -227,24 +282,26 @@
   </div>
   <script src="sesion.js?v=5"></script>
   <script>
-    // Pantalla de inicio: el video de presentación y, al terminar, el ingreso (si no hay
-    // sesión) o el selector, sobre el mismo fondo crema del video. Hay un solo ingreso,
-    // con los usuarios de Tesorería (sesion.js). Tesorería abre la app (que ya se viene
-    // cargando detrás) y recibe la sesión por postMessage; Propiedades abre
-    // propiedades.html; Inversiones todavía no está disponible. Si el video no puede
-    // reproducirse, o el sistema pide menos movimiento, se pasa directo al ingreso o selector.
+    // Pantalla de inicio: la presentación animada del logo y, al terminar, el ingreso (si
+    // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
+    // pantalla. Hay un solo ingreso, con los usuarios de Tesorería (sesion.js). Tesorería
+    // abre la app (que ya se viene cargando detrás) y recibe la sesión por postMessage;
+    // Propiedades abre propiedades.html; Inversiones todavía no está disponible.
     (function () {
       var capa = document.getElementById("capa");
       var app = document.getElementById("app");
-      var vc = document.getElementById("vc");
-      var video = document.getElementById("vcVideo");
+      var intro = document.getElementById("intro");
+      var introLogo = document.getElementById("introLogo");
+      // Duración de la presentación hasta que el logo empieza a viajar (ver las animaciones en el CSS).
+      var DURACION_INTRO = 3700;
+      var relojIntro = 0;
       var sel = document.getElementById("sel");
       var acceso = document.getElementById("acceso");
       var btnTes = document.getElementById("irTesoreria");
-      var appLista = false, eligio = false, cerrada = false, arranco = false, termino = false;
+      var appLista = false, eligio = false, cerrada = false, termino = false;
       var usuario = null;
 
-      // La sesión se confirma con el servidor mientras corre el video. No se espera esa
+      // La sesión se confirma con el servidor durante la presentación. No se espera esa
       // respuesta para mostrar nada: con una sesión guardada aparece el selector al
       // instante, y solo si el servidor dice que venció se vuelve al ingreso.
       var consulta = BGPSesion.consultar();
@@ -274,7 +331,7 @@
         if (cerrada) return;
         cerrada = true;
         capa.classList.add("fuera");
-        setTimeout(function () { video.pause(); capa.remove(); }, 800);
+        setTimeout(function () { capa.remove(); }, 800);
       }
 
       function mostrar(seccion) {
@@ -283,6 +340,30 @@
         seccion.hidden = false;
         void seccion.offsetWidth;
         seccion.classList.add("visible");
+        if (intro.isConnected) llevarLogo(seccion);
+      }
+
+      // El logo de la presentación viaja (se mueve y se achica) hasta donde está el logo
+      // de la pantalla que aparece; al llegar se cambia por ese y la presentación se quita.
+      function llevarLogo(seccion) {
+        var destino = seccion.querySelector(".sel-logo");
+        capa.classList.add("desde-intro");
+        intro.classList.add("saltado");
+        var a = introLogo.getBoundingClientRect(), b = destino.getBoundingClientRect();
+        var dx = (b.left + b.width / 2) - (a.left + a.width / 2);
+        var dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+        var escala = a.width ? b.width / a.width : 1;
+        introLogo.classList.add("viajando");
+        introLogo.style.transform = "translate(-50%, -50%) translate(" + dx + "px, " + dy + "px) scale(" + escala + ")";
+        var listo = false;
+        function llegar() {
+          if (listo) return;
+          listo = true;
+          capa.classList.add("logo-en-lugar");
+          intro.remove();
+        }
+        introLogo.addEventListener("transitionend", llegar);
+        setTimeout(llegar, 1200);
       }
 
       function pintarUsuario() {
@@ -318,11 +399,11 @@
         setTimeout(function () { try { document.getElementById("accesoUsuario").focus({ preventScroll: true }); } catch (e) {} }, 400);
       }
 
-      // Al terminar el video (o saltearlo): selector si hay sesión; si no, el ingreso.
+      // Al terminar la presentación (o saltearla): selector si hay sesión; si no, el ingreso.
       function alTerminar() {
         if (termino) return;
         termino = true;
-        video.pause();
+        clearTimeout(relojIntro);
         usuario = BGPSesion.usuario();
         if (usuario) { enviarSesion(); mostrarSelector(); }
         else mostrarAcceso("");
@@ -384,60 +465,42 @@
         if (eligio) cerrar();
       });
 
-      // Sin video (no se pudo reproducir o se pide menos movimiento): directo al ingreso o selector.
-      function sinVideo() {
-        if (cerrada || termino) return;
-        video.pause();
-        vc.remove();
-        alTerminar();
-      }
-
       // Volver con "atrás" después de salir (en Propiedades, por ejemplo): la página
       // vuelve de la memoria del navegador tal como estaba; se recarga para pedir el ingreso.
       window.addEventListener("pageshow", function (e) {
         if (e.persisted && usuario && !BGPSesion.token()) { history.replaceState(null, "", "#elegir"); location.reload(); }
       });
 
-      // Al volver desde Propiedades o al salir (index.html#elegir) no se repite el video.
+      // Al volver desde Propiedades o al salir (index.html#elegir) no se repite la presentación.
       if (location.hash === "#elegir") {
-        video.pause();
-        vc.remove();
+        intro.remove();
         alTerminar();
         return;
       }
 
+      document.getElementById("vcSaltar").addEventListener("click", alTerminar);
+
+      // Con menos movimiento pedido por el sistema: el logo completo y enseguida a su lugar.
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        sinVideo();
+        intro.classList.add("saltado");
+        relojIntro = setTimeout(alTerminar, 600);
         return;
       }
 
-      video.addEventListener("playing", function () {
-        arranco = true;
-        // Por si el navegador no avisa que terminó (pasa con algunos videos o conexiones):
-        // a los 12 s de arrancar se sigue igual.
-        setTimeout(alTerminar, 12000);
+      // Arranca cuando las capas del logo están listas (o a los 2,5 s, lo que pase antes),
+      // así la animación no empieza con imágenes a medio cargar.
+      var imagenes = Array.prototype.map.call(intro.querySelectorAll("img"), function (im) {
+        return im.decode ? im.decode().catch(function () {}) : Promise.resolve();
       });
-      video.addEventListener("timeupdate", function () {
-        if (video.duration && video.currentTime >= video.duration - 0.25) alTerminar();
-      });
-      if (!video.paused && video.currentTime > 0) arranco = true;
-      // Al terminar, el video queda quieto en su último cuadro, detrás del ingreso o el selector.
-      video.addEventListener("ended", alTerminar);
-      video.addEventListener("error", sinVideo);
-      video.querySelector('source[type="video/mp4"]').addEventListener("error", sinVideo);
-      document.getElementById("vcSaltar").addEventListener("click", function () {
-        video.pause();
-        if (video.duration) video.currentTime = Math.max(0, video.duration - 0.05);
-        alTerminar();
-      });
-
-      var intento = video.play();
-      if (intento && intento.catch) intento.catch(sinVideo);
-      // Si en 3 s el video no arrancó (conexión lenta, ahorro de batería), va la animación.
-      setTimeout(function () {
-        if (!arranco && !video.paused && video.currentTime > 0) arranco = true;
-        if (!arranco) sinVideo();
-      }, 3000);
+      var arrancada = false;
+      function arrancarIntro() {
+        if (arrancada || termino) return;
+        arrancada = true;
+        intro.classList.add("anima");
+        relojIntro = setTimeout(alTerminar, DURACION_INTRO);
+      }
+      Promise.all(imagenes).then(arrancarIntro);
+      setTimeout(arrancarIntro, 2500);
     })();
   </script>
 </body>
