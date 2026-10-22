@@ -4,10 +4,18 @@
 # estado del certificado) y, cuando el certificado está listo, tilda sola
 # "Enforce HTTPS". Corre a mano (Actions → Revisar dominio y SSL → Run workflow),
 # al cambiar docs/CNAME y cada 6 horas hasta que HTTPS quede activo.
+# Si el certificado se traba (por ejemplo, en "dns_changed" con el DNS bien),
+# correrla a mano con "Volver a pedir el certificado": quita el dominio de Pages
+# y lo vuelve a poner, que es lo que hace que GitHub lo emita de nuevo.
 name: Revisar dominio y SSL
 
 on:
   workflow_dispatch:
+    inputs:
+      reintentar:
+        description: "Volver a pedir el certificado (quita y vuelve a poner el dominio; el sitio puede no responder un par de minutos)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ["docs/CNAME", ".github/workflows/dominio.yml"]
@@ -53,6 +61,18 @@ jobs:
           else
             echo "DNS correcto: apunta a GitHub Pages." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Volver a pedir el certificado
+        if: inputs.reintentar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api -X PUT "repos/$REPO/pages" --input - <<< '{"cname": null}'
+          sleep 20
+          gh api -X PUT "repos/$REPO/pages" -f cname="$DOMINIO"
+          sleep 30
+          echo "Se quitó y se volvió a poner $DOMINIO en Pages para que GitHub pida el certificado de nuevo." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Revisar GitHub Pages y activar HTTPS
         env:
