@@ -207,7 +207,8 @@
             <p>Cuentas, cheques, conciliaciones y flujo de fondos.</p>
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
-          <a class="cartel" id="irPropiedades" href="propiedades.html">
+          <!-- ?v=: subirlo al cambiar propiedades.html, así el navegador no usa una copia vieja. -->
+          <a class="cartel" id="irPropiedades" href="propiedades.html?v=3">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -226,7 +227,7 @@
     </section>
   </div>
   <script src="loader.js"></script>
-  <script src="sesion.js?v=2"></script>
+  <script src="sesion.js?v=3"></script>
   <script>
     // Pantalla de inicio: el video de 7 s y, al terminar, el ingreso (si no hay sesión)
     // y el selector sobre su último cuadro. El ingreso usa los mismos usuarios de
@@ -416,7 +417,15 @@
         return;
       }
 
-      video.addEventListener("playing", function () { arranco = true; });
+      video.addEventListener("playing", function () {
+        arranco = true;
+        // Por si el navegador no avisa que terminó (pasa con algunos videos o conexiones):
+        // a los 12 s de arrancar se sigue igual.
+        setTimeout(alTerminar, 12000);
+      });
+      video.addEventListener("timeupdate", function () {
+        if (video.duration && video.currentTime >= video.duration - 0.25) alTerminar();
+      });
       if (!video.paused && video.currentTime > 0) arranco = true;
       // Al terminar, el video queda quieto en su último cuadro, detrás del ingreso o el selector.
       video.addEventListener("ended", alTerminar);

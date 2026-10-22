@@ -84,7 +84,7 @@
   <div class="pagina">
     <header>
       <h1 class="marca">B<i>.</i>G<i>.</i>P SAMMAR<span>Propiedades</span></h1>
-      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html#elegir">← Volver al inicio</a></div>
+      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html?v=3#elegir">← Volver al inicio</a></div>
     </header>
 
     <p class="aviso">Sección en armado: los datos de abajo son de ejemplo.</p>
@@ -118,12 +118,12 @@
     </div>
   </div>
 
-  <script src="sesion.js?v=2"></script>
+  <script src="sesion.js?v=3"></script>
   <script>
     // Solo con sesión iniciada (los mismos usuarios de Tesorería). Se muestra al
     // instante con la sesión guardada y se confirma de fondo: solo si el servidor
     // dice que venció se vuelve al ingreso (una demora o un corte de red no echa a nadie).
-    function irAlIngreso() { location.replace("index.html#elegir"); }
+    function irAlIngreso() { location.replace("index.html?v=3#elegir"); }
     var guardado = BGPSesion.usuario();
     if (!guardado) irAlIngreso();
     else {
