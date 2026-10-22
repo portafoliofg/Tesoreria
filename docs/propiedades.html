@@ -136,6 +136,10 @@
     .pestana:hover { color: var(--verde); }
     .pestana.activa { color: #fffaf0; background: linear-gradient(180deg, var(--verde-claro), var(--verde)); box-shadow: 0 6px 14px -10px rgba(28, 74, 44, 0.9); }
     .pestana:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; }
+    .pestanas.sub { margin: 0 0 14px; padding: 4px; background: var(--crema-clara); }
+    .pestanas.sub .pestana { font-size: 13.5px; padding: 8px 12px; }
+    .pestana .cuenta { display: inline-block; min-width: 20px; margin-left: 2px; padding: 1px 6px; border-radius: 99px; font-size: 11.5px; font-weight: 700; background: rgba(28, 74, 44, 0.08); color: var(--verde); }
+    .pestana.activa .cuenta { background: rgba(255, 255, 255, 0.22); color: #fffaf0; }
     /* Edición */
     .celda { font: inherit; font-size: 13.5px; color: var(--tinta); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 8px; padding: 6px 8px; width: 100%; min-width: 0; }
     .celda:focus { outline: none; border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
@@ -185,6 +189,6 @@
 
   <script src="sesion.js?v=7"></script>
   <script src="propiedades-lector.js?v=7"></script>
-  <script src="propiedades-vista.js?v=7"></script>
+  <script src="propiedades-vista.js?v=8"></script>
 </body>
 </html>

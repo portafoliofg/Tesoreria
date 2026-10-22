@@ -24,7 +24,11 @@
   var actual = null;      // registro guardado {edificio, periodo, datos, ...}
   var borrador = null;    // copia de actual.datos mientras se edita
   var pestana = "resumen";
-  var filtro = { texto: "", forma: "" };
+  var filtro = { texto: "", forma: "", lugar: "" };
+  // Lugares (pestañas dentro de Unidades). Las unidades sin lugar son del primero (Saavedra).
+  var LUGARES = ["Saavedra", "Polo 52", "Dario", "Esteban Porucini", "Casa Morón"];
+  function lugaresDe(d) { return d.lugares && d.lugares.length ? d.lugares : LUGARES; }
+  function lugarDe(d, u) { return u.lugar || lugaresDe(d)[0]; }
   try { pestana = sessionStorage.getItem("prop-pestana") || pestana; } catch (e) {}
 
   // ----- Sesión -----
@@ -453,6 +457,20 @@
   function panelUnidades(d) {
     var ed = editando();
     var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó y la liquidación de los que pagan en efectivo.");
+    // Pestañas por lugar, con la cantidad de unidades de cada uno.
+    var subs = el("div", "pestanas sub");
+    subs.setAttribute("role", "tablist");
+    subs.setAttribute("aria-label", "Lugares");
+    [["", "Todas", d.unidades.length]].concat(lugaresDe(d).map(function (l) {
+      return [l, l, d.unidades.filter(function (u) { return lugarDe(d, u) === l; }).length];
+    })).forEach(function (x) {
+      var b = el("button", "pestana" + (filtro.lugar === x[0] ? " activa" : ""));
+      b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", filtro.lugar === x[0] ? "true" : "false");
+      b.append(document.createTextNode(x[1] + " "), el("span", "cuenta", String(x[2])));
+      b.addEventListener("click", function () { filtro.lugar = x[0]; repintarPestana(); });
+      subs.append(b);
+    });
+    p.append(subs);
     var herr = el("div", "herramientas");
     var buscar = el("input"); buscar.type = "search"; buscar.placeholder = "Buscar por unidad o inquilino"; buscar.setAttribute("aria-label", "Buscar"); buscar.value = filtro.texto;
     var sel = el("select"); sel.setAttribute("aria-label", "Forma de pago");
@@ -487,7 +505,12 @@
       var cu = el("td", "unidad");
       var iu = campoTxt(u.unidad, function (v) { u.unidad = v; u.clave = LectorPropiedades.claveUnidad(v); }, { titulo: "Unidad", cls: "corto" });
       var ii = campoTxt(u.inquilino, function (v) { u.inquilino = v; }, { titulo: "Inquilino de " + u.unidad, placeholder: "Inquilino" });
-      cu.append(iu, ii);
+      var ls = el("select", "celda");
+      ls.setAttribute("aria-label", "Lugar de " + u.unidad);
+      lugaresDe(d).forEach(function (l) { var x = el("option", null, l); x.value = l; ls.append(x); });
+      ls.value = lugarDe(d, u);
+      ls.addEventListener("change", function () { u.lugar = ls.value; repintarLuego(); });
+      cu.append(iu, ii, ls);
       var cp = el("td");
       var fs = el("select", "celda");
       fs.setAttribute("aria-label", "Forma de pago de " + u.unidad);
@@ -539,15 +562,20 @@
       tbody.replaceChildren();
       var filas = [];
       d.unidades.forEach(function (u, i) {
+        if (filtro.lugar && lugarDe(d, u) !== filtro.lugar) return;
         if (filtro.forma && u.forma !== filtro.forma) return;
         if (q && (u.unidad + " " + u.inquilino).toLowerCase().indexOf(q) < 0) return;
         filas.push(u);
         tbody.append(ed ? filaEdicion(u, i) : filaVista(u));
       });
-      if (!filas.length) { var r0 = el("tr"), c0 = el("td", "vacio", "Ninguna unidad coincide con la búsqueda."); c0.colSpan = cols.length + 4; r0.append(c0); tbody.append(r0); }
+      if (!filas.length) {
+        var vacioLugar = filtro.lugar && !d.unidades.some(function (u) { return lugarDe(d, u) === filtro.lugar; });
+        var r0 = el("tr"), c0 = el("td", "vacio", vacioLugar ? "Todavía no hay unidades en " + filtro.lugar + "." + (ed ? " Agregalas con “+ Unidad”." : " Tocá Editar y “+ Unidad” para cargarlas.") : "Ninguna unidad coincide con la búsqueda.");
+        c0.colSpan = cols.length + 4; r0.append(c0); tbody.append(r0);
+      }
       tfoot.replaceChildren();
       var rf = el("tr");
-      var l = el("td", null, (filtro.texto || filtro.forma ? "Total filtrado · " : "Total · ") + filas.length + " unidad(es)"); l.colSpan = 2;
+      var l = el("td", null, (filtro.texto || filtro.forma ? "Total filtrado · " : "Total · ") + (filtro.lugar ? filtro.lugar + " · " : "") + filas.length + " unidad(es)"); l.colSpan = 2;
       rf.append(l);
       cols.forEach(function (c) { rf.append(el("td", "num", hay(filas, c[0]) ? pesos(suma(filas, c[0])) : "—")); });
       rf.append(el("td", "num", pct(suma(filas, "coeficiente"))));
@@ -560,7 +588,8 @@
     if (ed) {
       var acc = el("div", "agregar");
       acc.append(botonAgregar("Unidad", function () {
-        d.unidades.push({ unidad: "Nueva", inquilino: "", clave: "NUEVA", forma: "Transfiere", estado: "transfiere", color: COLORES_ESTADO.transfiere });
+        // Se agrega en el lugar de la pestaña abierta.
+        d.unidades.push({ unidad: "Nueva", inquilino: "", clave: "NUEVA", forma: "Transfiere", estado: "transfiere", color: COLORES_ESTADO.transfiere, lugar: filtro.lugar || lugaresDe(d)[0] });
         filtro.texto = ""; filtro.forma = "";
       }));
       p.append(acc);
@@ -789,6 +818,8 @@
     Promise.all([cargarXlsx(), f.arrayBuffer()]).then(function (r) {
       var X = r[0];
       var nuevos = LectorPropiedades.leer(X, X.read(r[1], { type: "array", cellStyles: true, cellDates: true }), f.name);
+      nuevos.lugares = LUGARES.slice();
+      nuevos.unidades.forEach(function (u) { u.lugar = LUGARES[0]; });
       var previo = lista.find(function (x) { return x.edificio.toLowerCase() === nuevos.edificio.toLowerCase() && x.periodo.toLowerCase() === nuevos.periodo.toLowerCase(); });
       if (previo && !confirm("Ya hay una liquidación de " + nuevos.edificio + " · " + nuevos.periodo + ". ¿Reemplazarla por la de este archivo? Se pierden los cambios hechos acá en ese período.")) return null;
       // Las expensas cargadas acá no se pierden si la planilla nueva las trae vacías.
