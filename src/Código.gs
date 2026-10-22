@@ -129,7 +129,7 @@ const BLOQUEO_SEGUNDOS = 600;
 /**
  * Muestra la página al abrir el link /exec.
  * ALLOWALL permite mostrarla dentro de un iframe en el dominio propio
- * (ver docs/index.html y el README).
+ * (ver docs/index.html).
  */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
