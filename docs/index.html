@@ -239,7 +239,8 @@
         <p class="sel-pregunta">¿A dónde querés entrar?</p>
         <p class="sel-usuario" id="selUsuario" hidden></p>
         <div class="sel-opciones">
-          <button type="button" class="cartel" id="irInversiones" aria-disabled="true" aria-describedby="invPronto">
+          <!-- Inversiones abre la plataforma de cartera (servidor propio en Render, con su propio ingreso). -->
+          <a class="cartel" id="irInversiones" href="https://azevo.onrender.com/">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -248,11 +249,11 @@
                   <path d="M3 26 H25" stroke="#1c4a2c" stroke-opacity=".35" stroke-width="1.6"/>
                 </svg>
               </span>
-              <span class="pronto" id="invPronto">Próximamente</span>
             </span>
             <h2>Inversiones</h2>
             <p>FCI, cheques en bolsa y rendimientos de cartera.</p>
-          </button>
+            <span class="cartel-ir">Entrar</span>
+          </a>
           <button type="button" class="cartel" id="irTesoreria">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
@@ -292,7 +293,7 @@
     // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
     // pantalla. Hay un solo ingreso, con los usuarios de Tesorería (sesion.js). Tesorería
     // abre la app (que ya se viene cargando detrás) y recibe la sesión por postMessage;
-    // Propiedades abre propiedades.html; Inversiones todavía no está disponible.
+    // Propiedades abre propiedades.html; Inversiones abre la plataforma de cartera (azevo.onrender.com).
     (function () {
       var capa = document.getElementById("capa");
       var app = document.getElementById("app");
@@ -455,12 +456,6 @@
         btnTes.classList.add("abriendo");
         document.getElementById("tesIr").textContent = "Abriendo…";
         setTimeout(cerrar, 15000);
-      });
-      document.getElementById("irInversiones").addEventListener("click", function () {
-        var p = document.getElementById("invPronto");
-        p.classList.remove("avisa");
-        void p.offsetWidth;
-        p.classList.add("avisa");
       });
 
       app.addEventListener("load", function () {
