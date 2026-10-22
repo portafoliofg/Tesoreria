@@ -1089,6 +1089,12 @@
   .sug-lista { max-height: 55vh; overflow: auto; }
   .viz-cob-op.off { opacity: .6; cursor: default; }
   .salida-otros { margin-top: 10px; }
+  .salida-dz { padding: 20px 16px; margin-top: 12px; }
+  .salida-imgs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .salida-img { position: relative; width: 132px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--surface); overflow: hidden; }
+  .salida-img img { display: block; width: 100%; height: 84px; object-fit: cover; background: var(--surface-2); }
+  .salida-img .dt-sub { padding: 4px 6px; font-size: 11.5px; }
+  .salida-img button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; padding: 0; border-radius: 50%; line-height: 1; font-size: 15px; }
   .tabla-scroll { overflow-x: auto; }
   .fci-mov-tabla { width: 100%; border-collapse: collapse; }
   .fci-mov-tabla th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 6px 6px; }
@@ -2144,16 +2150,19 @@
 <div class="modal-overlay" id="modalSalidaCheques">
   <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="salidaTitulo">
     <div class="modal__head">
-      <div><h3 id="salidaTitulo">Salida de cheques</h3><div class="sub-dato">Cargá la foto con la numeración de los cheques que salieron y elegí la fecha del pago. Los cheques que coinciden pasan a Pagado.</div></div>
+      <div><h3 id="salidaTitulo">Salida de cheques</h3><div class="sub-dato">Pegá o cargá las fotos con la numeración de los cheques que salieron y elegí la fecha del pago. Los cheques que coinciden pasan a Pagado.</div></div>
       <button class="modal__close" data-cerrar="modalSalidaCheques" type="button" aria-label="Cerrar">&times;</button>
     </div>
     <div class="modal__body">
-      <div class="row">
-        <label>Foto con los números de cheque<input type="file" id="salidaArchivo" accept="image/*,.pdf"></label>
-        <label>Fecha del pago<input type="date" id="salidaFecha"></label>
+      <label style="max-width:220px">Fecha del pago<input type="date" id="salidaFecha"></label>
+      <div class="dropzone salida-dz" id="salidaDz">
+        <input type="file" id="salidaArchivo" accept="image/*,.pdf" multiple aria-label="Elegir fotos con los números de cheque">
+        <strong>Pegá las imágenes con Ctrl+V</strong>
+        <span class="dz-sub">Podés pegar varias, una tras otra, desde el historial del portapapeles (Win+V). También podés arrastrarlas o tocar para elegirlas.</span>
       </div>
+      <div id="salidaImagenes" class="salida-imgs"></div>
       <label style="margin-top:14px">Números escritos a mano (opcional, separados por espacio, coma o renglón)<textarea id="salidaNumeros" rows="2" placeholder="00012345, 00012346"></textarea></label>
-      <label class="check" style="margin-top:10px"><input type="checkbox" id="salidaGuardarFoto" checked> Guardar la foto en Drive como comprobante de cada cheque</label>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="salidaGuardarFoto" checked> Guardar las imágenes en Drive como comprobante de cada cheque</label>
       <p id="salidaStatus" class="hint"></p>
       <div id="salidaLista" class="sug-lista"></div>
     </div>
@@ -13286,8 +13295,12 @@ $("sugBolsaGuardar").addEventListener("click", async () => {
 // del pago: los cheques cargados con esos números pasan a "Pagado" (de emitido o
 // pendiente) y la fecha queda como fecha de débito. El OCR lee todos los números
 // de la foto; solo se proponen los que coinciden con un cheque cargado.
-let salidaTextoFoto = "";
+// Varias imágenes por salida: pegadas (Ctrl+V, o una tras otra desde Win+V),
+// arrastradas o elegidas. Cada una se lee por separado y su texto se guarda para
+// saber en qué imagen apareció cada cheque (esa queda como su comprobante).
+let salidaImagenes = [];
 let salidaPropuestos = [];
+let salidaLeyendo = Promise.resolve();
 
 function claveNumeroCheque(n) {
   return soloDigitos(n).replace(/^0+/, "");
@@ -13306,11 +13319,13 @@ async function abrirSalidaCheques() {
   $("salidaArchivo").value = "";
   $("salidaNumeros").value = "";
   $("salidaFecha").value = hoyIso();
-  salidaTextoFoto = "";
+  salidaImagenes.forEach(im => { if (im.url) URL.revokeObjectURL(im.url); });
+  salidaImagenes = [];
+  renderSalidaImagenes();
   salidaPropuestos = [];
   $("salidaLista").replaceChildren();
   $("salidaGuardar").disabled = true;
-  setStatus($("salidaStatus"), "Cargá la foto o escribí los números.", "hint");
+  setStatus($("salidaStatus"), "Pegá las imágenes (Ctrl+V o Win+V) o escribí los números.", "hint");
   abrirModal("modalSalidaCheques");
   try { await asegurarCheques(); }
   catch (err) { setStatus($("salidaStatus"), "No se pudieron traer los cheques: " + msgErr(err), "hint msg-error"); }
@@ -13320,7 +13335,7 @@ function renderSalidaCheques() {
   const box = $("salidaLista");
   box.replaceChildren();
   const escritos = numerosDeTexto($("salidaNumeros").value);
-  const deFoto = numerosDeTexto(salidaTextoFoto);
+  const deFoto = numerosDeTexto(salidaImagenes.map(im => im.texto).join("\n"));
   const porNumero = {};
   chequesDatos.forEach(c => {
     const k = claveNumeroCheque(c["N° de Cheque"]);
@@ -13369,7 +13384,8 @@ function renderSalidaCheques() {
     det.append(el("summary", "dt-sub", "Otros números leídos en la foto que no coinciden con ningún cheque (" + otrosFoto.length + ")"), el("p", "dt-sub", otrosFoto.join(", ")));
     box.append(det);
   }
-  if (!buscados.length) setStatus($("salidaStatus"), "Cargá la foto o escribí los números.", "hint");
+  if (salidaImagenes.some(im => im.estado === "leyendo")) return actualizarBotonSalida();
+  if (!buscados.length) setStatus($("salidaStatus"), "Pegá las imágenes (Ctrl+V o Win+V) o escribí los números.", "hint");
   else if (!salidaPropuestos.length) setStatus($("salidaStatus"), "Ningún número coincide con un cheque cargado. Revisá la foto o escribí los números.", "hint msg-error");
   else setStatus($("salidaStatus"), salidaPropuestos.length + " cheque(s) encontrado(s). Revisá los marcados antes de guardar.", "hint");
   actualizarBotonSalida();
@@ -13386,45 +13402,122 @@ $("salidaNumeros").addEventListener("input", () => {
   clearTimeout(renderSalidaCheques._t);
   renderSalidaCheques._t = setTimeout(renderSalidaCheques, 300);
 });
-$("salidaArchivo").addEventListener("change", async () => {
-  const file = $("salidaArchivo").files[0];
-  salidaTextoFoto = "";
-  if (!file) { renderSalidaCheques(); return; }
-  const previo = ocrProgress;
-  ocrProgress = (e, pr) => setStatus($("salidaStatus"), (e === "recognizing text" ? "Leyendo la foto " : "Preparando el lector ") + Math.round(pr * 100) + "%", "hint");
-  setStatus($("salidaStatus"), "Leyendo la foto…", "hint");
-  $("salidaLista").replaceChildren(nodoCargando());
-  try {
-    await asegurarCheques();
-    salidaTextoFoto = await ocrFromFile(file);
+function renderSalidaImagenes() {
+  const box = $("salidaImagenes");
+  box.replaceChildren();
+  salidaImagenes.forEach((im, i) => {
+    const d = el("div", "salida-img");
+    if (im.url) { const img = el("img"); img.src = im.url; img.alt = im.file.name; d.append(img); }
+    else d.append(el("div", "dt-sub", im.file.name));
+    const n = im.estado === "leyendo" ? "Leyendo…" : im.estado === "error" ? "No se pudo leer" : numerosDeTexto(im.texto).filter(k => chequesDatos.some(c => claveNumeroCheque(c["N° de Cheque"]) === k)).length + " cheque(s)";
+    d.append(el("div", "dt-sub" + (im.estado === "error" ? " alerta-txt" : ""), "Imagen " + (i + 1) + " · " + n));
+    const x = el("button", "secondary", "×");
+    x.type = "button";
+    x.title = "Quitar esta imagen";
+    x.addEventListener("click", () => {
+      if (im.url) URL.revokeObjectURL(im.url);
+      salidaImagenes.splice(salidaImagenes.indexOf(im), 1);
+      renderSalidaImagenes();
+      renderSalidaCheques();
+    });
+    d.append(x);
+    box.append(d);
+  });
+}
+
+// Se leen de a una (el lector de imágenes es uno solo), en el orden en que llegaron.
+function agregarImagenesSalida(files) {
+  files = files.filter(f => f && (String(f.type).indexOf("image/") === 0 || f.type === "application/pdf" || /\.pdf$/i.test(f.name)));
+  if (!files.length) return;
+  files.forEach(f => {
+    const im = { file: f, texto: "", estado: "leyendo", url: String(f.type).indexOf("image/") === 0 ? URL.createObjectURL(f) : "" };
+    salidaImagenes.push(im);
+    salidaLeyendo = salidaLeyendo.then(async () => {
+      if (salidaImagenes.indexOf(im) < 0) return;
+      const previo = ocrProgress;
+      const num = () => salidaImagenes.indexOf(im) + 1;
+      ocrProgress = (e, pr) => setStatus($("salidaStatus"), (e === "recognizing text" ? "Leyendo la imagen " + num() + " " : "Preparando el lector ") + Math.round(pr * 100) + "%", "hint");
+      setStatus($("salidaStatus"), "Leyendo la imagen " + num() + "…", "hint");
+      try {
+        await asegurarCheques();
+        im.texto = await ocrFromFile(im.file);
+        im.estado = "lista";
+      } catch (err) {
+        im.estado = "error";
+        toast("No se pudo leer la imagen " + num() + ": " + msgErr(err), "error");
+      } finally {
+        ocrProgress = previo;
+      }
+      renderSalidaImagenes();
+      renderSalidaCheques();
+    });
+  });
+  renderSalidaImagenes();
+  actualizarBotonSalida();
+}
+
+$("salidaArchivo").addEventListener("change", () => {
+  agregarImagenesSalida(Array.from($("salidaArchivo").files || []));
+  $("salidaArchivo").value = "";
+});
+["dragenter", "dragover"].forEach(ev => $("salidaDz").addEventListener(ev, () => $("salidaDz").classList.add("is-over")));
+["dragleave", "drop"].forEach(ev => $("salidaDz").addEventListener(ev, () => $("salidaDz").classList.remove("is-over")));
+
+// Ctrl+V pega la imagen copiada; con Win+V se puede pegar una tras otra desde el
+// historial del portapapeles. El texto (números) se pega normal en su campo.
+document.addEventListener("paste", e => {
+  if (!$("modalSalidaCheques").classList.contains("is-open")) return;
+  const datos = e.clipboardData;
+  if (!datos) return;
+  const files = Array.from(datos.items || []).filter(it => it.kind === "file").map(it => it.getAsFile()).filter(Boolean)
+    .map((f, i) => new File([f], "Salida de cheques " + horaArchivo() + (i ? "-" + (i + 1) : "") + (f.type === "application/pdf" ? ".pdf" : "." + ((f.type.split("/")[1] || "png").replace("jpeg", "jpg"))), { type: f.type }));
+  if (files.length) {
+    e.preventDefault();
+    agregarImagenesSalida(files);
+    return;
+  }
+  if (e.target === $("salidaNumeros")) return;
+  const texto = String(datos.getData("text/plain") || "").trim();
+  if (texto) {
+    e.preventDefault();
+    const t = $("salidaNumeros");
+    t.value = (t.value.trim() ? t.value.trim() + "\n" : "") + texto;
     renderSalidaCheques();
-  } catch (err) {
-    $("salidaLista").replaceChildren();
-    setStatus($("salidaStatus"), "No se pudo leer la foto: " + msgErr(err), "hint msg-error");
-  } finally {
-    ocrProgress = previo;
   }
 });
+
 $("salidaGuardar").addEventListener("click", async () => {
   const elegidos = Array.from(document.querySelectorAll("#salidaLista input:checked")).map(c => salidaPropuestos[parseInt(c.dataset.i, 10)].c);
   if (!elegidos.length) return;
   if (!$("salidaFecha").value) { setStatus($("salidaStatus"), "Elegí la fecha del pago.", "hint msg-error"); return; }
+  if (salidaImagenes.some(im => im.estado === "leyendo")) { setStatus($("salidaStatus"), "Esperá a que se terminen de leer las imágenes.", "hint msg-error"); return; }
   const fecha = isoADma($("salidaFecha").value);
   const btn = $("salidaGuardar");
   btn.disabled = true;
   btn.classList.add("is-loading");
   try {
-    const file = $("salidaArchivo").files[0];
-    const archivo = file && $("salidaGuardarFoto").checked ? { base64: await archivoABase64(file), nombre: file.name, mime: file.type } : null;
-    const res = await runJson("registrarSalidaCheques", {
-      fecha: fecha, archivo: archivo,
-      cheques: elegidos.map(c => ({ numero: c["N° de Cheque"], banco: c["Banco"], importe: c["Importe"], id: c["ID Planilla"] }))
-    });
-    elegidos.forEach(c => {
+    // Cada cheque lleva como comprobante la imagen donde apareció su número
+    // (si se escribió a mano, la primera). Solo se suben las imágenes usadas.
+    const guardar = $("salidaGuardarFoto").checked && salidaImagenes.length;
+    const usadas = [];
+    const imagenDe = c => {
+      if (!guardar) return -1;
+      const k = claveNumeroCheque(c["N° de Cheque"]);
+      let im = salidaImagenes.find(x => numerosDeTexto(x.texto).indexOf(k) >= 0) || salidaImagenes[0];
+      let i = usadas.indexOf(im);
+      if (i < 0) { usadas.push(im); i = usadas.length - 1; }
+      return i;
+    };
+    const cheques = elegidos.map(c => ({ numero: c["N° de Cheque"], banco: c["Banco"], importe: c["Importe"], id: c["ID Planilla"], archivo: imagenDe(c) }));
+    const archivos = [];
+    for (const im of usadas) archivos.push({ base64: await archivoABase64(im.file), nombre: im.file.name, mime: im.file.type });
+    const res = await runJson("registrarSalidaCheques", { fecha: fecha, archivos: archivos, cheques: cheques });
+    elegidos.forEach((c, i) => {
       if (res.noEncontrados.indexOf(String(c["N° de Cheque"])) >= 0) return;
       c["Estado"] = "Pagado";
       c["Fecha de Débito"] = fecha;
-      if (res.archivo && !c["Comprobante"]) c["Comprobante"] = res.archivo;
+      const id = (res.archivos || [])[cheques[i].archivo];
+      if (id && !c["Comprobante"]) c["Comprobante"] = id;
     });
     cerrarModal("modalSalidaCheques");
     toast(res.pagados + " cheque(s) marcado(s) como pagado(s) el " + fecha + (res.noEncontrados.length ? ". No se encontraron: " + res.noEncontrados.join(", ") : "") + ".", res.noEncontrados.length ? "error" : "ok");

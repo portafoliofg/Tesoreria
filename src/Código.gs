@@ -885,11 +885,13 @@ function guardarCheques_(d, u) {
 // La página lee la foto con la numeración de los cheques que salieron (o los
 // números escritos) y el usuario elige la fecha del pago. Los cheques cargados
 // con esos números pasan a "Pagado" y la fecha queda como fecha de débito.
-// La foto puede quedar como comprobante de cada cheque que no tenía uno.
+// Las imágenes pueden quedar como comprobante de cada cheque que no tenía uno:
+// a cada cheque se le vincula la imagen donde apareció su número.
 const CARPETA_SALIDA_CHEQUES = 'Salida de cheques';
 
 /**
- * d: {fecha: dd/mm/aaaa, cheques: [{numero, banco, importe, id}], archivo: {base64, nombre, mime} | null}.
+ * d: {fecha: dd/mm/aaaa, cheques: [{numero, banco, importe, id, archivo: índice en archivos | -1}],
+ *     archivos: [{base64, nombre, mime}]}.
  * Cada cheque se busca por N° (sin ceros a la izquierda), banco, importe e ID de la planilla.
  */
 function registrarSalidaCheques_(d, u) {
@@ -899,15 +901,18 @@ function registrarSalidaCheques_(d, u) {
   const pedidos = (d.cheques || []).filter(c => c && soloDigitos(c.numero));
   if (!pedidos.length) return { ok: false, error: 'No hay cheques marcados.' };
 
-  let archivoId = '';
-  if (d.archivo && d.archivo.base64) {
-    const bytes = Utilities.base64Decode(String(d.archivo.base64));
-    if (bytes.length > MAX_BYTES_COMPROBANTE) return { ok: false, error: 'La foto supera los 25 MB.' };
+  const archivos = (d.archivos || []).filter(a => a && a.base64);
+  const blobs = archivos.map(a => ({ a: a, bytes: Utilities.base64Decode(String(a.base64)) }));
+  if (blobs.some(b => b.bytes.length > MAX_BYTES_COMPROBANTE)) return { ok: false, error: 'Una de las imágenes supera los 25 MB.' };
+  const archivoIds = [];
+  if (blobs.length) {
     const carpeta = subcarpeta_(carpetaRaiz_(), CARPETA_SALIDA_CHEQUES);
-    const nombre = nombreLibre_(carpeta, nombreSeguro_(p[2] + '-' + p[1] + '-' + p[0] + ' - ' + (d.archivo.nombre || 'salida de cheques')));
-    const archivo = carpeta.createFile(Utilities.newBlob(bytes, String(d.archivo.mime || 'application/octet-stream'), nombre));
-    archivo.setDescription('Salida de cheques del ' + fecha + ' · cargado por ' + nombreDe_(u) + ' el ' + ahoraTexto_());
-    archivoId = archivo.getId();
+    blobs.forEach(b => {
+      const nombre = nombreLibre_(carpeta, nombreSeguro_(p[2] + '-' + p[1] + '-' + p[0] + ' - ' + (b.a.nombre || 'salida de cheques')));
+      const archivo = carpeta.createFile(Utilities.newBlob(b.bytes, String(b.a.mime || 'application/octet-stream'), nombre));
+      archivo.setDescription('Salida de cheques del ' + fecha + ' · cargado por ' + nombreDe_(u) + ' el ' + ahoraTexto_());
+      archivoIds.push(archivo.getId());
+    });
   }
 
   return conLock_(() => {
@@ -933,13 +938,14 @@ function registrarSalidaCheques_(d, u) {
       const antes = { 'Estado': f[iEstado], 'Fecha de Débito': f[iDeb] };
       hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue('Pagado');
       hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(fecha);
+      const archivoId = archivoIds[parseInt(c.archivo, 10)] || '';
       if (archivoId && !String(f[COL_COMPROBANTE_CHEQUE] || '').trim()) hoja.getRange(idx + 2, COL_COMPROBANTE_CHEQUE + 1).setNumberFormat('@').setValue(archivoId);
       cambiados.push({ 'Cheque': f[COL_NUMERO_CHEQUE], 'Tipo': f[H.indexOf('Tipo')], 'Importe': f[iImp], 'Antes': antes, 'Después': { 'Estado': 'Pagado', 'Fecha de Débito': fecha } });
     });
     if (!cambiados.length) return { ok: false, error: 'No se encontró ningún cheque. Actualizá la lista y volvé a intentar.' };
-    registrar_(u, 'Salida de cheques', cambiados.length + ' cheque(s) pagado(s) el ' + fecha + (noEncontrados.length ? ' · ' + noEncontrados.length + ' sin encontrar' : '') + (archivoId ? ' · con foto' : ''),
+    registrar_(u, 'Salida de cheques', cambiados.length + ' cheque(s) pagado(s) el ' + fecha + (noEncontrados.length ? ' · ' + noEncontrados.length + ' sin encontrar' : '') + (archivoIds.length ? ' · ' + archivoIds.length + ' imagen(es)' : ''),
       cambiados.map(c => c['Cheque']).join(', '), '', textoCorto_(cambiados));
-    return { ok: true, pagados: cambiados.length, noEncontrados: noEncontrados, archivo: archivoId };
+    return { ok: true, pagados: cambiados.length, noEncontrados: noEncontrados, archivos: archivoIds };
   });
 }
 
