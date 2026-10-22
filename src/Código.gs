@@ -133,7 +133,8 @@ const BLOQUEO_SEGUNDOS = 600;
  */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Lector de comprobantes')
+    .setTitle('Tesorería · Andrés Sammartino')
+    .setFaviconUrl('https://bgpsammar.com/logo-as-64.png')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

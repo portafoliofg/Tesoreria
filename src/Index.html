@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Marcellus&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* =====================================================================
      ESTÉTICA INSTITUCIONAL MODERNA (banca digital)
@@ -48,7 +48,30 @@
     --font-num: "Inter", "Segoe UI", system-ui, sans-serif;
     --font-code: "IBM Plex Mono", Consolas, monospace;
   }
-  /* Moderno (predeterminado): lateral pizarra, índigo y celeste, todo en Inter. */
+  /* Andrés Sammartino (predeterminado): los colores y letras del logo y de bgpsammar.com.
+     Lateral verde campo, fondo crema, dorado de acento; Manrope para el texto, Cinzel para
+     títulos y marca, JetBrains Mono para códigos. */
+  :root[data-tema="sammartino"] {
+    --side-bg: #173d27; --side-bg-2: #1e4a31; --side-line: rgba(246, 242, 236, .10); --side-text: rgba(250, 247, 241, .94); --side-muted: rgba(250, 247, 241, .62);
+    --header-bg: #173d27; --header-line: #b8893a;
+    --primary: #1c4a2c; --primary-hover: #163d24; --primary-rgb: 28, 74, 44; --on-primary: #ffffff; --primary-soft: rgba(28, 74, 44, .08);
+    --accent: #b8893a; --accent-rgb: 184, 137, 58;
+    --bg: #efeae2; --surface: #fffdf9; --surface-2: #f8f4ee; --surface-3: #f1ebe2;
+    --border: #e4dccf; --border-strong: #d3c8b6;
+    --text: #24322a; --muted: #5f675c; --faint: #8f9488;
+    --cc: #2f6b42; --ca: #a87a2f;
+    --shadow: 0 1px 2px rgba(36, 50, 42, .05), 0 1px 3px rgba(36, 50, 42, .06);
+    --shadow-md: 0 6px 16px -8px rgba(28, 74, 44, .22);
+    --shadow-lg: 0 24px 48px -20px rgba(28, 74, 44, .35);
+    --font: "Manrope", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --font-serif: "Cinzel", "Times New Roman", Georgia, serif;
+    --font-num: "Manrope", "Segoe UI", system-ui, sans-serif;
+    --font-code: "JetBrains Mono", Consolas, monospace;
+    --radius: 14px; --radius-sm: 10px;
+  }
+  :root[data-tema="sammartino"] h1 { font-family: var(--font-serif); font-weight: 600; letter-spacing: .04em; color: var(--primary); }
+  :root[data-tema="sammartino"] .card-title { color: var(--primary); }
+  /* Moderno: lateral pizarra, índigo y celeste, todo en Inter. */
   :root[data-tema="moderno"] { --side-bg: #0f172a; --side-bg-2: #1e293b; --side-line: rgba(255, 255, 255, .07); --header-bg: #0f172a; --header-line: #6366f1; --primary: #4f46e5; --primary-hover: #4338ca; --primary-rgb: 79, 70, 229; --primary-soft: rgba(79, 70, 229, .08); --accent: #0ea5e9; --accent-rgb: 14, 165, 233; --bg: #f5f6fa; --surface-2: #f8fafc; --surface-3: #f1f5f9; --border: #e5e7eb; --border-strong: #d1d5db; --text: #0f172a; --muted: #64748b; --faint: #94a3b8; --font-serif: var(--font); --radius: 14px; --radius-sm: 10px; }
   :root[data-tema="oceano"] { --side-bg: #082f49; --side-bg-2: #0c3a5a; --header-bg: #082f49; --header-line: #f59e0b; --primary: #0e7490; --primary-hover: #155e75; --primary-rgb: 14, 116, 144; --primary-soft: rgba(14, 116, 144, .08); --accent: #d97706; --accent-rgb: 217, 119, 6; --bg: #f4f7f9; --font-serif: var(--font); --radius: 14px; --radius-sm: 10px; }
   :root[data-tema="grafito"] { --side-bg: #171c24; --side-bg-2: #1f2630; --header-bg: #171c24; --header-line: #8d97a6; --primary: #3a4555; --primary-hover: #2e3744; --primary-rgb: 58, 69, 85; --primary-soft: rgba(58, 69, 85, .08); --accent: #8d97a6; --accent-rgb: 141, 151, 166; }
@@ -71,6 +94,8 @@
     --shadow-lg: 0 24px 48px -20px rgba(0, 0, 0, .75);
     --overlay: rgba(0, 0, 0, .62);
   }
+  :root[data-modo="oscuro"][data-tema="sammartino"] { --side-bg: #0c1f14; --side-bg-2: #11291b; --header-bg: #0c1f14; --primary: #4f9a69; --primary-hover: #5daa77; --primary-rgb: 79, 154, 105; --primary-soft: rgba(79, 154, 105, .16); --accent: #d9b46a; --accent-rgb: 217, 180, 106; --bg: #0e1712; --surface: #142019; --surface-2: #18261e; --surface-3: #1e2e24; --border: #26382d; --border-strong: #34493b; --text: #ece7dd; --muted: #a9b0a3; --faint: #78806f; --cc: #7fbf93; --ca: #d9b46a; }
+  :root[data-modo="oscuro"][data-tema="sammartino"] h1, :root[data-modo="oscuro"][data-tema="sammartino"] .card-title { color: var(--text); }
   :root[data-modo="oscuro"][data-tema="moderno"] { --side-bg: #020617; --side-bg-2: #0b1222; --header-bg: #020617; --primary: #6366f1; --primary-hover: #7c7ff5; --primary-rgb: 99, 102, 241; --primary-soft: rgba(129, 140, 248, .16); --accent: #38bdf8; --accent-rgb: 56, 189, 248; --bg: #0a0f1c; --surface: #111827; --surface-2: #151d2e; --surface-3: #1c2638; --border: #232f45; --border-strong: #334260; --text: #e5e9f2; --muted: #9aa5b8; --faint: #6b7890; }
   :root[data-modo="oscuro"][data-tema="oceano"] { --side-bg: #041d2d; --side-bg-2: #072739; --header-bg: #041d2d; --primary: #0e8fae; --primary-hover: #17a0c0; --primary-rgb: 14, 143, 174; --primary-soft: rgba(34, 163, 195, .16); --accent: #f59e0b; --accent-rgb: 245, 158, 11; }
   :root[data-modo="oscuro"][data-tema="grafito"] { --side-bg: #0e1116; --side-bg-2: #151a21; --header-bg: #0e1116; --primary: #6c7889; --primary-hover: #7c8898; --primary-rgb: 108, 120, 137; --primary-soft: rgba(108, 120, 137, .16); }
@@ -92,7 +117,7 @@
   .masthead { background: var(--header-bg); color: var(--header-text); }
   .masthead-in { max-width: 1280px; margin: 0 auto; padding: 0 20px; height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .marca { display: flex; align-items: center; gap: 11px; min-width: 0; }
-  .marca-sello { width: 38px; height: 38px; flex-shrink: 0; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+  .marca-sello { width: 38px; height: 38px; flex-shrink: 0; padding: 3px; border-radius: 50%; background: #f6f2ec; object-fit: contain; box-shadow: 0 2px 6px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(184, 137, 58, .45); }
   .marca-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
   .marca-txt b { font-family: var(--font-serif); font-weight: 600; font-size: 16.5px; white-space: nowrap; }
   .marca-txt span { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--header-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -903,93 +928,37 @@
   .pie { border-top: 1px solid var(--border); }
   .pie-in { max-width: 1280px; margin: 0 auto; padding: 16px 20px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--faint); }
 
-  /* ---------- Acceso (login) ---------- */
-  /* Misma identidad que la portada de bgpsammar.com: azul noche, plata, verde bolsa y dorado.
-     Panel de marca a la izquierda y formulario a la derecha; en celular se apilan. */
-  .acceso { --bgp-noche: #060d1c; --bgp-noche-2: #0c1b35; --bgp-plata: #e6ebf2; --bgp-tenue: #93a0b5; --bgp-verde: #2fd38a; --bgp-oro: #d8b36a; --bgp-oro-osc: #b8924a; --bgp-display: "Marcellus", "IBM Plex Serif", Georgia, serif;
-    display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px; position: relative; overflow: hidden;
-    background: radial-gradient(900px 520px at 85% -10%, rgba(216, 179, 106, .14), transparent 60%), radial-gradient(800px 520px at -10% 110%, rgba(47, 211, 138, .10), transparent 60%), radial-gradient(70% 60% at 50% 40%, rgba(46, 92, 178, .28), transparent 70%), linear-gradient(180deg, var(--bgp-noche-2), var(--bgp-noche)); }
-  .acceso::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(170, 190, 220, .06) 1px, transparent 1px), linear-gradient(90deg, rgba(170, 190, 220, .06) 1px, transparent 1px); background-size: 44px 44px; -webkit-mask-image: radial-gradient(circle at 50% 45%, #000, transparent 78%); mask-image: radial-gradient(circle at 50% 45%, #000, transparent 78%); }
+  /* ---------- Acceso ----------
+     Misma estética que bgpsammar.com: fondo crema, logo de Andrés Sammartino, verde y dorado.
+     El ingreso es uno solo (el de bgpsammar.com); acá solo se ve el aviso para ir ahí o, si
+     todavía no hay usuarios, la configuración inicial. */
+  .acceso { --as-crema: #ebe5dd; --as-crema-clara: #f6f2ec; --as-verde: #1c4a2c; --as-verde-claro: #2f6b42; --as-oro: #b8893a; --as-tinta: #24322a; --as-tenue: #6d7469;
+    display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px 16px; position: relative; overflow: auto;
+    color: var(--as-tinta); background: radial-gradient(120% 90% at 50% 0%, var(--as-crema-clara), var(--as-crema) 60%); }
   body.sin-sesion { padding-left: 0; }
   body.sin-sesion .acceso { display: flex; }
   body.sin-sesion .masthead, body.sin-sesion .navbar, body.sin-sesion main, body.sin-sesion .pie { display: none; }
-  .acceso-caja { position: relative; width: 100%; max-width: 940px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); border-radius: 22px; overflow: hidden; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(214, 226, 242, .10); }
-
-  .acceso-lado { position: relative; display: flex; flex-direction: column; gap: 22px; padding: 38px 36px 30px; color: var(--bgp-plata);
-    background: linear-gradient(160deg, rgba(22, 40, 74, .92), rgba(6, 13, 28, .96)); }
-  .acceso-lado::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 1px; background: linear-gradient(180deg, transparent, rgba(216, 179, 106, .45), transparent); }
-  .bgp-regla { width: 56px; height: 1px; background: linear-gradient(90deg, var(--bgp-oro), transparent); }
-  .bgp-nombre { margin: 10px 0 0; font-family: var(--bgp-display); font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: .16em; white-space: nowrap;
-    background: linear-gradient(180deg, #f6f9fc, #c7d0dc 50%, #8b98ac); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .bgp-nombre i { font-style: normal; -webkit-text-fill-color: var(--bgp-oro); }
-  .bgp-sub { margin: 10px 0 0; font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--bgp-tenue); }
-  .bgp-modulo { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(216, 179, 106, .45); background: rgba(216, 179, 106, .08);
-    font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bgp-oro); }
-  .bgp-modulo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bgp-verde); box-shadow: 0 0 8px var(--bgp-verde); }
-  /* Ilustración: un cheque y una tarjeta corporativa (decorativos, sin datos reales). */
-  .bgp-escena { position: relative; height: 210px; margin-top: 4px; }
-  .bgp-cheque { position: absolute; left: 0; top: 8px; width: 84%; aspect-ratio: 2.3; padding: 12px 14px 10px; border-radius: 12px; display: flex; flex-direction: column; gap: 7px;
-    color: #2b3447; font-size: 9.5px; transform: rotate(-4deg); transform-origin: 30% 60%;
-    background: repeating-radial-gradient(circle at 78% 30%, rgba(176, 141, 87, .06) 0 2px, transparent 2px 6px), linear-gradient(135deg, #f6f2e8, #e6ddc9);
-    box-shadow: 0 18px 30px -14px rgba(0, 0, 0, .75), inset 0 0 0 1px rgba(184, 146, 74, .35); animation: bgp-entra .8s cubic-bezier(.2, .9, .3, 1) both; }
-  .bgp-ch-fila { display: flex; align-items: baseline; gap: 8px; }
-  .bgp-ch-banco { font-family: var(--bgp-display); font-size: 13px; letter-spacing: .08em; color: #13284d; }
-  .bgp-ch-tag { padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 700; letter-spacing: .14em; color: #8a6a2f; background: rgba(216, 179, 106, .25); }
-  .bgp-ch-num { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: #5a6577; }
-  .bgp-ch-linea { flex: 1; padding-bottom: 2px; border-bottom: 1px solid rgba(43, 52, 71, .35); color: #5a6577; }
-  .bgp-ch-importe { padding: 3px 8px; border: 1px solid rgba(43, 52, 71, .45); border-radius: 4px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: #13284d; background: rgba(255, 255, 255, .55); }
-  .bgp-ch-pie { margin-top: auto; justify-content: space-between; }
-  .bgp-ch-fecha { color: #5a6577; font-family: var(--font-mono); font-size: 8.5px; }
-  .bgp-ch-firma { width: 34%; padding-top: 3px; border-top: 1px solid rgba(43, 52, 71, .45); text-align: center; color: #5a6577; }
-  .bgp-ch-banda { margin: 0 -14px -10px; padding: 5px 14px; border-radius: 0 0 12px 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; color: #3a4352; background: rgba(43, 52, 71, .07); }
-  .bgp-tarjeta { position: absolute; right: 0; bottom: 0; width: 56%; aspect-ratio: 1.586; padding: 12px 14px; border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;
-    color: var(--bgp-plata); transform: rotate(5deg); transform-origin: 70% 40%;
-    background: radial-gradient(120% 90% at 100% 0%, rgba(216, 179, 106, .28), transparent 55%), linear-gradient(135deg, #1d3d70, #0b1a33 70%);
-    box-shadow: 0 22px 34px -14px rgba(0, 0, 0, .85), inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px rgba(255, 255, 255, .08); animation: bgp-entra .8s cubic-bezier(.2, .9, .3, 1) .12s both; }
-  .bgp-tj-cab { display: flex; align-items: center; justify-content: space-between; }
-  .bgp-tj-chip { width: 30px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #f0d79a, #c9a35c 55%, #e7c987); box-shadow: inset 0 0 0 1px rgba(90, 64, 20, .35); }
-  .bgp-tj-cab svg { width: 18px; height: 18px; opacity: .8; }
-  .bgp-tj-num { font-family: var(--font-mono); font-size: 13px; letter-spacing: .12em; color: #eef2f7; }
-  .bgp-tj-pie { display: flex; justify-content: space-between; font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--bgp-tenue); }
-  .bgp-tj-pie span:first-child { font-family: var(--bgp-display); font-size: 10px; letter-spacing: .14em; color: var(--bgp-plata); }
-  .bgp-aviso { position: absolute; left: 6%; bottom: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; font-size: 10.5px; font-weight: 600; color: #0b1a33;
-    background: var(--bgp-oro); box-shadow: 0 8px 16px -8px rgba(0, 0, 0, .7); animation: bgp-entra .8s cubic-bezier(.2, .9, .3, 1) .3s both; }
-  .bgp-aviso i { width: 6px; height: 6px; border-radius: 50%; background: #b42318; }
-  @keyframes bgp-entra { from { opacity: 0; translate: 0 14px; } to { opacity: 1; translate: 0 0; } }
-  .bgp-funciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; padding: 0; list-style: none; }
-  .bgp-funciones li { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--bgp-plata); }
-  .bgp-funciones svg { flex: none; width: 26px; height: 26px; padding: 5px; border-radius: 8px; color: var(--bgp-oro); background: rgba(216, 179, 106, .10); border: 1px solid rgba(216, 179, 106, .25); }
-
-  .acceso-form { display: flex; flex-direction: column; justify-content: center; padding: 38px 36px 26px; background: var(--surface); }
-  .acceso-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-  .acceso-logo { width: 50px; height: 50px; flex: none; filter: drop-shadow(0 6px 10px rgba(11, 26, 51, .35)); }
-  .acceso-marca b { display: block; font-family: var(--bgp-display); font-weight: 400; font-size: 21px; line-height: 1.1; color: var(--text); }
-  .acceso-marca span { font-size: 10.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bgp-oro-osc); }
-  .acceso h2 { font-family: var(--bgp-display); font-weight: 400; font-size: 28px; letter-spacing: .02em; }
-  .acceso .sub { margin-top: 4px; }
-  .acceso form > label { margin-top: 16px; }
-  .acceso form input { height: 44px; }
-  .acceso form input:focus { border-color: var(--bgp-oro-osc); box-shadow: 0 0 0 3px rgba(216, 179, 106, .25); outline: none; }
-  .acceso form button[type=submit] { width: 100%; margin-top: 22px; height: 46px; font-size: 14.5px; font-weight: 650; letter-spacing: .02em; border: 0; color: #0b1a33;
-    background: linear-gradient(180deg, #e3c27a, var(--bgp-oro) 55%, var(--bgp-oro-osc)); box-shadow: 0 10px 22px -10px rgba(184, 146, 74, .8), inset 0 1px 0 rgba(255, 255, 255, .4); }
-  .acceso form button[type=submit]:hover:not(:disabled) { filter: brightness(1.05); background: linear-gradient(180deg, #e8c983, #dcb86f 55%, #be9850); }
-  .acceso form button[type=submit]:focus-visible { outline: 2px solid var(--bgp-noche-2); outline-offset: 2px; }
-  .btn-ingreso-sitio { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 22px; height: 46px; border-radius: var(--radius-sm); font-size: 14.5px; font-weight: 650; letter-spacing: .02em; text-decoration: none; color: #0b1a33;
-    background: linear-gradient(180deg, #e3c27a, var(--bgp-oro) 55%, var(--bgp-oro-osc)); box-shadow: 0 10px 22px -10px rgba(184, 146, 74, .8), inset 0 1px 0 rgba(255, 255, 255, .4); }
+  .acceso-caja { width: min(420px, 100%); display: grid; justify-items: center; gap: 18px; }
+  .acceso-logo-as { width: auto; height: clamp(130px, 24vh, 200px); max-width: 100%; }
+  .acceso-form { width: 100%; padding: 26px 26px 20px; border-radius: 18px; background: rgba(255, 255, 255, .8); border: 1px solid rgba(28, 74, 44, .14);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 22px 44px -26px rgba(28, 74, 44, .5); font-family: "Manrope", "Segoe UI", system-ui, sans-serif; }
+  .acceso-marca { text-align: center; margin-bottom: 14px; }
+  .acceso-marca b { display: block; font-family: "Cinzel", "Times New Roman", serif; font-weight: 600; font-size: 22px; letter-spacing: .08em; color: var(--as-verde); }
+  .acceso-marca span { font-size: 10.5px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--as-oro); }
+  .acceso h2 { font-family: "Cinzel", "Times New Roman", serif; font-weight: 600; font-size: 18px; letter-spacing: .06em; color: var(--as-verde); text-align: center; }
+  .acceso .sub { margin-top: 6px; color: var(--as-tenue); text-align: center; }
+  .acceso form > label { margin-top: 14px; color: var(--as-tinta); }
+  .acceso form input { height: 44px; background: #fffdfa; border-color: rgba(28, 74, 44, .22); color: var(--as-tinta); }
+  .acceso form input:focus { border-color: var(--as-oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, .18); outline: none; }
+  .acceso form button[type=submit] { width: 100%; margin-top: 20px; height: 46px; font-size: 14.5px; font-weight: 700; letter-spacing: .03em; border: 0; color: #fffaf0;
+    background: linear-gradient(180deg, var(--as-verde-claro), var(--as-verde)); box-shadow: 0 10px 22px -12px rgba(28, 74, 44, .8); }
+  .acceso form button[type=submit]:hover:not(:disabled) { filter: brightness(1.08); }
+  .acceso .hint { color: var(--as-tenue); }
+  .btn-ingreso-sitio { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 22px; height: 46px; border-radius: var(--radius-sm); font-size: 14.5px; font-weight: 650; letter-spacing: .02em; text-decoration: none; color: #fffaf0;
+    background: linear-gradient(180deg, var(--as-verde-claro), var(--as-verde)); box-shadow: 0 10px 22px -12px rgba(28, 74, 44, .8); }
   .btn-ingreso-sitio:hover { filter: brightness(1.05); }
-  .btn-ingreso-sitio:focus-visible { outline: 2px solid var(--bgp-noche-2); outline-offset: 2px; }
-  .acceso-pie { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); text-align: center; }
-
-  @media (max-width: 780px) {
-    .acceso { padding: 16px; align-items: flex-start; }
-    .acceso-caja { grid-template-columns: minmax(0, 1fr); max-width: 440px; }
-    .acceso-lado { padding: 26px 24px 22px; gap: 0; }
-    .acceso-lado::after { top: auto; left: 0; width: auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(216, 179, 106, .45), transparent); }
-    .bgp-nombre { font-size: 27px; letter-spacing: .12em; }
-    .bgp-escena, .bgp-funciones { display: none; }
-    .acceso-form { padding: 26px 24px 22px; }
-  }
-  @media (prefers-reduced-motion: reduce) { .bgp-cheque, .bgp-tarjeta, .bgp-aviso { animation: none; } }
+  .btn-ingreso-sitio:focus-visible { outline: 2px solid var(--as-oro); outline-offset: 2px; }
+  .acceso-pie { margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(28, 74, 44, .12); font-size: 12px; color: var(--as-tenue); text-align: center; }
 
   /* ---------- Modales ---------- */
   .modal-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--overlay); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .18s, visibility 0s linear .18s; }
@@ -1054,10 +1023,10 @@
   }
   /* Reporte para imprimir / PDF (siempre claro) */
   .rep { color: #0f1b2d; background: #fff; font-family: var(--font); font-size: 11px; }
-  .rep-head { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #0b1f3a; }
+  .rep-head { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 2px solid #1c4a2c; }
   .rep-marca { font-family: var(--font-serif); font-size: 12px; font-weight: 600; color: #8a6a2f; letter-spacing: .04em; }
-  .rep h1 { font-size: 19px; margin: 2px 0 4px; color: #0b1f3a; }
-  .rep h2 { font-size: 13px; margin: 18px 0 6px; color: #0b1f3a; }
+  .rep h1 { font-size: 19px; margin: 2px 0 4px; color: #1c4a2c; }
+  .rep h2 { font-size: 13px; margin: 18px 0 6px; color: #1c4a2c; }
   .rep-sub { font-size: 11px; color: #5a6577; }
   .rep-meta { text-align: right; font-size: 10px; color: #5a6577; white-space: nowrap; }
   .rep-tabla { width: 100%; border-collapse: collapse; font-size: 10.5px; }
@@ -1065,7 +1034,7 @@
   .rep-tabla td { padding: 4px 6px; border-bottom: 1px solid #e3e8ef; vertical-align: top; color: #0f1b2d; background: #fff !important; }
   .rep-tabla .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .rep-tabla tr.rep-destacada td { background: #f7f9fc !important; font-weight: 600; }
-  .rep-tabla tr.rep-total td { background: #eef2f7 !important; font-weight: 700; border-top: 1.5px solid #0b1f3a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rep-tabla tr.rep-total td { background: #eef2f7 !important; font-weight: 700; border-top: 1.5px solid #1c4a2c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rep-nota { font-size: 10.5px; color: #5a6577; margin-top: 6px; }
   .rep-firmas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-top: 48px; text-align: center; font-size: 11px; page-break-inside: avoid; }
   .rep-linea { border-top: 1px solid #0f1b2d; margin-bottom: 4px; height: 36px; }
@@ -1156,9 +1125,9 @@
 <script>
 // Aplica tema y modo guardados antes de dibujar la página (evita el parpadeo).
 (function () {
-  var tema = "moderno", modo = "claro", densidad = "normal";
+  var tema = "sammartino", modo = "claro", densidad = "normal";
   try {
-    tema = localStorage.getItem("lc-tema-v4") || tema;
+    tema = localStorage.getItem("lc-tema-v5") || tema;
     modo = localStorage.getItem("lc-modo-v3") || modo;
     densidad = localStorage.getItem("lc-densidad") || densidad;
   } catch (e) {}
@@ -1171,58 +1140,11 @@
 </script>
 </head>
 <body class="sin-sesion">
-<!-- Logo de Tesorería: dial de bóveda con la columna en forma de T (docs/logo-tesoreria.svg). -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="lt-oro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dda4"/><stop offset=".5" stop-color="#d8b36a"/><stop offset="1" stop-color="#a5803c"/></linearGradient>
-    <radialGradient id="lt-fondo" cx=".35" cy=".28" r=".85"><stop offset="0" stop-color="#22457c"/><stop offset="1" stop-color="#071226"/></radialGradient></defs><symbol id="logoTesoreria" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="url(#lt-fondo)"/>
-  <circle cx="48" cy="48" r="43.2" fill="none" stroke="url(#lt-oro)" stroke-width="2.4"/>
-  <path d="M54.46 11.37L54.98 8.41M60.72 13.04L61.75 10.22M65.60 17.52L68.10 13.19M71.91 19.50L73.84 17.21M76.50 24.09L78.79 22.16M78.48 30.40L82.81 27.90M82.96 35.28L85.78 34.25M84.63 41.54L87.59 41.02M83.20 48.00L88.20 48.00M84.63 54.46L87.59 54.98M82.96 60.72L85.78 61.75M78.48 65.60L82.81 68.10M76.50 71.91L78.79 73.84M71.91 76.50L73.84 78.79M65.60 78.48L68.10 82.81M60.72 82.96L61.75 85.78M54.46 84.63L54.98 87.59M48.00 83.20L48.00 88.20M41.54 84.63L41.02 87.59M35.28 82.96L34.25 85.78M30.40 78.48L27.90 82.81M24.09 76.50L22.16 78.79M19.50 71.91L17.21 73.84M17.52 65.60L13.19 68.10M13.04 60.72L10.22 61.75M11.37 54.46L8.41 54.98M12.80 48.00L7.80 48.00M11.37 41.54L8.41 41.02M13.04 35.28L10.22 34.25M17.52 30.40L13.19 27.90M19.50 24.09L17.21 22.16M24.09 19.50L22.16 17.21M30.40 17.52L27.90 13.19M35.28 13.04L34.25 10.22M41.54 11.37L41.02 8.41" stroke="url(#lt-oro)" stroke-width="1.3" stroke-linecap="round" opacity=".85"/>
-  <path d="M48 12.6 L44.6 6.8 H51.4 Z" fill="#2fd38a"/>
-  <circle cx="48" cy="48" r="32.6" fill="none" stroke="#d8b36a" stroke-opacity=".28" stroke-width="1"/>
-  <g fill="url(#lt-oro)">
-    <rect x="24.5" y="24" width="47" height="3.2" rx="1.6"/>
-    <rect x="27.5" y="28.4" width="41" height="6.2" rx="1.4"/>
-    <path d="M34 35.4 H62 L59 39.4 H37 Z"/>
-    <rect x="40" y="40.4" width="16" height="23.2" rx="1"/>
-    <path d="M37.2 64.4 H58.8 L61 68.4 H35 Z"/>
-    <rect x="31.5" y="69.2" width="33" height="3.8" rx="1.2"/>
-  </g>
-  <path d="M45.3 42.4 V61.6 M50.7 42.4 V61.6" stroke="#0b1a33" stroke-opacity=".55" stroke-width="1.3" stroke-linecap="round"/>
-  <path d="M28.5 29.6 H67.5" stroke="#fff6de" stroke-opacity=".55" stroke-width=".8" stroke-linecap="round"/></symbol></svg>
 <div class="acceso" id="acceso">
   <div class="acceso-caja">
-    <aside class="acceso-lado">
-      <div>
-        <div class="bgp-regla" aria-hidden="true"></div>
-        <p class="bgp-nombre">B<i>.</i>G<i>.</i>P SAMMAR</p>
-        <p class="bgp-sub">Bolsas · Granos · Propiedades</p>
-        <span class="bgp-modulo">Tesorería</span>
-      </div>
-      <div class="bgp-escena" aria-hidden="true">
-        <div class="bgp-cheque">
-          <div class="bgp-ch-fila"><span class="bgp-ch-banco">Banco</span><span class="bgp-ch-tag">E-CHEQ</span><span class="bgp-ch-num">N° •••• 0731</span></div>
-          <div class="bgp-ch-fila bgp-ch-media"><span class="bgp-ch-linea">Páguese a la orden de</span><span class="bgp-ch-importe">$ ••••••,••</span></div>
-          <div class="bgp-ch-fila"><span class="bgp-ch-linea">la suma de pesos</span></div>
-          <div class="bgp-ch-fila bgp-ch-pie"><span class="bgp-ch-fecha">Fecha de pago ··/··/····</span><span class="bgp-ch-firma">Firma</span></div>
-          <div class="bgp-ch-banda">0721 ⁞ 0731 ⁞ 00012345 ⁞ 0000071203</div>
-        </div>
-        <div class="bgp-tarjeta">
-          <div class="bgp-tj-cab"><span class="bgp-tj-chip"></span><svg viewBox="0 0 24 24" fill="none" stroke="#e6ebf2" stroke-width="1.8" stroke-linecap="round"><path d="M8.5 8a6 6 0 0 1 0 8M12 6a9 9 0 0 1 0 12M15.5 4a12 12 0 0 1 0 16"/></svg></div>
-          <div class="bgp-tj-num">•••• •••• •••• 4821</div>
-          <div class="bgp-tj-pie"><span>B.G.P SAMMAR</span><span>Corporativa</span></div>
-        </div>
-        <span class="bgp-aviso"><i></i>Vence esta semana</span>
-      </div>
-      <ul class="bgp-funciones">
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10 12 5l9 5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg>Cuentas y saldos</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h6M7 14h4M16 14h2"/></svg>Cheques y e-cheqs</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>Tarjetas y compromisos</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h11M4 12h8M4 17h11"/><path d="m15 15 2 2 4-4"/></svg>Conciliación bancaria</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 9 11l4 4 8-8"/><path d="M15 7h6v6"/></svg>Flujo de fondos</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>Órdenes de pago</li>
-      </ul>
-    </aside>
+    <img class="acceso-logo-as" src="https://bgpsammar.com/marca.png" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="928" height="700">
     <div class="acceso-form">
-    <div class="acceso-marca"><svg class="acceso-logo" aria-hidden="true"><use href="#logoTesoreria"/></svg><div><b>Tesorería</b><span id="accesoEmpresa">SAMMARTINO</span></div></div>
+    <div class="acceso-marca"><b>Tesorería</b><span id="accesoEmpresa">SAMMARTINO</span></div>
     <!-- Un solo ingreso: el de bgpsammar.com, que le pasa la sesión a esta app. -->
     <div id="formLogin" hidden>
       <h2>Ingresá desde el inicio</h2>
@@ -1248,7 +1170,7 @@
   <div class="masthead-in">
     <button class="btn-panel" id="btnPanel" type="button" aria-label="Ocultar el panel lateral" title="Ocultar el panel lateral (Ctrl+B)" aria-controls="nav" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path class="flecha" d="M15.5 10l-2 2 2 2"/></svg></button>
     <div class="marca">
-      <svg class="marca-sello" aria-hidden="true"><use href="#logoTesoreria"/></svg>
+      <img class="marca-sello" src="https://bgpsammar.com/logo-as-180.png" alt="" width="38" height="38">
       <div class="marca-txt"><b>Tesorería</b><span><span id="marcaEmpresa">SAMMARTINO</span> · Lector de comprobantes</span></div>
     </div>
     <button class="buscador" id="btnBuscar" type="button" aria-label="Buscar (Ctrl+K)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><span class="buscador-txt">Buscar movimientos, cheques, cuentas…</span><kbd>Ctrl K</kbd></button>
@@ -1262,7 +1184,7 @@
 </header>
 <nav class="navbar" aria-label="Secciones">
   <div class="side-marca">
-    <svg class="marca-sello" aria-hidden="true"><use href="#logoTesoreria"/></svg>
+    <img class="marca-sello" src="https://bgpsammar.com/logo-as-180.png" alt="" width="38" height="38">
     <div><b>Tesorería</b><span id="sideEmpresa">SAMMARTINO</span></div>
   </div>
   <div class="navbar-in" id="nav">
@@ -6870,6 +6792,7 @@ $("btnAvisos").addEventListener("click", async () => {
 
 // ---------------- Apariencia ----------------
 const TEMAS = [
+  { id: "sammartino", nombre: "Andrés Sammartino", colores: ["#173d27", "#efeae2", "#b8893a"] },
   { id: "moderno", nombre: "Moderno", colores: ["#0f172a", "#4f46e5", "#0ea5e9"] },
   { id: "oceano", nombre: "Océano", colores: ["#082f49", "#0e7490", "#d97706"] },
   { id: "institucional", nombre: "Institucional", colores: ["#0b2545", "#1f4e8c", "#b08d57"] },
@@ -6879,14 +6802,14 @@ const TEMAS = [
 ];
 const mqClaro = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
 let preferenciaModo = "claro";
-let temaActual = "moderno";
+let temaActual = "sammartino";
 let densidadActual = "normal";
 try {
   preferenciaModo = localStorage.getItem("lc-modo-v3") || "claro";
-  temaActual = localStorage.getItem("lc-tema-v4") || "moderno";
+  temaActual = localStorage.getItem("lc-tema-v5") || "sammartino";
   densidadActual = localStorage.getItem("lc-densidad") || "normal";
 } catch (e) {}
-if (!TEMAS.some(t => t.id === temaActual)) temaActual = "moderno";
+if (!TEMAS.some(t => t.id === temaActual)) temaActual = "sammartino";
 if (densidadActual !== "compacta") densidadActual = "normal";
 if (["claro", "oscuro", "auto"].indexOf(preferenciaModo) < 0) preferenciaModo = "claro";
 
@@ -6922,7 +6845,7 @@ function armarPanelTema() {
     const sw = el("span", "tema-sw");
     t.colores.forEach(c => { const s = el("i"); s.style.background = c; sw.append(s); });
     b.append(sw, el("span", null, t.nombre));
-    b.addEventListener("click", () => { temaActual = t.id; guardarPreferencia("lc-tema-v4", t.id); aplicarApariencia(); });
+    b.addEventListener("click", () => { temaActual = t.id; guardarPreferencia("lc-tema-v5", t.id); aplicarApariencia(); });
     grid.append(b);
   });
   document.querySelectorAll("input[name=modoApariencia]").forEach(r => {
