@@ -270,80 +270,156 @@ function respuesta(obj) {
 function conLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  EN_LOCK_.n++;
   try {
-    const res = fn();
-    marcarCambioDatos_();
-    return res;
+    return fn();
   } finally {
+    EN_LOCK_.n--;
+    if (!EN_LOCK_.n) marcarHojasTocadas_();
     lock.releaseLock();
   }
 }
 
 // ======================= Caché de lectura =======================
-// Movimientos y cheques son hojas grandes: leerlas y mandarlas enteras a la
-// página es lo más lento. Se mandan comprimidas (gzip, la página las
-// descomprime) y se guardan en la caché del script hasta que algo cambie:
-// toda escritura pasa por conLock_, que cambia la "versión de datos".
-// Si alguien edita la hoja a mano, la caché vence sola a los 15 minutos
-// (o se fuerza con el botón Actualizar).
-const PROP_VERSION_DATOS = 'VERSION_DATOS';
+// Leer una hoja entera (getDisplayValues) es lo más lento del servidor. Lo que
+// se lee se guarda comprimido en la caché del script y se usa mientras la hoja
+// no cambie. Cada hoja tiene su propia "versión" (propiedad VER_<hoja>): solo
+// cambia la de la hoja que se tocó, así guardar una alerta no obliga a releer
+// los movimientos. Toda hoja que se pide con obtenerHoja_ dentro de conLock_
+// cambia su versión al terminar; las ediciones a mano las marca onEdit.
+// La clave también lleva la cantidad de filas, y la caché vence a los 15 minutos.
+// Dentro del lock no se usa la caché: lo que se escribe se calcula con la hoja real.
+const PROP_VERSION_HOJA = 'VER_';
 const CACHE_SEGUNDOS = 900;
 const CACHE_TROZO = 90000;
+const CACHE_MAX_TROZOS = 80;
+const EN_LOCK_ = { n: 0 };
+const HOJAS_TOCADAS_ = {};
+const VERSIONES_ = {};
 
-function marcarCambioDatos_() {
-  try { propiedades_().setProperty(PROP_VERSION_DATOS, String(new Date().getTime())); } catch (e) {}
+function versionHoja_(nombre) {
+  if (VERSIONES_[nombre] === undefined) VERSIONES_[nombre] = propiedades_().getProperty(PROP_VERSION_HOJA + nombre) || '0';
+  return VERSIONES_[nombre];
 }
 
-/** Filas de una hoja como {gz: base64 de gzip(JSON {h: títulos, v: valores})}. */
-function filasComprimidas_(nombreHoja, headers, forzar) {
+function marcarHoja_(nombre) {
+  const v = String(new Date().getTime()) + Math.floor(Math.random() * 1000);
+  VERSIONES_[nombre] = v;
+  try { propiedades_().setProperty(PROP_VERSION_HOJA + nombre, v); } catch (e) {}
+}
+
+function marcarHojasTocadas_() {
+  Object.keys(HOJAS_TOCADAS_).forEach(n => { delete HOJAS_TOCADAS_[n]; marcarHoja_(n); });
+}
+
+/** Activador simple: si alguien edita la planilla a mano, esa hoja deja de usar la caché. */
+function onEdit(e) {
+  try { marcarHoja_(e.range.getSheet().getName()); } catch (err) {}
+}
+
+/** Texto guardado en la caché en trozos (CacheService admite hasta 100 KB por clave). */
+function cacheLeer_(clave) {
   const cache = CacheService.getScriptCache();
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
-  const ultima = sheet ? sheet.getLastRow() : 0;
-  const clave = 'gz_' + nombreHoja + '_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0') + '_' + ultima;
-  if (!forzar) {
-    const n = parseInt(cache.get(clave + '_n') || '0', 10);
-    if (n > 0) {
-      const claves = [];
-      for (let i = 0; i < n; i++) claves.push(clave + '_' + i);
-      const partes = cache.getAll(claves);
-      if (claves.every(k => partes[k] !== undefined && partes[k] !== null)) {
-        return { ok: true, gz: claves.map(k => partes[k]).join(''), cache: true };
-      }
-    }
-  }
-  let valores = [];
-  if (sheet && ultima > 1) {
-    const cols = Math.min(headers.length, sheet.getMaxColumns());
-    valores = sheet.getRange(2, 1, ultima - 1, cols).getDisplayValues().map(f => {
-      let fin = f.length;
-      while (fin > 0 && f[fin - 1] === '') fin--;
-      return fin === f.length ? f : f.slice(0, fin);
-    });
-  }
-  const json = JSON.stringify({ h: headers, v: valores });
-  const gz = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(json, 'application/json')).getBytes());
+  const n = parseInt(cache.get(clave + '_n') || '0', 10);
+  if (!(n > 0)) return null;
+  const claves = [];
+  for (let i = 0; i < n; i++) claves.push(clave + '_' + i);
+  const partes = cache.getAll(claves);
+  if (!claves.every(k => partes[k] !== undefined && partes[k] !== null)) return null;
+  return claves.map(k => partes[k]).join('');
+}
+
+function cacheGuardar_(clave, texto) {
   try {
     const trozos = {};
     let n = 0;
-    for (let i = 0; i < gz.length; i += CACHE_TROZO) { trozos[clave + '_' + n] = gz.substring(i, i + CACHE_TROZO); n++; }
+    for (let i = 0; i < texto.length; i += CACHE_TROZO) { trozos[clave + '_' + n] = texto.substring(i, i + CACHE_TROZO); n++; }
+    if (n > CACHE_MAX_TROZOS) return;
     trozos[clave + '_n'] = String(n);
-    if (n <= 80) cache.putAll(trozos, CACHE_SEGUNDOS);
+    CacheService.getScriptCache().putAll(trozos, CACHE_SEGUNDOS);
   } catch (e) {}
-  return { ok: true, gz: gz };
+}
+
+function gzBase64_(texto) {
+  return Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(texto, 'application/json')).getBytes());
+}
+
+function desdeGzBase64_(gz) {
+  return Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(gz), 'application/x-gzip')).getDataAsString();
+}
+
+/** Valores de las filas de datos (sin las celdas vacías del final de cada fila). */
+function valoresHoja_(sheet, headers) {
+  const ultima = sheet ? sheet.getLastRow() : 0;
+  if (!sheet || ultima < 2) return [];
+  const cols = Math.min(headers.length, sheet.getMaxColumns());
+  return sheet.getRange(2, 1, ultima - 1, cols).getDisplayValues().map(f => {
+    let fin = f.length;
+    while (fin > 0 && f[fin - 1] === '') fin--;
+    return fin === f.length ? f : f.slice(0, fin);
+  });
+}
+
+/** Clave de caché de una hoja: nombre + versión + cantidad de filas. */
+function claveHoja_(nombreHoja, sheet) {
+  return 'gz_' + nombreHoja + '_' + versionHoja_(nombreHoja) + '_' + (sheet ? sheet.getLastRow() : 0);
+}
+
+/**
+ * Filas de una hoja como {gz: base64 de gzip(JSON {h: títulos, v: valores}), ver}.
+ * Si la página manda la versión que ya tiene (d.ver) y no cambió, responde {igual: true}
+ * y no hace falta mandar los datos de nuevo.
+ */
+function filasComprimidas_(nombreHoja, headers, d) {
+  const forzar = !!(d && d.forzar);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
+  const clave = claveHoja_(nombreHoja, sheet);
+  if (!forzar) {
+    if (d && d.ver && d.ver === clave) return { ok: true, igual: true, ver: clave };
+    const guardado = cacheLeer_(clave);
+    if (guardado) return { ok: true, gz: guardado, ver: clave, cache: true };
+  }
+  const gz = gzBase64_(JSON.stringify({ h: headers, v: valoresHoja_(sheet, headers) }));
+  cacheGuardar_(clave, gz);
+  return { ok: true, gz: gz, ver: clave };
+}
+
+/** Filas como objetos. Fuera del lock usa la caché (la misma que filasComprimidas_). */
+function leerFilasCache_(nombreHoja, headers) {
+  if (EN_LOCK_.n) return leerFilasHoja_(nombreHoja, headers);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
+  if (!sheet) return [];
+  const clave = claveHoja_(nombreHoja, sheet);
+  let o = null;
+  const guardado = cacheLeer_(clave);
+  if (guardado) { try { o = JSON.parse(desdeGzBase64_(guardado)); } catch (e) { o = null; } }
+  if (!o || !o.h || o.h.length !== headers.length) {
+    o = { h: headers, v: valoresHoja_(sheet, headers) };
+    cacheGuardar_(clave, gzBase64_(JSON.stringify(o)));
+  }
+  return o.v.map(fila => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = fila[i] === undefined ? '' : fila[i]; });
+    return obj;
+  });
 }
 
 // ======================= Usuarios y sesiones =======================
 
 // Los usuarios se leen en cada pedido (para validar la sesión): se guardan en la caché
-// del script hasta que cambie cualquier dato (la versión de datos la cambia conLock_).
+// del script hasta que cambie la hoja Usuarios (ver versionHoja_). Dentro del lock se leen de la hoja.
 function leerUsuarios_() {
+  if (EN_LOCK_.n) {
+    obtenerHoja_(SHEET_USUARIOS, HEADERS_USUARIOS);
+    return leerFilasHoja_(SHEET_USUARIOS, HEADERS_USUARIOS).filter(u => u['ID']);
+  }
   const cache = CacheService.getScriptCache();
-  const clave = 'usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0');
+  const clave = 'usr_' + versionHoja_(SHEET_USUARIOS);
   const guardado = cache.get(clave);
   if (guardado) { try { return JSON.parse(guardado); } catch (e) {} }
   obtenerHoja_(SHEET_USUARIOS, HEADERS_USUARIOS);
-  const lista = leerFilas_(SHEET_USUARIOS, HEADERS_USUARIOS).filter(u => u['ID']);
-  try { cache.put(clave, JSON.stringify(lista), 300); } catch (e) {}
+  const lista = leerFilasHoja_(SHEET_USUARIOS, HEADERS_USUARIOS).filter(u => u['ID']);
+  try { cache.put(clave, JSON.stringify(lista), CACHE_SEGUNDOS); } catch (e) {}
   return lista;
 }
 
@@ -390,19 +466,26 @@ function ahoraTexto_() {
 
 function crearSesion_(u) {
   const token = Utilities.getUuid() + Utilities.getUuid();
-  CacheService.getScriptCache().put('ses_' + token, u['ID'], DURACION_SESION);
+  CacheService.getScriptCache().put('ses_' + token, u['ID'] + '|' + new Date().getTime(), DURACION_SESION);
   return token;
 }
+
+// La sesión se guarda como "ID|cuándo se renovó". Se renueva a lo sumo cada 10 minutos
+// (no en cada pedido), así cada consulta hace una escritura menos en la caché.
+const RENOVAR_SESION_MS = 600000;
 
 /** Usuario activo de la sesión, o null. Renueva la duración de la sesión. */
 function usuarioDeSesion_(token) {
   if (!token) return null;
   const cache = CacheService.getScriptCache();
-  const id = cache.get('ses_' + token);
-  if (!id) return null;
+  const valor = cache.get('ses_' + token);
+  if (!valor) return null;
+  const partes = valor.split('|');
+  const id = partes[0];
   const u = leerUsuarios_().find(x => x['ID'] === id && x['Activo'] === 'Sí');
   if (!u) { cache.remove('ses_' + token); return null; }
-  cache.put('ses_' + token, id, DURACION_SESION);
+  const ahora = new Date().getTime();
+  if (!(ahora - (parseInt(partes[1], 10) || 0) < RENOVAR_SESION_MS)) cache.put('ses_' + token, id + '|' + ahora, DURACION_SESION);
   return u;
 }
 
@@ -430,7 +513,6 @@ function login_(d) {
   }
   cache.remove(claveIntentos);
   actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
-  try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
   registrar_(u, 'Ingreso', 'Inició sesión', '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
 }
@@ -491,6 +573,7 @@ function actualizarCampoUsuario_(id, campo, valor) {
   const fila = buscarFila_(hoja, 0, v => v === id);
   if (!fila) throw new Error('No se encontró el usuario.');
   hoja.getRange(fila, HEADERS_USUARIOS.indexOf(campo) + 1).setNumberFormat('@').setValue(valor);
+  if (!EN_LOCK_.n) marcarHoja_(SHEET_USUARIOS);
 }
 
 function obtenerUsuarios_(d, u) {
@@ -631,7 +714,7 @@ function obtenerAuditoria_(d) {
 // ======================= Transferencias =======================
 
 function obtenerTransferencias_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS, d);
   return { ok: true, filas: leerFilas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS) };
 }
 
@@ -851,7 +934,7 @@ function montoConSigno(monto, condicion) {
 // ======================= Cheques =======================
 
 function obtenerCheques_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_CHEQUES, HEADERS_CHEQUES, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_CHEQUES, HEADERS_CHEQUES, d);
   return { ok: true, filas: leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES) };
 }
 
@@ -1771,7 +1854,7 @@ function alertaDelUsuario_(id, u) {
   const sheet = obtenerHoja_(SHEET_ALERTAS, HEADERS_ALERTAS);
   const fila = buscarFila_(sheet, 0, v => v === id);
   if (!id || !fila) throw new Error('No se encontró la alerta.');
-  const a = leerAlertas_()[fila - 2];
+  const a = leerFilasHoja_(SHEET_ALERTAS, HEADERS_ALERTAS)[fila - 2];
   if (a['Usuario'] !== u['ID']) throw new Error('Esa alerta pertenece a otro usuario.');
   return { sheet: sheet, fila: fila, alerta: a };
 }
@@ -1847,6 +1930,7 @@ function probarAlerta_(d, u) {
 function revisarAlertas() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return;
+  EN_LOCK_.n++;
   try {
     const ahora = ahoraLocal();
     const usuarios = {};
@@ -1883,6 +1967,8 @@ function revisarAlertas() {
       }
     });
   } finally {
+    EN_LOCK_.n--;
+    if (!EN_LOCK_.n) marcarHojasTocadas_();
     lock.releaseLock();
   }
 }
@@ -1986,11 +2072,25 @@ function claveDe_(fila, keyCols) {
  */
 // Hojas ya revisadas en esta ejecución: evita volver a leer los encabezados en cada llamada.
 const HOJAS_LISTAS_ = {};
+// Hojas usadas fuera del lock sin revisar los encabezados (la caché dice que ya están).
+const HOJAS_VISTAS_ = {};
 
+// Fuera del lock (solo lectura), una hoja revisada hace poco no se vuelve a revisar:
+// la caché del script recuerda que ya tiene sus encabezados.
 function obtenerHoja_(nombre, headers) {
+  if (EN_LOCK_.n) HOJAS_TOCADAS_[nombre] = true;
   const memo = nombre + '|' + headers.length;
   if (HOJAS_LISTAS_[memo]) return HOJAS_LISTAS_[memo];
+  const claveLista = 'hoja_' + memo;
+  if (!EN_LOCK_.n) {
+    if (HOJAS_VISTAS_[memo]) return HOJAS_VISTAS_[memo];
+    try {
+      const vista = CacheService.getScriptCache().get(claveLista) && SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
+      if (vista) return (HOJAS_VISTAS_[memo] = vista);
+    } catch (e) {}
+  }
   const sheet = obtenerHojaSinMemo_(nombre, headers);
+  try { CacheService.getScriptCache().put(claveLista, '1', 3600); } catch (e) {}
   HOJAS_LISTAS_[memo] = sheet;
   return sheet;
 }
@@ -2015,8 +2115,16 @@ function obtenerHojaSinMemo_(nombre, headers) {
   return sheet;
 }
 
-/** Lee todas las filas de datos de una hoja como objetos {Campo: valor}. */
+/**
+ * Lee todas las filas de datos de una hoja como objetos {Campo: valor}.
+ * Fuera del lock usa la caché de lectura (ver leerFilasCache_); dentro, la hoja.
+ */
 function leerFilas_(nombreHoja, headers) {
+  return leerFilasCache_(nombreHoja, headers);
+}
+
+/** Como leerFilas_, siempre desde la hoja (sin caché). */
+function leerFilasHoja_(nombreHoja, headers) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
   if (!sheet || sheet.getLastRow() < 2) return [];
   const cols = Math.min(headers.length, sheet.getMaxColumns());
@@ -2806,12 +2914,12 @@ function unificarCuentasDuplicadas() {
 // ======================= FCI y Bolsa =======================
 
 function obtenerFci_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_FCI, HEADERS_FCI, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_FCI, HEADERS_FCI, d);
   return { ok: true, filas: leerFilas_(SHEET_FCI, HEADERS_FCI) };
 }
 
 function obtenerBolsa_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_BOLSA, HEADERS_BOLSA, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_BOLSA, HEADERS_BOLSA, d);
   return { ok: true, filas: leerFilas_(SHEET_BOLSA, HEADERS_BOLSA) };
 }
 
@@ -3594,8 +3702,10 @@ function obtenerOrdenesPago_(d, u) {
   if (!tieneAccesoFacturas_(u)) return sinAccesoFacturas_();
   const p = propiedades_();
   if (!p.getProperty(PROP_OP_DESDE)) p.setProperty(PROP_OP_DESDE, ahoraLocal().hoy);
+  // Los pagos se leen antes del lock (de la caché); dentro del lock solo se escriben las órdenes.
+  const pagos = pagosDelPeriodo_();
   conLock_(() => {
-    generarOrdenes_(pagosDelPeriodo_());
+    generarOrdenes_(pagos);
     completarOrdenes_();
   });
   return respuestaOrdenes_();

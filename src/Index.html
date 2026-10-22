@@ -3710,23 +3710,41 @@ function mostrarVista(nombre) {
 let sesionToken = "";
 try { sesionToken = localStorage.getItem("lc-sesion") || ""; } catch (e) {}
 
-function runJson(accion, datos) {
+function llamarApi(accion, datos) {
   return new Promise((resolve, reject) => {
     google.script.run
-      .withSuccessHandler(txt => {
-        let res;
-        try { res = JSON.parse(txt); } catch (e) { reject(new Error("Respuesta inválida del servidor.")); return; }
-        if (res && res.sesion === false) { sesionVencida(res.error); reject(new Error(res.error || "Sesión vencida.")); return; }
-        if (res && res.ok === false) reject(new Error(res.error || "Error desconocido."));
-        else resolve(res);
-      })
+      .withSuccessHandler(resolve)
       .withFailureHandler(reject)
       .api(JSON.stringify({ token: sesionToken, accion: accion, datos: datos || {} }));
   });
 }
 
+// Pedidos adelantados al abrir la página (ver precargarDatos): el primero que
+// pida lo mismo con la misma sesión usa esa respuesta en lugar de esperar otra.
+const PRECARGA_MS = 120000;
+let precargas = {};
+
+function tomarPrecarga(clave) {
+  const p = precargas[clave];
+  if (!p) return null;
+  delete precargas[clave];
+  return p.token === sesionToken && Date.now() - p.t < PRECARGA_MS ? p.promesa : null;
+}
+
+function runJson(accion, datos) {
+  const pre = tomarPrecarga(accion + "|" + JSON.stringify(datos || {}));
+  const pedido = pre ? pre.catch(() => llamarApi(accion, datos)) : llamarApi(accion, datos);
+  return pedido.then(txt => {
+    let res;
+    try { res = JSON.parse(txt); } catch (e) { throw new Error("Respuesta inválida del servidor."); }
+    if (res && res.sesion === false) { sesionVencida(res.error); throw new Error(res.error || "Sesión vencida."); }
+    if (res && res.ok === false) throw new Error(res.error || "Error desconocido.");
+    return res;
+  });
+}
+
 // Para las acciones que mandan una lista de filas o devuelven filas.
-// Movimientos y cheques llegan comprimidos (gzip) y se descomprimen acá.
+// Movimientos, cheques, FCI y Bolsa llegan comprimidos (gzip) y se descomprimen acá.
 async function filasDesdeGz(res) {
   const bin = atob(res.gz);
   const bytes = new Uint8Array(bin.length);
@@ -3741,9 +3759,81 @@ async function filasDesdeGz(res) {
   });
 }
 
+// Lo último que llegó de cada hoja comprimida ({ver, gz}) queda guardado en el
+// navegador (IndexedDB). Al pedirla de nuevo se manda la versión: si no cambió,
+// el servidor responde "igual" y no vuelve a mandar los datos. Se borra al salir.
+const almacenGz = (() => {
+  let base = null;
+  const memoria = {};
+  function abrir() {
+    if (!base) base = new Promise(resolve => {
+      try {
+        const r = indexedDB.open("tesoreria-datos", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("gz");
+        r.onsuccess = () => resolve(r.result);
+        r.onerror = r.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return base;
+  }
+  function operar(modo, fn) {
+    return abrir().then(db => db && new Promise(resolve => {
+      try {
+        const tx = db.transaction("gz", modo);
+        const req = fn(tx.objectStore("gz"));
+        tx.oncomplete = () => resolve(req ? req.result : undefined);
+        tx.onerror = tx.onabort = () => resolve(undefined);
+      } catch (e) { resolve(undefined); }
+    }));
+  }
+  return {
+    leer: async clave => memoria[clave] || (memoria[clave] = (await operar("readonly", s => s.get(clave))) || undefined),
+    guardar: (clave, valor) => { memoria[clave] = valor; operar("readwrite", s => { s.put(valor, clave); }); },
+    vaciar: () => { Object.keys(memoria).forEach(k => delete memoria[k]); return operar("readwrite", s => { s.clear(); }); }
+  };
+})();
+
+async function pedirGz(accion, forzar) {
+  const guardado = forzar ? null : await almacenGz.leer(accion);
+  const res = await runJson(accion, { formato: "gz", forzar: !!forzar, ver: guardado && guardado.ver || "" });
+  if (res.igual && guardado) return guardado;
+  if (res.gz !== undefined && res.ver) almacenGz.guardar(accion, { ver: res.ver, gz: res.gz });
+  return res;
+}
+
+let precargasGz = {};
+
 function traerFilas(accion, forzar) {
   if (typeof DecompressionStream === "undefined") return runAsync(accion);
-  return runJson(accion, { formato: "gz", forzar: !!forzar }).then(res => res.gz !== undefined ? filasDesdeGz(res) : (res.filas || []));
+  const pre = !forzar && precargasGz[accion];
+  delete precargasGz[accion];
+  const pedido = pre && pre.token === sesionToken && Date.now() - pre.t < PRECARGA_MS
+    ? pre.promesa.catch(() => pedirGz(accion, false))
+    : pedirGz(accion, forzar);
+  return pedido.then(res => res.gz !== undefined ? filasDesdeGz(res) : (res.filas || []));
+}
+
+// Si hay una sesión guardada, mientras se valida ya se piden los datos de Inicio
+// (los mismos pedidos que hacen cargarInicio, cargarCatalogo y cargarConfig).
+function precargarDatos() {
+  if (!sesionToken) return;
+  const t = Date.now();
+  [["obtenerFlujo", { dias: 84 }], ["obtenerCatalogo", {}], ["obtenerConfig", {}], ["obtenerCompromisos", {}], ["obtenerConciliaciones", {}]].forEach(([accion, datos]) => {
+    const promesa = llamarApi(accion, datos);
+    promesa.catch(() => {});
+    precargas[accion + "|" + JSON.stringify(datos)] = { token: sesionToken, t: t, promesa: promesa };
+  });
+  if (typeof DecompressionStream === "undefined") return;
+  ["obtenerTransferencias", "obtenerCheques", "obtenerFci", "obtenerBolsa"].forEach(accion => {
+    const promesa = pedirGz(accion, false);
+    promesa.catch(() => {});
+    precargasGz[accion] = { token: sesionToken, t: t, promesa: promesa };
+  });
+}
+
+function descartarPrecargas() {
+  precargas = {};
+  precargasGz = {};
 }
 
 function runAsync(accion, filas) {
@@ -6943,6 +7033,8 @@ function iniciarApp(usuario) {
 
 // Al salir o vencer la sesión no queda nada a la vista.
 function limpiarDatosEnPantalla() {
+  descartarPrecargas();
+  almacenGz.vaciar();
   results = [];
   transferenciasDatos = [];
   chequesDatos = [];
@@ -6962,13 +7054,14 @@ function limpiarDatosEnPantalla() {
 
 function arrancar() {
   try { sesionToken = localStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
+  precargarDatos();
   runJson("estado", {})
     .then(res => {
       if (res.empresa) { config.empresa = res.empresa; $("accesoEmpresa").textContent = res.empresa; $("marcaEmpresa").textContent = res.empresa; $("sideEmpresa").textContent = res.empresa; }
       if (res.usuario) iniciarApp(res.usuario);
-      else { guardarToken(""); mostrarAcceso(res.inicializado ? "login" : "inicial"); }
+      else { descartarPrecargas(); guardarToken(""); mostrarAcceso(res.inicializado ? "login" : "inicial"); }
     })
-    .catch(err => mostrarAcceso("login", "No se pudo conectar con el servidor: " + msgErr(err)));
+    .catch(err => { descartarPrecargas(); mostrarAcceso("login", "No se pudo conectar con el servidor: " + msgErr(err)); });
 }
 
 $("formInicial").addEventListener("submit", async e => {
