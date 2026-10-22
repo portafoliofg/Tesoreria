@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060d1c">
+  <link rel="icon" type="image/svg+xml" href="logo-tesoreria.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo-tesoreria-32.png">
+  <link rel="apple-touch-icon" href="logo-tesoreria-180.png">
+  <title>Propiedades · B.G.P Sammar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&family=Marcellus&display=swap">
+  <style>
+    :root {
+      --noche: #060d1c;
+      --panel: rgba(16, 28, 52, 0.72);
+      --borde: rgba(214, 226, 242, 0.14);
+      --plata: #d3dbe6;
+      --plata-clara: #eef2f7;
+      --tenue: #9aa6b8;
+      --verde: #2fd38a;
+      --rojo: #ef7b7b;
+      --oro: #d8b36a;
+      --display: "Marcellus", Georgia, serif;
+      --texto: "Manrope", "Segoe UI", system-ui, sans-serif;
+      --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: var(--texto); color: var(--plata);
+      background: linear-gradient(rgba(6, 13, 28, 0.82), rgba(6, 13, 28, 0.94)), url("carga-final.jpg?v=4") center / cover fixed, var(--noche);
+    }
+    .pagina { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 48px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px; }
+    .volver { color: var(--tenue); text-decoration: none; font-size: 14px; }
+    .volver:hover { color: var(--plata-clara); }
+    .marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(24px, 4vw, 36px); letter-spacing: 0.14em; color: var(--plata-clara); }
+    .marca i { font-style: normal; color: var(--oro); }
+    .marca span { display: block; font-family: var(--texto); font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--oro); margin-top: 6px; }
+    .aviso { font-size: 13px; color: var(--oro); border: 1px solid rgba(216, 179, 106, 0.4); background: rgba(216, 179, 106, 0.08); border-radius: 12px; padding: 10px 14px; margin-bottom: 20px; }
+
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+    .kpi, .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    .kpi { padding: 16px 18px; }
+    .kpi small { display: block; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); }
+    .kpi b { display: block; margin-top: 6px; font-family: var(--datos); font-size: 22px; font-weight: 500; color: var(--plata-clara); }
+    .kpi span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--tenue); }
+
+    .grilla { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; }
+    @media (max-width: 860px) { .grilla { grid-template-columns: minmax(0, 1fr); } }
+    .panel { padding: 18px; min-width: 0; }
+    .panel h2 { margin: 0 0 12px; font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: 0.06em; color: var(--plata-clara); }
+    .herramientas { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .herramientas input, .herramientas select {
+      font: inherit; font-size: 14px; color: var(--plata-clara); background: rgba(6, 13, 28, 0.6);
+      border: 1px solid var(--borde); border-radius: 10px; padding: 8px 12px; min-width: 0;
+    }
+    .herramientas input { flex: 1 1 200px; }
+    .tabla-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+    td { padding: 10px; border-bottom: 1px solid rgba(214, 226, 242, 0.07); vertical-align: top; }
+    td.num, th.num { text-align: right; font-family: var(--datos); white-space: nowrap; }
+    .sub { display: block; font-size: 12.5px; color: var(--tenue); }
+    .estado { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+    .estado.alquilada { color: var(--verde); background: rgba(47, 211, 138, 0.12); }
+    .estado.disponible { color: var(--oro); background: rgba(216, 179, 106, 0.12); }
+    .estado.uso-propio { color: var(--plata); background: rgba(211, 219, 230, 0.12); }
+    .vacio { color: var(--tenue); padding: 16px 10px; }
+    .lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .lista li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(214, 226, 242, 0.07); font-size: 14px; }
+    .lista li:last-child { border-bottom: 0; }
+    .lista .fecha { font-family: var(--datos); color: var(--oro); white-space: nowrap; }
+    .lista .cerca .fecha { color: var(--rojo); }
+  </style>
+</head>
+<body>
+  <div class="pagina">
+    <header>
+      <h1 class="marca">B<i>.</i>G<i>.</i>P SAMMAR<span>Propiedades</span></h1>
+      <a class="volver" href="index.html#elegir">← Volver al inicio</a>
+    </header>
+
+    <p class="aviso">Sección en armado: los datos de abajo son de ejemplo.</p>
+
+    <section class="kpis" id="kpis" aria-label="Resumen"></section>
+
+    <div class="grilla">
+      <section class="panel" aria-labelledby="tituloListado">
+        <h2 id="tituloListado">Inmuebles</h2>
+        <div class="herramientas">
+          <input type="search" id="buscar" placeholder="Buscar por nombre, dirección o inquilino" aria-label="Buscar">
+          <select id="filtroEstado" aria-label="Estado">
+            <option value="">Todos los estados</option>
+            <option value="alquilada">Alquiladas</option>
+            <option value="disponible">Disponibles</option>
+            <option value="uso-propio">Uso propio</option>
+          </select>
+        </div>
+        <div class="tabla-scroll">
+          <table>
+            <thead><tr><th>Propiedad</th><th>Tipo</th><th>Estado</th><th>Inquilino</th><th class="num">Alquiler</th><th>Vence contrato</th></tr></thead>
+            <tbody id="filas"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="tituloVenc">
+        <h2 id="tituloVenc">Próximos vencimientos</h2>
+        <ul class="lista" id="vencimientos"></ul>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Datos de ejemplo: se reemplazan por los reales (o por una planilla) más adelante.
+    // estado: "alquilada", "disponible" o "uso-propio". Fechas como aaaa-mm-dd.
+    var PROPIEDADES = [
+      { nombre: "Depto. Centro", direccion: "Calle Ejemplo 123, 4° B", tipo: "Departamento", estado: "alquilada", inquilino: "Inquilino A", alquiler: 450000, venceContrato: "2027-03-31", proximoAjuste: "2026-12-01" },
+      { nombre: "Local Comercial", direccion: "Av. Principal 456", tipo: "Local", estado: "alquilada", inquilino: "Comercio B", alquiler: 820000, venceContrato: "2026-12-15", proximoAjuste: "2026-11-01" },
+      { nombre: "Casa Barrio Norte", direccion: "Pasaje Modelo 789", tipo: "Casa", estado: "disponible", inquilino: "", alquiler: 0, venceContrato: "", proximoAjuste: "" },
+      { nombre: "Campo Lote 12", direccion: "Ruta 9 km 100", tipo: "Campo", estado: "alquilada", inquilino: "Productor C", alquiler: 1500000, venceContrato: "2027-06-30", proximoAjuste: "2027-01-01" },
+      { nombre: "Oficina Administración", direccion: "Calle Ejemplo 123, 1° A", tipo: "Oficina", estado: "uso-propio", inquilino: "", alquiler: 0, venceContrato: "", proximoAjuste: "" }
+    ];
+
+    var ESTADOS = { "alquilada": "Alquilada", "disponible": "Disponible", "uso-propio": "Uso propio" };
+    var pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
+    function fechaTexto(iso) {
+      if (!iso) return "—";
+      var p = iso.split("-");
+      return p[2] + "/" + p[1] + "/" + p[0];
+    }
+    function diasHasta(iso) {
+      var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      var p = iso.split("-");
+      return Math.round((new Date(+p[0], +p[1] - 1, +p[2]) - hoy) / 86400000);
+    }
+    function celda(fila, texto, clase, sub) {
+      var td = document.createElement("td");
+      if (clase) td.className = clase;
+      td.append(texto);
+      if (sub) { var s = document.createElement("span"); s.className = "sub"; s.textContent = sub; td.append(s); }
+      fila.append(td);
+      return td;
+    }
+
+    function renderKpis() {
+      var alquiladas = PROPIEDADES.filter(function (p) { return p.estado === "alquilada"; });
+      var ingresos = alquiladas.reduce(function (a, p) { return a + p.alquiler; }, 0);
+      var datos = [
+        ["Propiedades", PROPIEDADES.length, "en cartera"],
+        ["Alquiladas", alquiladas.length, Math.round(alquiladas.length / Math.max(1, PROPIEDADES.length) * 100) + "% de ocupación"],
+        ["Disponibles", PROPIEDADES.filter(function (p) { return p.estado === "disponible"; }).length, "para alquilar"],
+        ["Ingresos mensuales", pesos.format(ingresos), "alquileres vigentes"]
+      ];
+      var box = document.getElementById("kpis");
+      box.replaceChildren();
+      datos.forEach(function (d) {
+        var k = document.createElement("div");
+        k.className = "kpi";
+        var a = document.createElement("small"); a.textContent = d[0];
+        var b = document.createElement("b"); b.textContent = d[1];
+        var c = document.createElement("span"); c.textContent = d[2];
+        k.append(a, b, c);
+        box.append(k);
+      });
+    }
+
+    function renderTabla() {
+      var texto = document.getElementById("buscar").value.trim().toLowerCase();
+      var estado = document.getElementById("filtroEstado").value;
+      var filas = PROPIEDADES.filter(function (p) {
+        if (estado && p.estado !== estado) return false;
+        return !texto || [p.nombre, p.direccion, p.inquilino, p.tipo].join(" ").toLowerCase().indexOf(texto) >= 0;
+      });
+      var tbody = document.getElementById("filas");
+      tbody.replaceChildren();
+      if (!filas.length) {
+        var tr = document.createElement("tr");
+        var td = celda(tr, "Ninguna propiedad coincide con la búsqueda.", "vacio");
+        td.colSpan = 6;
+        tbody.append(tr);
+        return;
+      }
+      filas.forEach(function (p) {
+        var tr = document.createElement("tr");
+        celda(tr, p.nombre, "", p.direccion);
+        celda(tr, p.tipo);
+        var est = document.createElement("span");
+        est.className = "estado " + p.estado;
+        est.textContent = ESTADOS[p.estado] || p.estado;
+        celda(tr, est);
+        celda(tr, p.inquilino || "—");
+        celda(tr, p.alquiler ? pesos.format(p.alquiler) : "—", "num");
+        celda(tr, fechaTexto(p.venceContrato));
+        tbody.append(tr);
+      });
+    }
+
+    function renderVencimientos() {
+      var items = [];
+      PROPIEDADES.forEach(function (p) {
+        if (p.venceContrato) items.push({ iso: p.venceContrato, texto: "Vence el contrato · " + p.nombre });
+        if (p.proximoAjuste) items.push({ iso: p.proximoAjuste, texto: "Ajuste de alquiler · " + p.nombre });
+      });
+      items = items.filter(function (x) { return diasHasta(x.iso) >= 0; }).sort(function (a, b) { return a.iso.localeCompare(b.iso); }).slice(0, 8);
+      var ul = document.getElementById("vencimientos");
+      ul.replaceChildren();
+      if (!items.length) {
+        var li = document.createElement("li");
+        li.textContent = "No hay vencimientos próximos.";
+        ul.append(li);
+        return;
+      }
+      items.forEach(function (x) {
+        var li = document.createElement("li");
+        if (diasHasta(x.iso) <= 30) li.className = "cerca";
+        var t = document.createElement("span"); t.textContent = x.texto;
+        var f = document.createElement("span"); f.className = "fecha"; f.textContent = fechaTexto(x.iso);
+        li.append(t, f);
+        ul.append(li);
+      });
+    }
+
+    document.getElementById("buscar").addEventListener("input", renderTabla);
+    document.getElementById("filtroEstado").addEventListener("change", renderTabla);
+    renderKpis();
+    renderTabla();
+    renderVencimientos();
+  </script>
+</body>
+</html>

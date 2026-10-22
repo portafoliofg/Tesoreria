@@ -86,14 +86,16 @@
     .sel[hidden] { display: none; }
     .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg?v=4") center / cover; }
     .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(4px) brightness(0.72); backdrop-filter: blur(4px) brightness(0.72); }
-    .sel-caja { width: min(780px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
+    .sel-caja { width: min(1080px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
     .sel-marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5.6vw, 52px); letter-spacing: 0.2em; padding-left: 0.2em; line-height: 1; color: var(--plata-clara); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); white-space: nowrap; }
     .sel-sub { margin: 10px 0 0; font-size: clamp(10px, 1.5vw, 12.5px); letter-spacing: 0.3em; text-transform: uppercase; color: var(--tenue); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
     .sel-pregunta { margin: 0; font-size: 15px; color: var(--plata); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
-    .sel-opciones { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(14px, 2.4vw, 24px); }
+    .sel-opciones { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.4vw, 24px); }
+    @media (max-width: 900px) { .sel-opciones { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 600px) { .sel-opciones { grid-template-columns: minmax(0, 1fr); } .sel-marca { letter-spacing: 0.12em; padding-left: 0.12em; } }
 
     .cartel {
+      text-decoration: none;
       position: relative; display: grid; gap: 10px; align-content: start; text-align: left;
       padding: clamp(20px, 3vw, 28px); border-radius: 20px; cursor: pointer;
       font: inherit; color: inherit;
@@ -106,6 +108,7 @@
     }
     .sel.visible .cartel { animation: cartel-entra 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; }
     .sel.visible .cartel:nth-child(2) { animation-delay: 0.12s; }
+    .sel.visible .cartel:nth-child(3) { animation-delay: 0.24s; }
     @keyframes cartel-entra { to { opacity: 1; transform: none; } }
     .cartel:hover:not([aria-disabled="true"]), .cartel:focus-visible:not([aria-disabled="true"]) {
       border-color: rgba(216, 179, 106, 0.75);
@@ -187,6 +190,20 @@
             <p>Cuentas, cheques, conciliaciones y flujo de fondos.</p>
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
+          <a class="cartel" id="irPropiedades" href="propiedades.html">
+            <span class="cartel-cabeza">
+              <span class="cartel-icono" aria-hidden="true">
+                <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 13 L14 5 L24 13" stroke="#d8b36a" stroke-width="2.2"/>
+                  <path d="M7 11 V24 H21 V11" stroke="#d3dbe6" stroke-width="2"/>
+                  <path d="M12 24 V17 H16 V24" stroke="#d8b36a" stroke-width="2"/>
+                </svg>
+              </span>
+            </span>
+            <h2>Propiedades</h2>
+            <p>Inmuebles, alquileres, contratos y vencimientos.</p>
+            <span class="cartel-ir">Entrar</span>
+          </a>
         </div>
       </div>
     </section>
@@ -194,9 +211,10 @@
   <script src="loader.js"></script>
   <script>
     // Pantalla de inicio: el video de 7 s y, al terminar, el selector sobre su último
-    // cuadro. Tesorería abre la app (que ya se viene cargando detrás); Inversiones
-    // todavía no está disponible. Si el video no puede reproducirse, o el sistema
-    // pide menos movimiento, se usa la animación de loader.js antes del selector.
+    // cuadro. Tesorería abre la app (que ya se viene cargando detrás); Propiedades
+    // abre propiedades.html; Inversiones todavía no está disponible. Si el video no
+    // puede reproducirse, o el sistema pide menos movimiento, se usa la animación de
+    // loader.js antes del selector.
     (function () {
       var ESTADOS = [
         [0, "Conectando con la planilla de tesorería"],
@@ -299,6 +317,14 @@
         if (video.duration) video.currentTime = Math.max(0, video.duration - 0.05);
         mostrarSelector();
       });
+
+      // Al volver desde Propiedades (index.html#elegir) se va directo al selector.
+      if (location.hash === "#elegir") {
+        video.pause();
+        vc.remove();
+        mostrarSelector();
+        return;
+      }
 
       var intento = video.play();
       if (intento && intento.catch) intento.catch(usarAnimacion);
