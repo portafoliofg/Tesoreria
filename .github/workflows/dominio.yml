@@ -94,6 +94,11 @@ jobs:
 
       - name: Probar el sitio
         run: |
+          for url in "https://$DOMINIO" "https://www.$DOMINIO" "http://$DOMINIO"; do
+            echo "::group::$url"
+            curl -sSIv --max-time 20 "$url" 2>&1 | grep -E "^< (HTTP|[Ll]ocation)|subject:|issuer:|expire date|SSL certificate|curl:" || true
+            echo "::endgroup::"
+          done
           {
             echo
             echo "## Prueba"
@@ -103,3 +108,4 @@ jobs:
               echo "- https://$DOMINIO **da error de seguridad**: $(cat err.txt)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
