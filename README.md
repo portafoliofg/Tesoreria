@@ -71,6 +71,10 @@ Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.c
 
    Borrá cualquier otro registro `A` o `CNAME` de `@` y `www` que apunte a otro lado. El DNS puede tardar de minutos a 24 horas en propagarse.
 
+### Ingreso
+
+Después del video, `bgpsammar.com` pide usuario y contraseña. Son los mismos usuarios de la app de Tesorería (pestaña Usuarios): `docs/sesion.js` los valida contra `doPost()` de `Código.gs`, que solo atiende ingreso, consulta de sesión y salida. Con la sesión iniciada aparece el selector, y la página le pasa la sesión a la app de Tesorería por `postMessage` para que no la vuelva a pedir. `propiedades.html` también exige sesión. Salir desde la página o desde la app cierra las dos.
+
 ### Pantalla de carga
 
 `docs/loader.js` expone `BGPLoader.create(contenedor, { duracion, alTerminar })`, que devuelve `reiniciar()`, `estado(texto)` y `destroy()`. Usa JS y SVG sin librerías, así carga al instante y no necesita compilarse.

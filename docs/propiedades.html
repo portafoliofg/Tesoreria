@@ -29,6 +29,9 @@
       color-scheme: dark;
     }
     * { box-sizing: border-box; }
+    body.verificando .pagina { visibility: hidden; }
+    .usuario { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--tenue); }
+    .usuario button { font: inherit; color: var(--oro); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
     body {
       margin: 0; min-height: 100vh; font-family: var(--texto); color: var(--plata);
       background: linear-gradient(rgba(6, 13, 28, 0.82), rgba(6, 13, 28, 0.94)), url("carga-final.jpg?v=4") center / cover fixed, var(--noche);
@@ -77,11 +80,11 @@
     .lista .cerca .fecha { color: var(--rojo); }
   </style>
 </head>
-<body>
+<body class="verificando">
   <div class="pagina">
     <header>
       <h1 class="marca">B<i>.</i>G<i>.</i>P SAMMAR<span>Propiedades</span></h1>
-      <a class="volver" href="index.html#elegir">← Volver al inicio</a>
+      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html#elegir">← Volver al inicio</a></div>
     </header>
 
     <p class="aviso">Sección en armado: los datos de abajo son de ejemplo.</p>
@@ -115,7 +118,21 @@
     </div>
   </div>
 
+  <script src="sesion.js"></script>
   <script>
+    // Solo con sesión iniciada (los mismos usuarios de Tesorería). Sin sesión, al ingreso.
+    function irAlIngreso() { location.replace("index.html#elegir"); }
+    if (!BGPSesion.token()) irAlIngreso();
+    BGPSesion.consultar().then(function (u) {
+      if (!u) { irAlIngreso(); return; }
+      document.getElementById("quien").textContent = u.nombre || u.usuario;
+      document.body.classList.remove("verificando");
+    }, function () {
+      // Sin conexión con el servidor: se muestra igual si había una sesión guardada.
+      document.body.classList.remove("verificando");
+    });
+    document.getElementById("salir").addEventListener("click", function () { BGPSesion.salir().then(irAlIngreso); });
+
     // Datos de ejemplo: se reemplazan por los reales (o por una planilla) más adelante.
     // estado: "alquilada", "disponible" o "uso-propio". Fechas como aaaa-mm-dd.
     var PROPIEDADES = [

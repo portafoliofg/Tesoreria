@@ -139,6 +139,23 @@ function doGet() {
 }
 
 /**
+ * Login de bgpsammar.com (la página de GitHub Pages, ver docs/index.html).
+ * Recibe {accion, datos, token} como texto (text/plain, para que el navegador no
+ * haga consulta previa de CORS) y responde JSON. Solo atiende el ingreso, la
+ * consulta de sesión y la salida; el resto de la app sigue yendo por api().
+ */
+const ACCIONES_SITIO = ['estado', 'login', 'logout'];
+
+function doPost(e) {
+  let pedido = {};
+  try { pedido = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) {}
+  const texto = ACCIONES_SITIO.indexOf(String(pedido.accion || '')) >= 0
+    ? api(JSON.stringify(pedido))
+    : respuesta({ ok: false, error: 'Acción no permitida.' });
+  return ContentService.createTextOutput(texto).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
  * Ejecutala una vez desde el editor (Ejecutar ▶) para autorizar los
  * permisos de alertas: activadores y conexión con WhatsApp.
  */

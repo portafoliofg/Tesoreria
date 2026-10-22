@@ -7090,7 +7090,33 @@ $("btnSalir").addEventListener("click", async () => {
   guardarToken("");
   limpiarDatosEnPantalla();
   mostrarAcceso("login", "");
+  avisarSitio({ tipo: "bgp-salir" });
 });
+
+// ---------------- Sesión compartida con bgpsammar.com ----------------
+// Dentro de bgpsammar.com el usuario ya ingresó en la página de afuera (los mismos
+// usuarios de esta app). Esa página manda el token por postMessage y la app lo usa,
+// así no se pide el usuario dos veces. Solo se acepta desde el dominio propio.
+const ORIGENES_SITIO = ["https://bgpsammar.com", "https://www.bgpsammar.com"];
+
+function avisarSitio(msg) {
+  try { if (window.top !== window) window.top.postMessage(msg, "*"); } catch (e) {}
+}
+
+window.addEventListener("message", e => {
+  if (ORIGENES_SITIO.indexOf(e.origin) < 0 || !e.data || typeof e.data !== "object") return;
+  if (e.data.tipo === "bgp-sesion" && e.data.token && e.data.token !== sesionToken) {
+    guardarToken(String(e.data.token));
+    if (usuarioActual) limpiarDatosEnPantalla();
+    arrancar();
+  } else if (e.data.tipo === "bgp-salir" && usuarioActual) {
+    guardarToken("");
+    limpiarDatosEnPantalla();
+    mostrarAcceso("login", "");
+  }
+});
+// Por si la app terminó de cargar después de que la página de afuera mandó la sesión.
+avisarSitio({ tipo: "bgp-pide-sesion" });
 
 // ---------------- Vista: Auditoría ----------------
 let auditoria = [];
