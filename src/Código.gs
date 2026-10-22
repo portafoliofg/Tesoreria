@@ -143,9 +143,10 @@ function doGet() {
  * Login de bgpsammar.com (la página de GitHub Pages, ver docs/index.html).
  * Recibe {accion, datos, token} como texto (text/plain, para que el navegador no
  * haga consulta previa de CORS) y responde JSON. Solo atiende el ingreso, la
- * consulta de sesión y la salida; el resto de la app sigue yendo por api().
+ * consulta de sesión, la salida y los datos de Propiedades (estos con sesión); el
+ * resto de la app sigue yendo por api().
  */
-const ACCIONES_SITIO = ['estado', 'login', 'logout'];
+const ACCIONES_SITIO = ['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades'];
 
 function doPost(e) {
   let pedido = {};
@@ -239,7 +240,9 @@ const ACCIONES = {
   pdfDeHtml: pdfDeHtml_,
   obtenerOrdenesPago: obtenerOrdenesPago_,
   configurarOrdenesPago: configurarOrdenesPago_,
-  actualizarOrdenPago: actualizarOrdenPago_
+  actualizarOrdenPago: actualizarOrdenPago_,
+  obtenerPropiedades: obtenerPropiedades_,
+  guardarPropiedades: guardarPropiedades_
 };
 
 /** json: {token, accion, datos}. Devuelve siempre JSON como texto. */
@@ -3629,5 +3632,50 @@ function actualizarOrdenPago_(d, u) {
     const x = Object.assign({}, o);
     delete x.__fila;
     return { ok: true, orden: x };
+  });
+}
+
+// ======================= Propiedades =======================
+// Liquidaciones mensuales de alquileres de cada edificio (por ejemplo "Calle
+// Ejemplo 123 · Octubre/26"). La página bgpsammar.com/propiedades.html lee la
+// planilla de Excel del mes y manda lo leído; acá se guarda como JSON, una fila por
+// edificio y período. Los datos (inquilinos, montos, patentes) viven solo en esta
+// planilla: el repositorio y la página son públicos, así que nunca van ahí.
+const SHEET_PROPIEDADES = 'Propiedades';
+const HEADERS_PROPIEDADES = ['Edificio', 'Período', 'Orden', 'Datos', 'Archivo', 'Cargado por', 'Fecha de Carga'];
+const MAX_DATOS_PROPIEDAD = 48000;
+
+function obtenerPropiedades_() {
+  obtenerHoja_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES);
+  const lista = leerFilas_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES).filter(f => f['Edificio'] && f['Datos']).map(f => {
+    let datos = null;
+    try { datos = JSON.parse(f['Datos']); } catch (e) {}
+    return { edificio: f['Edificio'], periodo: f['Período'], orden: f['Orden'], datos: datos, archivo: f['Archivo'], cargadoPor: f['Cargado por'], fechaCarga: f['Fecha de Carga'] };
+  }).filter(x => x.datos);
+  return { ok: true, liquidaciones: lista };
+}
+
+/** d.datos: la liquidación leída del Excel {edificio, periodo, orden, ...}; d.archivo: nombre del archivo. */
+function guardarPropiedades_(d, u) {
+  const datos = d && d.datos;
+  if (!datos || typeof datos !== 'object') return { ok: false, error: 'No llegaron los datos de la planilla.' };
+  const edificio = String(datos.edificio || '').trim(), periodo = String(datos.periodo || '').trim();
+  if (!edificio || !periodo) return { ok: false, error: 'La planilla no tiene el edificio y el período en el título (por ejemplo "CALLE EJEMPLO NRO. 123 : Octubre/26").' };
+  const texto = JSON.stringify(datos);
+  if (texto.length > MAX_DATOS_PROPIEDAD) return { ok: false, error: 'La planilla es demasiado grande para guardarla.' };
+  return conLock_(() => {
+    const hoja = obtenerHoja_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES);
+    const filas = leerFilas_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES);
+    const idx = filas.findIndex(f => claveTexto(f['Edificio']) === claveTexto(edificio) && claveTexto(f['Período']) === claveTexto(periodo));
+    const valores = {
+      'Edificio': edificio, 'Período': periodo, 'Orden': String(datos.orden || ''), 'Datos': texto,
+      'Archivo': String(d.archivo || (idx >= 0 ? filas[idx]['Archivo'] : '') || ''), 'Cargado por': nombreDe_(u), 'Fecha de Carga': ahoraTexto_()
+    };
+    const fila = idx >= 0 ? idx + 2 : hoja.getLastRow() + 1;
+    hoja.getRange(fila, 1, 1, HEADERS_PROPIEDADES.length).setNumberFormat('@').setValues([HEADERS_PROPIEDADES.map(h => valores[h])]);
+    const n = (datos.unidades || []).length;
+    registrar_(u, idx >= 0 ? 'Propiedades: liquidación actualizada' : 'Propiedades: liquidación cargada',
+      edificio + ' · ' + periodo + ' · ' + n + ' unidad(es)' + (d.archivo ? ' · ' + d.archivo : ''), edificio + ' · ' + periodo, '', '');
+    return { ok: true, reemplazada: idx >= 0 };
   });
 }

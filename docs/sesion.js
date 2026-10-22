@@ -13,6 +13,9 @@
  *                              eso NO significa que la sesión venció.
  * BGPSesion.ingresar(u, clave) Promise → usuario (o error con el motivo)
  * BGPSesion.salir()            Promise → cierra la sesión
+ * BGPSesion.pedir(accion, d)   Promise → respuesta del servidor para una acción con sesión
+ *                              (por ejemplo los datos de Propiedades). Falla con el motivo;
+ *                              si la sesión venció, el error trae .sesion = false.
  */
 (function () {
   // Si la URL /exec cambia algún día, actualizarla acá y en el iframe de index.html.
@@ -67,6 +70,14 @@
         if (!r.ok) throw new Error(r.error || "No se pudo ingresar.");
         guardar(r.token, r.usuario);
         return r.usuario;
+      });
+    },
+    pedir: function (accion, datos) {
+      return pedir(accion, datos).then(function (r) {
+        if (r && r.ok !== false) return r;
+        var err = new Error((r && r.error) || "Error del servidor.");
+        if (r && r.sesion === false) { err.sesion = false; guardar("", null); }
+        throw err;
       });
     },
     salir: function () {

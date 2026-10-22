@@ -12,7 +12,8 @@ src/
 docs/
   index.html       Página de bgpsammar.com: presentación animada, ingreso, selector y la app en un iframe
   sesion.js        Ingreso único (usuarios de Tesorería) compartido por las páginas
-  propiedades.html Sección Propiedades (por ahora con datos de ejemplo)
+  propiedades.html Sección Propiedades: liquidaciones mensuales de alquileres
+  propiedades-lector.js / propiedades-vista.js  Lectura del Excel del mes y la vista
   intro-*.webp, marca.png, logo-as-*.png  Capas de la presentación, logo y favicons (Andrés Sammartino)
   CNAME            Dominio propio para GitHub Pages
 .clasp.json.example
@@ -80,6 +81,12 @@ Es el único ingreso: la app de Tesorería ya no tiene el suyo (si se abre sin s
 ### Presentación
 
 No es un video: es una animación hecha en la página con el logo separado en capas (`intro-verde.webp`, `intro-oro.webp`, `intro-nombre.webp`, `intro-lema.webp`, todas del mismo tamaño que `marca.png`). El anillo se dibuja desde arriba, pasa un brillo por lo dorado, aparecen el nombre y el lema, y el logo viaja hasta su lugar en el ingreso o el selector. Dura unos 4,5 s; "Saltar" la corta. Con "menos movimiento" activado en el sistema, el logo aparece directo. Al cambiar alguna imagen, subir su `?v=` en `index.html`.
+
+### Propiedades
+
+`propiedades.html` muestra la liquidación mensual de alquileres de cada edificio. Se carga con **Importar planilla**: el Excel del mes (hojas RESUMEN TOTAL, TRANSFERENCIAS y EFECTIVO) se lee completo en el navegador (`propiedades-lector.js`) y se guarda en la planilla de Google, pestaña `Propiedades`, una fila por edificio y período. Las rentas y la municipalidad del mes, que en el Excel se cargan a mano, se completan en la página y se reparten por el coeficiente de cada unidad.
+
+**Los datos (inquilinos, montos, patentes) nunca van al repositorio ni a la página**, que son públicos: se piden al servidor con la sesión iniciada (`obtenerPropiedades` / `guardarPropiedades` en `doPost`).
 
 ## Limitaciones a tener en cuenta
 

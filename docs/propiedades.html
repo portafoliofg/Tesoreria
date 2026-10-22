@@ -72,189 +72,92 @@
     td { padding: 10px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); vertical-align: top; }
     td.num, th.num { text-align: right; font-family: var(--datos); white-space: nowrap; }
     .sub { display: block; font-size: 12.5px; color: var(--tenue); }
-    .estado { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
-    .estado.alquilada { color: var(--verde-claro); background: rgba(47, 107, 66, 0.12); }
-    .estado.disponible { color: var(--oro); background: rgba(217, 180, 106, 0.18); }
-    .estado.uso-propio { color: var(--tenue); background: rgba(109, 116, 105, 0.12); }
     .vacio { color: var(--tenue); padding: 16px 10px; }
-    .lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-    .lista li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); font-size: 14px; }
-    .lista li:last-child { border-bottom: 0; }
-    .lista .fecha { font-family: var(--datos); color: var(--oro); white-space: nowrap; }
-    .lista .cerca .fecha { color: var(--rojo); }
+
+    /* ---------- Liquidación mensual ---------- */
+    .barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .barra h2 { margin: 0; font-family: var(--titulos); font-weight: 600; font-size: clamp(20px, 2.6vw, 26px); letter-spacing: 0.06em; color: var(--verde); }
+    .barra .sub { margin-top: 2px; }
+    .barra-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .barra-acciones select {
+      font: inherit; font-size: 14px; color: var(--tinta); background: #fffdfa;
+      border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 8px 12px;
+    }
+    .boton { font: 700 14px/1 var(--texto); letter-spacing: 0.03em; color: #fffaf0; cursor: pointer; padding: 11px 16px; border-radius: 10px; border: 0;
+      background: linear-gradient(180deg, var(--verde-claro), var(--verde)); box-shadow: 0 10px 22px -14px rgba(28, 74, 44, 0.8); }
+    .boton:hover:not(:disabled) { filter: brightness(1.08); }
+    .boton:disabled { opacity: 0.6; cursor: wait; }
+    .boton.secundario { color: var(--verde); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); box-shadow: none; }
+    .boton:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; }
+    .alertas { display: grid; gap: 8px; margin-bottom: 20px; }
+    .alerta { font-size: 13.5px; color: #7a5a22; border: 1px solid rgba(184, 137, 58, 0.4); background: rgba(217, 180, 106, 0.14); border-radius: 12px; padding: 10px 14px; }
+    .alerta b { color: #5e4416; }
+    .alerta.error { color: var(--rojo); border-color: rgba(163, 50, 42, 0.35); background: rgba(163, 50, 42, 0.07); }
+    .seccion-grilla { margin-bottom: 18px; }
+    .grilla.mitad { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+    @media (max-width: 860px) { .grilla.mitad { grid-template-columns: minmax(0, 1fr); } }
+    .columna { display: grid; gap: 18px; align-content: start; min-width: 0; }
+    td.unidad { min-width: 190px; }
+    .panel .sub, .sub-panel { font-size: 12.5px; color: var(--tenue); margin: -6px 0 12px; }
+    tfoot td { font-weight: 700; border-top: 2px solid var(--borde); border-bottom: 0; color: var(--verde); }
+    td.cero { color: var(--tenue); }
+    .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+    .pill.transfiere { color: var(--verde-claro); background: rgba(47, 107, 66, 0.12); }
+    .pill.efectivo { color: var(--oro); background: rgba(217, 180, 106, 0.2); }
+    .pill.no-abono { color: var(--rojo); background: rgba(163, 50, 42, 0.1); }
+    .pill.desocupado { color: var(--tenue); background: rgba(109, 116, 105, 0.14); }
+    .pill.amoblado { color: #3b5b99; background: rgba(142, 170, 219, 0.25); }
+    .marca-color { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+    .liq { list-style: none; margin: 0; padding: 0; }
+    .liq li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(28, 74, 44, 0.08); font-size: 14px; }
+    .liq li .m { font-family: var(--datos); white-space: nowrap; }
+    .liq li.descuento { color: var(--tenue); padding-left: 14px; }
+    .liq li.descuento .m::before { content: "− "; }
+    .liq li.total { font-weight: 700; color: var(--verde); border-bottom: 2px solid var(--borde); }
+    .liq li.total.final { font-size: 16px; border-bottom: 0; }
+    .recibo { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--crema-clara); border: 1px dashed rgba(28, 74, 44, 0.25); font-size: 13.5px; }
+    .recibo .firma { margin-top: 18px; padding-top: 8px; border-top: 1px solid rgba(28, 74, 44, 0.35); width: min(260px, 100%); font-weight: 700; color: var(--verde); font-size: 12.5px; }
+    .refs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
+    .nota { font-size: 12.5px; color: #7a5a22; background: rgba(217, 180, 106, 0.14); border-left: 3px solid var(--oro); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 0 0 12px; }
+    .nota small { display: block; color: var(--tenue); margin-top: 2px; }
+    .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .campos label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--tinta); }
+    .campos input { font: inherit; font-size: 14px; color: var(--tinta); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 8px 12px; text-align: right; font-family: var(--datos); }
+    .campos input:focus { outline: none; border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
+    .campos small { font-weight: 400; color: var(--tenue); }
+    .guardar-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .estado-guardado { font-size: 12.5px; color: var(--tenue); }
+    .vacio-grande { text-align: center; padding: 48px 20px; }
+    .vacio-grande h2 { font-family: var(--titulos); color: var(--verde); font-weight: 600; letter-spacing: 0.06em; margin: 0 0 8px; }
+    .vacio-grande p { color: var(--tenue); margin: 0 auto 18px; max-width: 520px; }
+    .cargando { color: var(--tenue); padding: 30px 0; text-align: center; }
+    .meta { font-size: 12px; color: var(--tenue); margin-top: 18px; text-align: right; }
   </style>
 </head>
 <body class="verificando">
   <div class="pagina">
     <header>
       <h1 class="marca"><img src="logo-as-180.png" alt="" width="64" height="64"><span><b>Andrés Sammartino</b><span class="seccion">Propiedades</span></span></h1>
-      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html?v=5#elegir">← Volver al inicio</a></div>
+      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html?v=6#elegir">← Volver al inicio</a></div>
     </header>
 
-    <p class="aviso">Sección en armado: los datos de abajo son de ejemplo.</p>
-
-    <section class="kpis" id="kpis" aria-label="Resumen"></section>
-
-    <div class="grilla">
-      <section class="panel" aria-labelledby="tituloListado">
-        <h2 id="tituloListado">Inmuebles</h2>
-        <div class="herramientas">
-          <input type="search" id="buscar" placeholder="Buscar por nombre, dirección o inquilino" aria-label="Buscar">
-          <select id="filtroEstado" aria-label="Estado">
-            <option value="">Todos los estados</option>
-            <option value="alquilada">Alquiladas</option>
-            <option value="disponible">Disponibles</option>
-            <option value="uso-propio">Uso propio</option>
-          </select>
-        </div>
-        <div class="tabla-scroll">
-          <table>
-            <thead><tr><th>Propiedad</th><th>Tipo</th><th>Estado</th><th>Inquilino</th><th class="num">Alquiler</th><th>Vence contrato</th></tr></thead>
-            <tbody id="filas"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="tituloVenc">
-        <h2 id="tituloVenc">Próximos vencimientos</h2>
-        <ul class="lista" id="vencimientos"></ul>
-      </section>
+    <div class="barra">
+      <div>
+        <h2 id="tituloEdificio">Liquidaciones de alquileres</h2>
+        <div class="sub" id="subEdificio"></div>
+      </div>
+      <div class="barra-acciones">
+        <select id="periodo" aria-label="Edificio y período" hidden></select>
+        <input type="file" id="archivo" accept=".xlsx,.xls" hidden>
+        <button type="button" class="boton" id="importar">Importar planilla</button>
+      </div>
     </div>
+
+    <div id="contenido"><p class="cargando">Cargando liquidaciones…</p></div>
   </div>
 
-  <script src="sesion.js?v=5"></script>
-  <script>
-    // Solo con sesión iniciada (los mismos usuarios de Tesorería). Se muestra al
-    // instante con la sesión guardada y se confirma de fondo: solo si el servidor
-    // dice que venció se vuelve al ingreso (una demora o un corte de red no echa a nadie).
-    function irAlIngreso() { location.replace("index.html?v=5#elegir"); }
-    var guardado = BGPSesion.usuario();
-    if (!guardado) irAlIngreso();
-    else {
-      document.getElementById("quien").textContent = guardado.nombre || guardado.usuario || "";
-      document.body.classList.remove("verificando");
-      BGPSesion.consultar().then(function (u) {
-        if (!u) { irAlIngreso(); return; }
-        document.getElementById("quien").textContent = u.nombre || u.usuario;
-      }, function () {});
-    }
-    document.getElementById("salir").addEventListener("click", function () { BGPSesion.salir().then(irAlIngreso); });
-
-    // Datos de ejemplo: se reemplazan por los reales (o por una planilla) más adelante.
-    // estado: "alquilada", "disponible" o "uso-propio". Fechas como aaaa-mm-dd.
-    var PROPIEDADES = [
-      { nombre: "Depto. Centro", direccion: "Calle Ejemplo 123, 4° B", tipo: "Departamento", estado: "alquilada", inquilino: "Inquilino A", alquiler: 450000, venceContrato: "2027-03-31", proximoAjuste: "2026-12-01" },
-      { nombre: "Local Comercial", direccion: "Av. Principal 456", tipo: "Local", estado: "alquilada", inquilino: "Comercio B", alquiler: 820000, venceContrato: "2026-12-15", proximoAjuste: "2026-11-01" },
-      { nombre: "Casa Barrio Norte", direccion: "Pasaje Modelo 789", tipo: "Casa", estado: "disponible", inquilino: "", alquiler: 0, venceContrato: "", proximoAjuste: "" },
-      { nombre: "Campo Lote 12", direccion: "Ruta 9 km 100", tipo: "Campo", estado: "alquilada", inquilino: "Productor C", alquiler: 1500000, venceContrato: "2027-06-30", proximoAjuste: "2027-01-01" },
-      { nombre: "Oficina Administración", direccion: "Calle Ejemplo 123, 1° A", tipo: "Oficina", estado: "uso-propio", inquilino: "", alquiler: 0, venceContrato: "", proximoAjuste: "" }
-    ];
-
-    var ESTADOS = { "alquilada": "Alquilada", "disponible": "Disponible", "uso-propio": "Uso propio" };
-    var pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
-
-    function fechaTexto(iso) {
-      if (!iso) return "—";
-      var p = iso.split("-");
-      return p[2] + "/" + p[1] + "/" + p[0];
-    }
-    function diasHasta(iso) {
-      var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-      var p = iso.split("-");
-      return Math.round((new Date(+p[0], +p[1] - 1, +p[2]) - hoy) / 86400000);
-    }
-    function celda(fila, texto, clase, sub) {
-      var td = document.createElement("td");
-      if (clase) td.className = clase;
-      td.append(texto);
-      if (sub) { var s = document.createElement("span"); s.className = "sub"; s.textContent = sub; td.append(s); }
-      fila.append(td);
-      return td;
-    }
-
-    function renderKpis() {
-      var alquiladas = PROPIEDADES.filter(function (p) { return p.estado === "alquilada"; });
-      var ingresos = alquiladas.reduce(function (a, p) { return a + p.alquiler; }, 0);
-      var datos = [
-        ["Propiedades", PROPIEDADES.length, "en cartera"],
-        ["Alquiladas", alquiladas.length, Math.round(alquiladas.length / Math.max(1, PROPIEDADES.length) * 100) + "% de ocupación"],
-        ["Disponibles", PROPIEDADES.filter(function (p) { return p.estado === "disponible"; }).length, "para alquilar"],
-        ["Ingresos mensuales", pesos.format(ingresos), "alquileres vigentes"]
-      ];
-      var box = document.getElementById("kpis");
-      box.replaceChildren();
-      datos.forEach(function (d) {
-        var k = document.createElement("div");
-        k.className = "kpi";
-        var a = document.createElement("small"); a.textContent = d[0];
-        var b = document.createElement("b"); b.textContent = d[1];
-        var c = document.createElement("span"); c.textContent = d[2];
-        k.append(a, b, c);
-        box.append(k);
-      });
-    }
-
-    function renderTabla() {
-      var texto = document.getElementById("buscar").value.trim().toLowerCase();
-      var estado = document.getElementById("filtroEstado").value;
-      var filas = PROPIEDADES.filter(function (p) {
-        if (estado && p.estado !== estado) return false;
-        return !texto || [p.nombre, p.direccion, p.inquilino, p.tipo].join(" ").toLowerCase().indexOf(texto) >= 0;
-      });
-      var tbody = document.getElementById("filas");
-      tbody.replaceChildren();
-      if (!filas.length) {
-        var tr = document.createElement("tr");
-        var td = celda(tr, "Ninguna propiedad coincide con la búsqueda.", "vacio");
-        td.colSpan = 6;
-        tbody.append(tr);
-        return;
-      }
-      filas.forEach(function (p) {
-        var tr = document.createElement("tr");
-        celda(tr, p.nombre, "", p.direccion);
-        celda(tr, p.tipo);
-        var est = document.createElement("span");
-        est.className = "estado " + p.estado;
-        est.textContent = ESTADOS[p.estado] || p.estado;
-        celda(tr, est);
-        celda(tr, p.inquilino || "—");
-        celda(tr, p.alquiler ? pesos.format(p.alquiler) : "—", "num");
-        celda(tr, fechaTexto(p.venceContrato));
-        tbody.append(tr);
-      });
-    }
-
-    function renderVencimientos() {
-      var items = [];
-      PROPIEDADES.forEach(function (p) {
-        if (p.venceContrato) items.push({ iso: p.venceContrato, texto: "Vence el contrato · " + p.nombre });
-        if (p.proximoAjuste) items.push({ iso: p.proximoAjuste, texto: "Ajuste de alquiler · " + p.nombre });
-      });
-      items = items.filter(function (x) { return diasHasta(x.iso) >= 0; }).sort(function (a, b) { return a.iso.localeCompare(b.iso); }).slice(0, 8);
-      var ul = document.getElementById("vencimientos");
-      ul.replaceChildren();
-      if (!items.length) {
-        var li = document.createElement("li");
-        li.textContent = "No hay vencimientos próximos.";
-        ul.append(li);
-        return;
-      }
-      items.forEach(function (x) {
-        var li = document.createElement("li");
-        if (diasHasta(x.iso) <= 30) li.className = "cerca";
-        var t = document.createElement("span"); t.textContent = x.texto;
-        var f = document.createElement("span"); f.className = "fecha"; f.textContent = fechaTexto(x.iso);
-        li.append(t, f);
-        ul.append(li);
-      });
-    }
-
-    document.getElementById("buscar").addEventListener("input", renderTabla);
-    document.getElementById("filtroEstado").addEventListener("change", renderTabla);
-    renderKpis();
-    renderTabla();
-    renderVencimientos();
-  </script>
+  <script src="sesion.js?v=6"></script>
+  <script src="propiedades-lector.js?v=6"></script>
+  <script src="propiedades-vista.js?v=6"></script>
 </body>
 </html>
