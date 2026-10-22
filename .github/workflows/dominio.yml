@@ -1,0 +1,109 @@
+# Revisa el dominio propio (bgpsammar.com) en GitHub Pages y activa HTTPS.
+# GitHub emite el certificado (Let's Encrypt) solo cuando el DNS apunta bien a
+# GitHub Pages. Esta Action muestra en el resumen qué falta (registros DNS,
+# estado del certificado) y, cuando el certificado está listo, tilda sola
+# "Enforce HTTPS". Corre a mano (Actions → Revisar dominio y SSL → Run workflow),
+# al cambiar docs/CNAME y cada 6 horas hasta que HTTPS quede activo.
+name: Revisar dominio y SSL
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["docs/CNAME", ".github/workflows/dominio.yml"]
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  pages: write
+  contents: read
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Revisar DNS
+        run: |
+          DOMINIO=$(tr -d ' \r\n' < docs/CNAME)
+          echo "DOMINIO=$DOMINIO" >> "$GITHUB_ENV"
+          {
+            echo "## Dominio $DOMINIO"
+            echo
+            echo "| Registro | Valor actual | Debería ser |"
+            echo "|---|---|---|"
+            echo "| A @ | $(dig +short A "$DOMINIO" | sort | tr '\n' ' ') | 185.199.108.153 185.199.109.153 185.199.110.153 185.199.111.153 |"
+            echo "| AAAA @ | $(dig +short AAAA "$DOMINIO" | sort | tr '\n' ' ') | vacío, o las IPv6 de GitHub (2606:50c0:8000::153 … 8003::153) |"
+            echo "| www | $(dig +short CNAME "www.$DOMINIO" | tr '\n' ' ')$(dig +short A "www.$DOMINIO" | tr '\n' ' ') | portafoliofg.github.io. |"
+            echo "| CAA @ | $(dig +short CAA "$DOMINIO" | tr '\n' ' ') | vacío, o que incluya letsencrypt.org |"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          MAL=""
+          for ip in $(dig +short A "$DOMINIO"); do
+            case "$ip" in 185.199.108.153|185.199.109.153|185.199.110.153|185.199.111.153) ;; *) MAL="$MAL $ip";; esac
+          done
+          [ -z "$(dig +short A "$DOMINIO")" ] && MAL=" (sin registros A)"
+          for ip in $(dig +short AAAA "$DOMINIO"); do
+            case "$ip" in 2606:50c0:800[0-3]::153) ;; *) MAL="$MAL $ip";; esac
+          done
+          if [ -n "$MAL" ]; then
+            echo "::error::El DNS de $DOMINIO apunta a un lugar que no es GitHub Pages:$MAL. Borrá esos registros en el proveedor del dominio y dejá solo los cuatro A de GitHub."
+            echo "**Problema:** hay registros que no son de GitHub Pages:$MAL. Mientras existan, GitHub no puede emitir el certificado." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "DNS correcto: apunta a GitHub Pages." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Revisar GitHub Pages y activar HTTPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          if ! gh api "repos/$REPO/pages" > pages.json 2> error.txt; then
+            echo "::error::No se pudo leer la configuración de Pages: $(cat error.txt). Revisá que Pages esté activado (Settings → Pages, rama main, carpeta /docs)."
+            exit 1
+          fi
+          CNAME=$(jq -r '.cname // ""' pages.json)
+          ENFORCED=$(jq -r '.https_enforced' pages.json)
+          ESTADO=$(jq -r '.https_certificate.state // "sin certificado"' pages.json)
+          DOMINIOS=$(jq -r '(.https_certificate.domains // []) | join(", ")' pages.json)
+          {
+            echo
+            echo "## GitHub Pages"
+            echo "- Dominio configurado: \`${CNAME:-ninguno}\`"
+            echo "- Certificado: **$ESTADO** ${DOMINIOS:+($DOMINIOS)}"
+            echo "- HTTPS obligatorio: **$ENFORCED**"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CNAME" != "$DOMINIO" ]; then
+            echo "::warning::Pages no tiene configurado $DOMINIO como dominio. Se configura ahora."
+            gh api -X PUT "repos/$REPO/pages" -f cname="$DOMINIO" || echo "::error::No se pudo configurar el dominio. Hacelo en Settings → Pages → Custom domain."
+            exit 0
+          fi
+          if [ "$ENFORCED" = "true" ]; then
+            echo "HTTPS ya está activo. Nada que hacer." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          case "$ESTADO" in
+            approved|issued|uploaded)
+              if gh api -X PUT "repos/$REPO/pages" -F https_enforced=true; then
+                echo "- **Listo:** se activó HTTPS obligatorio." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "::error::El certificado está listo pero no se pudo activar HTTPS. Tildá Enforce HTTPS en Settings → Pages."
+              fi
+              ;;
+            *)
+              echo "::warning::El certificado todavía no está listo (estado: $ESTADO). Si el DNS es correcto, GitHub lo emite solo; puede tardar hasta 24 horas. Esta revisión se repite cada 6 horas."
+              ;;
+          esac
+
+      - name: Probar el sitio
+        run: |
+          {
+            echo
+            echo "## Prueba"
+            if curl -sS -o /dev/null -w '%{http_code}' "https://$DOMINIO" > codigo.txt 2> err.txt; then
+              echo "- https://$DOMINIO responde con certificado válido (HTTP $(cat codigo.txt))."
+            else
+              echo "- https://$DOMINIO **da error de seguridad**: $(cat err.txt)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -710,6 +710,26 @@
   .fondos-caja .fondos-tit { margin-bottom: 2px; }
   .fondos-viejo b { color: var(--faint) !important; text-decoration: line-through; }
   #inicioFondos .fondos-card { margin-bottom: 16px; }
+  /* Planilla de saldos y FCI editable en Inicio */
+  .pl-card { margin-bottom: 16px; }
+  .pl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .pl-head .card-title { margin: 0; }
+  .pl-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .pl-acciones input[type=date] { width: auto; margin: 0; height: 34px; }
+  .pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+  .pl-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .pl-tabla th { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); text-align: right; padding: 6px 8px; border-bottom: 2px solid var(--border); }
+  .pl-tabla th:first-child { text-align: left; }
+  .pl-tabla td { padding: 3px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .pl-tabla td.pl-cta { white-space: nowrap; }
+  .pl-tabla td.pl-grupo { border-left: 1px solid var(--border); text-align: right; }
+  .pl-tabla tr.pl-banco-ini td { border-top: 2px solid var(--border); }
+  .pl-tabla input { width: 100%; min-width: 110px; margin: 0; height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+  .pl-tabla input.pl-previo { color: var(--faint); font-style: italic; }
+  .pl-tabla input.pl-cambio { border-color: var(--primary); }
+  .pl-tabla .pl-total { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pl-tabla tfoot td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 600; padding-top: 8px; text-align: right; font-variant-numeric: tabular-nums; }
+  .pl-tabla tfoot td:first-child { text-align: left; }
   .fondos-card .card-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .fondos-link { font-size: 13px; }
   .fondos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
@@ -1283,6 +1303,7 @@
     </div>
     <div id="kpisInicio" class="kpis"></div>
     <div id="inicioFondos"></div>
+    <div id="inicioPlanilla"></div>
     <div id="inicioGraficos" class="viz-grid"></div>
     <div class="ini-grid">
       <div class="card ini-card" id="inicioSaldos"></div>
@@ -7009,7 +7030,7 @@ function limpiarDatosEnPantalla() {
     "kpisTransferencias", "kpisCheques", "kpisCuentas", "kpisAlertas", "concResultado", "concGuardadas", "kpisConciliacion", "flujoBox", "kpisFlujo", "areaImpresion"].forEach(id => { if ($(id)) $(id).replaceChildren(); });
   document.querySelectorAll(".modal-overlay.is-open").forEach(m => m.classList.remove("is-open"));
   cerrarDetalle();
-  ["kpisInicio", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
+  ["kpisInicio", "inicioPlanilla", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
 }
 
 function arrancar() {
@@ -9814,6 +9835,7 @@ function renderInicio(conciliaciones) {
   verFlujo.addEventListener("click", () => mostrarVista("flujo"));
   fondos.querySelector(".card-title").append(verFlujo);
   $("inicioFondos").replaceChildren(fondos);
+  renderPlanillaInicio();
 
   // Saldos por cuenta
   const bs = tarjetaInicio("inicioSaldos", "Saldos por cuenta", "Ver flujo de fondos", () => mostrarVista("flujo"));
@@ -13289,6 +13311,185 @@ $("sugBolsaGuardar").addEventListener("click", async () => {
   const ok = await guardarRecibidos(elegidos.map(s => ({ id: s.b["ID Planilla"], recibido: formatMonto(s.recibido), origen: "Sugerido" })), $("sugBolsaGuardar"), $("sugBolsaStatus"));
   if (ok) { cerrarModal("modalSugBolsa"); renderInversiones(); }
 });
+
+// ---------------- Planilla de saldos y FCI en Inicio ----------------
+// La misma tabla que la planilla de saldos (Cuenta | Cuentas | FCI | TOTAL, por
+// banco, en pesos y en dólares) para cargarla y guardarla ahí mismo, sin subir
+// una imagen todos los días. Se precarga con el saldo de esa fecha si ya está
+// guardado o, si no, con el último informado (en gris). Al guardar se registran
+// todos los saldos y FCI con valor a la fecha elegida.
+let planillaFecha = "";
+
+function filasPlanillaInicio(fechaIso) {
+  const porBanco = {};
+  const claveB = (banco, moneda) => normalizar(nombreBancoCanonico(banco) || banco) + "|" + moneda;
+  catalogo.cuentas.forEach(c => {
+    const moneda = c["Moneda"] === "USD" ? "USD" : "Pesos";
+    const k = claveB(c["Banco"], moneda);
+    const g = porBanco[k] || (porBanco[k] = { banco: c["Banco"], moneda: moneda, cuentas: [], fci: null });
+    const ult = ultimoSaldo(c, fechaIso);
+    g.cuentas.push({ c: c, valor: ult ? parseImporte(ult["Saldo"]) : null, previo: !!ult && fechaAOrden(ult["Fecha"]) !== fechaIso, fecha: ult ? ult["Fecha"] : "" });
+  });
+  // FCI: el último informado de cada banco hasta la fecha (también bancos que solo tienen FCI).
+  const ultFci = {};
+  saldosGuardados.filter(esFilaFci).forEach(s => {
+    const iso = fechaAOrden(s["Fecha"]);
+    if (!iso || iso > fechaIso) return;
+    const k = claveB(s["Banco"], s["Moneda"] === "USD" ? "USD" : "Pesos");
+    const prev = ultFci[k];
+    if (!prev || iso > prev.iso || (iso === prev.iso && String(s["Fecha de Carga"]) > String(prev.s["Fecha de Carga"]))) ultFci[k] = { iso: iso, s: s };
+  });
+  // Un FCI viejo (más de 45 días antes del último) es un fondo ya rescatado: no se precarga.
+  const ultimoIso = Object.keys(ultFci).reduce((m, k) => ultFci[k].iso > m ? ultFci[k].iso : m, "");
+  Object.keys(ultFci).forEach(k => {
+    const x = ultFci[k];
+    if (x.iso < sumarDiasIso(ultimoIso, -45)) return;
+    const moneda = x.s["Moneda"] === "USD" ? "USD" : "Pesos";
+    const g = porBanco[k] || (porBanco[k] = { banco: x.s["Banco"], moneda: moneda, cuentas: [], fci: null });
+    // Se guarda con el mismo nombre de banco que ya tenía, para no duplicar el FCI.
+    g.fci = { banco: x.s["Banco"], valor: parseImporte(x.s["Saldo"]), previo: x.iso !== fechaIso, fecha: x.s["Fecha"] };
+  });
+  Object.keys(porBanco).forEach(k => {
+    const g = porBanco[k];
+    if (!g.fci) g.fci = { banco: g.banco, valor: null, previo: false, fecha: "" };
+    g.cuentas.sort((a, b) => (siglaTipo(a.c["Tipo de Cuenta"]) + a.c["N° de Cuenta"]).localeCompare(siglaTipo(b.c["Tipo de Cuenta"]) + b.c["N° de Cuenta"]));
+  });
+  return Object.keys(porBanco).map(k => porBanco[k]).sort((a, b) => a.banco.localeCompare(b.banco));
+}
+
+function inputPlanilla(item, alCambiar) {
+  const inp = el("input", item.previo ? "pl-previo" : "");
+  inp.type = "text";
+  inp.inputMode = "decimal";
+  inp.value = item.valor === null ? "" : textoSaldo(item.valor);
+  inp.placeholder = "—";
+  if (item.fecha) inp.title = (item.previo ? "Último informado: " : "Guardado al ") + item.fecha;
+  inp.addEventListener("input", () => {
+    item.valor = importeDeCelda(inp.value);
+    item.previo = false;
+    item.cambio = true;
+    inp.classList.remove("pl-previo");
+    inp.classList.add("pl-cambio");
+    alCambiar();
+  });
+  inp.addEventListener("blur", () => { if (item.valor !== null) inp.value = textoSaldo(item.valor); });
+  inp.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const todos = Array.from(document.querySelectorAll("#inicioPlanilla .pl-tabla input"));
+    const sig = todos[todos.indexOf(inp) + 1];
+    if (sig) { sig.focus(); sig.select(); }
+  });
+  return inp;
+}
+
+function renderPlanillaInicio() {
+  const box = $("inicioPlanilla");
+  if (!planillaFecha) planillaFecha = hoyIso();
+  const grupos = filasPlanillaInicio(planillaFecha);
+  const card = el("div", "card pl-card");
+  const head = el("div", "pl-head");
+  const tit = el("div");
+  tit.append(el("div", "card-title", "Planilla de saldos y FCI"),
+    el("div", "dt-sub", "Escribí los saldos del día y guardá. En gris, el último informado: se guarda igual si no lo cambiás."));
+  const acc = el("div", "pl-acciones");
+  const fecha = el("input");
+  fecha.type = "date";
+  fecha.value = planillaFecha;
+  fecha.setAttribute("aria-label", "Fecha de los saldos");
+  fecha.addEventListener("change", () => { if (fecha.value) { planillaFecha = fecha.value; renderPlanillaInicio(); } });
+  const guardar = el("button", null, "Guardar saldos");
+  guardar.type = "button";
+  const estado = el("span", "dt-sub");
+  acc.append(estado, fecha, guardar);
+  head.append(tit, acc);
+  card.append(head);
+  if (!grupos.length) {
+    card.append(el("p", "hint", "Todavía no hay cuentas cargadas. Agregalas en Bancos y cuentas."));
+    box.replaceChildren(card);
+    return;
+  }
+  const grid = el("div", "pl-grid");
+  const recalculos = [];
+  [["Pesos", "$", formatMonto], ["USD", "U$D", formatMonto]].forEach(m => {
+    const gs = grupos.filter(g => g.moneda === m[0]);
+    if (!gs.length) return;
+    const tabla = el("table", "pl-tabla");
+    const thead = el("thead");
+    const trh = el("tr");
+    ["Cuenta " + m[1], "Cuentas", "FCI", "TOTAL"].forEach(h => trh.append(el("th", null, h)));
+    thead.append(trh);
+    const tbody = el("tbody");
+    const tfoot = el("tfoot");
+    const trf = el("tr");
+    const totCtas = el("td"), totFci = el("td"), totGral = el("td");
+    trf.append(el("td", null, "TOTAL " + m[1]), totCtas, totFci, totGral);
+    tfoot.append(trf);
+    const recalcular = () => {
+      let c = 0, f = 0;
+      gs.forEach(g => {
+        const sub = g.cuentas.reduce((a, x) => a + (x.valor || 0), 0) + (g.fci.valor || 0);
+        g.tdTotal.textContent = m[2](sub);
+        c += g.cuentas.reduce((a, x) => a + (x.valor || 0), 0);
+        f += g.fci.valor || 0;
+      });
+      totCtas.textContent = m[2](c);
+      totFci.textContent = m[2](f);
+      totGral.textContent = m[2](c + f);
+      const cambios = grupos.reduce((a, g) => a + g.cuentas.filter(x => x.cambio).length + (g.fci.cambio ? 1 : 0), 0);
+      estado.textContent = cambios ? cambios + " cambio(s) sin guardar" : "";
+    };
+    recalculos.push(recalcular);
+    gs.forEach(g => {
+      const filas = Math.max(1, g.cuentas.length);
+      for (let i = 0; i < filas; i++) {
+        const tr = el("tr", i === 0 ? "pl-banco-ini" : "");
+        const x = g.cuentas[i];
+        const tdC = el("td", "pl-cta");
+        tdC.append(el("span", "strong", g.banco), document.createTextNode(x ? " " + [siglaTipo(x.c["Tipo de Cuenta"]), x.c["N° de Cuenta"]].filter(Boolean).join(" ") : ""));
+        const tdS = el("td");
+        if (x) tdS.append(inputPlanilla(x, () => recalculos.forEach(r => r())));
+        else tdS.append(el("span", "dt-sub", "Sin cuentas"));
+        tr.append(tdC, tdS);
+        if (i === 0) {
+          // FCI y TOTAL: una celda por banco, como las combinadas de la planilla.
+          const tdF = el("td", "pl-grupo");
+          tdF.rowSpan = filas;
+          tdF.append(inputPlanilla(g.fci, () => recalculos.forEach(r => r())));
+          g.tdTotal = el("td", "pl-grupo pl-total");
+          g.tdTotal.rowSpan = filas;
+          tr.append(tdF, g.tdTotal);
+        }
+        tbody.append(tr);
+      }
+    });
+    tabla.append(thead, tbody, tfoot);
+    grid.append(envolverTabla(tabla));
+  });
+  card.append(grid);
+  recalculos.forEach(r => r());
+  guardar.addEventListener("click", async () => {
+    const saldos = [], fci = [];
+    grupos.forEach(g => {
+      g.cuentas.forEach(x => { if (x.valor !== null) saldos.push({ cuentaId: x.c["ID"], saldo: textoSaldo(x.valor) }); });
+      if (g.fci.valor !== null && g.fci.valor !== 0) fci.push({ banco: g.fci.banco, moneda: g.moneda, saldo: textoSaldo(g.fci.valor) });
+    });
+    if (!saldos.length && !fci.length) { toast("No hay saldos para guardar.", "error"); return; }
+    guardar.disabled = true;
+    guardar.classList.add("is-loading");
+    try {
+      const res = await runJson("guardarSaldos", { fecha: isoADma(planillaFecha), origen: "Planilla de Inicio", saldos: saldos, fci: fci });
+      toast(res.guardados + " saldo(s) y FCI guardado(s) al " + isoADma(planillaFecha) + (res.reemplazados ? " (" + res.reemplazados + " reemplazado/s)" : "") + ".", "ok");
+      cargarInicio();
+    } catch (err) {
+      toast(msgErr(err), "error");
+    } finally {
+      guardar.disabled = false;
+      guardar.classList.remove("is-loading");
+    }
+  });
+  box.replaceChildren(card);
+}
 
 // ---------------- Salida de cheques ----------------
 // Foto (o lista escrita) con la numeración de los cheques que salieron + la fecha
