@@ -120,3 +120,11 @@ jobs:
           npm install --no-save --silent playwright@1.47.2
           npx playwright install --with-deps chromium > /dev/null
           node seguridad.mjs "https://$DOMINIO"
+
+      - name: Probar el ingreso (Apps Script)
+        run: |
+          URL=$(grep -o 'https://script.google.com/macros/s/[^"]*/exec' docs/sesion.js)
+          RES=$(curl -sSL --max-time 30 -X POST -H "Content-Type: text/plain;charset=utf-8" -H "Origin: https://$DOMINIO" -D cabeceras.txt -d '{"accion":"estado"}' "$URL")
+          echo "Respuesta: $RES"
+          grep -i "access-control-allow-origin" cabeceras.txt || echo "::warning::La respuesta no trae Access-Control-Allow-Origin."
+          echo "$RES" | jq -e '.ok == true' > /dev/null || { echo "::error::El ingreso de bgpsammar.com no responde bien. ¿Se publicó la última versión de Código.gs (doPost)?"; exit 1; }
