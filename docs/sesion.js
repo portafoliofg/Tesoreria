@@ -1,5 +1,5 @@
 /*
- * Sesión de bgpsammar.com · B.G.P Sammar
+ * Sesión de bgpsammar.com · Andrés Sammartino
  *
  * El ingreso usa los mismos usuarios de la app de Tesorería: se valida en Apps
  * Script (doPost de src/Código.gs) y el token queda guardado en este navegador,

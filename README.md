@@ -10,8 +10,10 @@ src/
   Index.html       Interfaz (HTML, CSS y JS)
   appsscript.json  Manifiesto del proyecto
 docs/
-  index.html       Página de bgpsammar.com: pantalla de carga + la app en un iframe
-  loader.js/.css   Pantalla de carga de 7 s (B.G.P Sammar)
+  index.html       Página de bgpsammar.com: video de presentación, ingreso, selector y la app en un iframe
+  sesion.js        Ingreso único (usuarios de Tesorería) compartido por las páginas
+  propiedades.html Sección Propiedades (por ahora con datos de ejemplo)
+  carga.*, marca.png, logo-as-*.png  Video de presentación, logo y favicons (Andrés Sammartino)
   CNAME            Dominio propio para GitHub Pages
 .clasp.json.example
 ```
@@ -49,7 +51,7 @@ Si faltan los secretos, la Action no hace nada.
 
 ## Dominio propio (bgpsammar.com)
 
-Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.com` sirve `docs/index.html` desde GitHub Pages, y esa página carga la app en un `iframe`. Mientras carga, se ve una animación de 7 segundos. Se oculta cuando terminaron los 7 segundos y la app ya cargó, o a los 20 segundos como máximo.
+Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.com` sirve `docs/index.html` desde GitHub Pages, y esa página carga la app en un `iframe`. Mientras carga se ve el video de presentación (con "Saltar"); al terminar aparece el ingreso o, si ya hay sesión, el selector de secciones.
 
 1. `doGet()` ya usa `setXFrameOptionsMode(ALLOWALL)`, que permite mostrar la app dentro del iframe. Para que tome efecto, publicá una **versión nueva** de la implementación existente, así la URL `/exec` no cambia.
 2. Si la URL `/exec` cambia algún día, actualizala en `docs/index.html`.
@@ -73,14 +75,14 @@ Apps Script no permite usar un dominio propio directamente. Por eso `bgpsammar.c
 
 ### Ingreso
 
-Después del video, `bgpsammar.com` pide usuario y contraseña. Son los mismos usuarios de la app de Tesorería (pestaña Usuarios): `docs/sesion.js` los valida contra `doPost()` de `Código.gs`, que solo atiende ingreso, consulta de sesión y salida. Con la sesión iniciada aparece el selector, y la página le pasa la sesión a la app de Tesorería por `postMessage` para que no la vuelva a pedir. `propiedades.html` también exige sesión. Salir desde la página o desde la app cierra las dos.
+Es el único ingreso: la app de Tesorería ya no tiene el suyo (si se abre sin sesión, manda a `bgpsammar.com`). Después del video, `bgpsammar.com` pide usuario y contraseña. Son los usuarios de la pestaña Usuarios de Tesorería: `docs/sesion.js` los valida contra `doPost()` de `Código.gs`, que solo atiende ingreso, consulta de sesión y salida. Con la sesión iniciada aparece el selector, y la página le pasa la sesión a la app de Tesorería por `postMessage` para que no la vuelva a pedir. `propiedades.html` también exige sesión. Salir desde la página o desde la app cierra las dos.
 
-### Pantalla de carga
+### Video de presentación
 
-`docs/loader.js` expone `BGPLoader.create(contenedor, { duracion, alTerminar })`, que devuelve `reiniciar()`, `estado(texto)` y `destroy()`. Usa JS y SVG sin librerías, así carga al instante y no necesita compilarse.
+`docs/carga.webm` y `docs/carga.mp4` (sin sonido) son el mismo video; `carga.jpg` es su primer cuadro. Al cambiar el video, subir el `?v=` de esos archivos en `index.html` para que el navegador no use la copia vieja. Si el video no puede reproducirse, o el sistema pide menos movimiento, se pasa directo al ingreso o al selector.
 
 ## Limitaciones a tener en cuenta
 
 - El código sigue corriendo en Google Apps Script. El dominio propio solo cambia la dirección que ve el usuario.
-- Algunos navegadores (Safari, Chrome con cookies de terceros bloqueadas) aíslan el almacenamiento dentro de un iframe. Por eso la sesión guardada (`lc-sesion`) puede no recordarse entre visitas. Si pasa, hay que volver a iniciar sesión, o usar directamente la URL `/exec`.
+- La sesión se guarda en `bgpsammar.com` (`bgp-sesion`) y se le pasa a la app; dura 6 horas sin uso. Si la app se abre directo por la URL `/exec`, sin pasar por `bgpsammar.com`, pide ir al ingreso.
 - Si la app no se ejecuta como el usuario que la implementa, o el acceso no es "Cualquier persona", Google puede pedir iniciar sesión o mostrar su aviso dentro del iframe.

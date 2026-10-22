@@ -5,183 +5,182 @@
   <!-- Si se abre por http:// (un enlace o favorito viejo), pasa a https:// al instante. -->
   <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#060d1c">
-  <link rel="icon" type="image/svg+xml" href="logo-tesoreria.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="logo-tesoreria-32.png">
-  <link rel="apple-touch-icon" href="logo-tesoreria-180.png">
-  <title>B.G.P Sammar</title>
+  <meta name="theme-color" content="#ebe5dd">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo-as-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="logo-as-64.png">
+  <link rel="apple-touch-icon" href="logo-as-180.png">
+  <title>Andrés Sammartino</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&family=Marcellus&display=swap">
-  <link rel="stylesheet" href="loader.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600;700&display=swap">
   <style>
+    /* Paleta del video de presentación: fondo crema, verde campo y dorado. */
     :root {
-      --noche: #060d1c;
-      --plata: #d3dbe6;
-      --plata-clara: #eef2f7;
-      --tenue: #9aa6b8;
-      --verde: #2fd38a;
-      --oro: #d8b36a;
-      --display: "Marcellus", Georgia, serif;
+      --crema: #ebe5dd;
+      --crema-clara: #f6f2ec;
+      --verde: #1c4a2c;
+      --verde-claro: #2f6b42;
+      --oro: #b8893a;
+      --oro-claro: #d9b46a;
+      --tinta: #24322a;
+      --tenue: #6d7469;
+      --linea: rgba(28, 74, 44, 0.14);
+      --titulos: "Cinzel", "Times New Roman", serif;
+      --display: "Cormorant Garamond", Georgia, serif;
       --texto: "Manrope", "Segoe UI", system-ui, sans-serif;
-      --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
-      color-scheme: dark;
+      color-scheme: light;
     }
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--noche); }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--crema); }
     #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
-    #capa { position: fixed; inset: 0; z-index: 10; transition: opacity 0.7s ease, visibility 0.7s ease; }
+    #capa { position: fixed; inset: 0; z-index: 10; background: var(--crema); transition: opacity 0.7s ease, visibility 0.7s ease; }
     #capa.fuera { opacity: 0; visibility: hidden; }
 
-    /* ---------- Video de carga ---------- */
-    .vc { position: absolute; inset: 0; overflow: hidden; background: var(--noche); font-family: var(--texto); color: var(--plata); }
-    .vc::before { content: ""; position: absolute; inset: -40px; background: url("carga.jpg?v=4") center / cover; filter: blur(28px) brightness(0.45); }
+    /* ---------- Video de presentación ---------- */
+    .vc { position: absolute; inset: 0; overflow: hidden; background: var(--crema); transition: opacity 0.8s ease; }
     .vc video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     @media (max-aspect-ratio: 1/1) { .vc video { object-fit: contain; } }
-    .sel-marca i { font-style: normal; color: var(--oro); }
     .vc-saltar {
       position: absolute;
       top: max(16px, env(safe-area-inset-top, 0px));
       right: max(16px, env(safe-area-inset-right, 0px));
-      font: 600 13px/1 var(--texto); color: var(--plata-clara); cursor: pointer;
-      padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.22);
-      background: rgba(6, 13, 28, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-      transition: opacity 0.5s ease;
+      font: 600 13px/1 var(--texto); color: var(--verde); cursor: pointer;
+      padding: 10px 16px; border-radius: 999px; border: 1px solid var(--linea);
+      background: rgba(255, 255, 255, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      transition: opacity 0.5s ease, background 0.2s ease;
     }
-    .vc-saltar:hover { background: rgba(6, 13, 28, 0.7); }
+    .vc-saltar:hover { background: rgba(255, 255, 255, 0.85); }
+    /* Al terminar, el video se funde con el fondo y aparece el ingreso o el selector. */
+    #capa.eligiendo .vc { opacity: 0; }
     #capa.eligiendo .vc-saltar { opacity: 0; pointer-events: none; }
 
-    /* ---------- Selector sobre el último cuadro ---------- */
+    /* ---------- Ingreso y selector ---------- */
     .sel {
       position: absolute; inset: 0; z-index: 5;
       display: grid; place-items: center; overflow-y: auto;
-      padding-block: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+      padding-block: max(20px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
       padding-left: max(16px, env(safe-area-inset-left, 0px));
       padding-right: max(16px, env(safe-area-inset-right, 0px));
-      font-family: var(--texto); color: var(--plata);
-      background: radial-gradient(70% 60% at 50% 50%, rgba(6, 13, 28, 0.25), rgba(6, 13, 28, 0.7));
-      -webkit-backdrop-filter: blur(0px) brightness(1); backdrop-filter: blur(0px) brightness(1);
-      opacity: 0;
-      transition: opacity 0.7s ease, backdrop-filter 1.2s ease, -webkit-backdrop-filter 1.2s ease;
+      font-family: var(--texto); color: var(--tinta);
+      background: radial-gradient(120% 90% at 50% 0%, var(--crema-clara), var(--crema) 60%);
+      opacity: 0; transition: opacity 0.8s ease;
     }
     .sel[hidden] { display: none; }
-    .sel.con-fondo { background: linear-gradient(rgba(6, 13, 28, 0.45), rgba(6, 13, 28, 0.7)), url("carga-final.jpg?v=4") center / cover; }
-    .sel.visible { opacity: 1; -webkit-backdrop-filter: blur(4px) brightness(0.72); backdrop-filter: blur(4px) brightness(0.72); }
-    .sel-caja { width: min(1080px, 100%); display: grid; justify-items: center; gap: clamp(20px, 4vh, 34px); text-align: center; }
-    .sel-marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 5.6vw, 52px); letter-spacing: 0.2em; padding-left: 0.2em; line-height: 1; color: var(--plata-clara); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); white-space: nowrap; }
-    .sel-sub { margin: 10px 0 0; font-size: clamp(10px, 1.5vw, 12.5px); letter-spacing: 0.3em; text-transform: uppercase; color: var(--tenue); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
-    .sel-pregunta { margin: 0; font-size: 15px; color: var(--plata); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
-    .sel-opciones { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.4vw, 24px); }
+    .sel.visible { opacity: 1; }
+    .sel-caja { width: min(1080px, 100%); display: grid; justify-items: center; gap: clamp(14px, 3vh, 26px); text-align: center; }
+    .sel-logo { display: block; width: auto; height: clamp(150px, 28vh, 250px); max-width: 100%; margin: 0 auto; }
+    .sel.visible .sel-logo { animation: logo-entra 0.9s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+    @keyframes logo-entra { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+    .sel-pregunta { margin: 0; font-family: var(--display); font-weight: 600; font-size: clamp(20px, 2.4vw, 24px); color: var(--verde); }
+    .sel-usuario { margin: -6px 0 0; font-size: 13px; color: var(--tenue); }
+    .sel-usuario button { font: inherit; font-weight: 600; color: var(--oro); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .sel-opciones { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.2vw, 22px); }
     @media (max-width: 900px) { .sel-opciones { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 600px) { .sel-opciones { grid-template-columns: minmax(0, 1fr); } .sel-marca { letter-spacing: 0.12em; padding-left: 0.12em; } }
+    @media (max-width: 600px) { .sel-opciones { grid-template-columns: minmax(0, 1fr); } }
 
     .cartel {
-      text-decoration: none;
-      position: relative; display: grid; gap: 10px; align-content: start; text-align: left;
-      padding: clamp(20px, 3vw, 28px); border-radius: 20px; cursor: pointer;
+      position: relative; display: grid; gap: 8px; align-content: start; text-align: left; text-decoration: none;
+      padding: clamp(18px, 2.6vw, 26px); border-radius: 18px; cursor: pointer;
       font: inherit; color: inherit;
-      background: linear-gradient(150deg, rgba(30, 48, 82, 0.72), rgba(8, 16, 32, 0.78));
-      border: 1px solid rgba(214, 226, 242, 0.18);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 44px -20px rgba(0, 0, 0, 0.85);
-      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-      opacity: 0; transform: translateY(18px) scale(0.98);
-      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--linea);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 18px 36px -24px rgba(28, 74, 44, 0.45);
+      opacity: 0; transform: translateY(16px);
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
     }
-    .sel.visible .cartel { animation: cartel-entra 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) forwards; }
-    .sel.visible .cartel:nth-child(2) { animation-delay: 0.12s; }
-    .sel.visible .cartel:nth-child(3) { animation-delay: 0.24s; }
+    .sel.visible .cartel { animation: cartel-entra 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) 0.15s forwards; }
+    .sel.visible .cartel:nth-child(2) { animation-delay: 0.27s; }
+    .sel.visible .cartel:nth-child(3) { animation-delay: 0.39s; }
     @keyframes cartel-entra { to { opacity: 1; transform: none; } }
     .cartel:hover:not([aria-disabled="true"]), .cartel:focus-visible:not([aria-disabled="true"]) {
-      border-color: rgba(216, 179, 106, 0.75);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(216, 179, 106, 0.35), 0 28px 50px -20px rgba(0, 0, 0, 0.9);
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(184, 137, 58, 0.65);
+      box-shadow: 0 0 0 1px rgba(184, 137, 58, 0.25), 0 24px 44px -24px rgba(28, 74, 44, 0.55);
       transform: translateY(-3px);
     }
     .cartel:focus-visible { outline: 2px solid var(--oro); outline-offset: 3px; }
     .cartel-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .cartel-icono { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)); border: 1px solid rgba(255, 255, 255, 0.14); }
+    .cartel-icono { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(145deg, rgba(47, 107, 66, 0.10), rgba(184, 137, 58, 0.10)); border: 1px solid var(--linea); }
     .cartel-icono svg { width: 28px; height: 28px; }
-    .cartel-logo { width: 54px; height: 54px; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .5)); }
-    .cartel h2 { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(24px, 3vw, 30px); letter-spacing: 0.08em; color: var(--plata-clara); }
+    .cartel-logo { width: 52px; height: 52px; filter: drop-shadow(0 6px 10px rgba(28, 40, 30, 0.25)); }
+    .cartel h2 { margin: 6px 0 0; font-family: var(--titulos); font-weight: 600; font-size: clamp(20px, 2.2vw, 24px); letter-spacing: 0.06em; color: var(--verde); }
     .cartel p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--tenue); }
-    .cartel-ir { margin-top: 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--oro); }
+    .cartel-ir { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--oro); }
     .cartel-ir::after { content: " →"; }
     .cartel[aria-disabled="true"] { cursor: default; }
-    .cartel[aria-disabled="true"] h2, .cartel[aria-disabled="true"] .cartel-icono { opacity: 0.6; }
-    .pronto { font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--oro); padding: 6px 10px; border-radius: 99px; border: 1px solid rgba(216, 179, 106, 0.45); background: rgba(216, 179, 106, 0.08); }
+    .cartel[aria-disabled="true"] h2, .cartel[aria-disabled="true"] .cartel-icono { opacity: 0.55; }
+    .pronto { font-size: 10.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--oro); padding: 6px 10px; border-radius: 99px; border: 1px solid rgba(184, 137, 58, 0.45); background: rgba(217, 180, 106, 0.12); }
     .pronto.avisa { animation: pronto-avisa 0.6s ease; }
-    @keyframes pronto-avisa { 30% { transform: scale(1.08); background: rgba(216, 179, 106, 0.25); } }
+    @keyframes pronto-avisa { 30% { transform: scale(1.08); background: rgba(217, 180, 106, 0.3); } }
     .cartel.abriendo .cartel-ir::after { content: ""; }
 
-    /* ---------- Ingreso (mismos usuarios que Tesorería) ---------- */
     .acceso-form {
       width: min(380px, 100%); display: grid; gap: 14px; text-align: left;
-      padding: clamp(22px, 3vw, 30px); border-radius: 20px;
-      background: linear-gradient(150deg, rgba(30, 48, 82, 0.78), rgba(8, 16, 32, 0.84));
-      border: 1px solid rgba(214, 226, 242, 0.18);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 44px -20px rgba(0, 0, 0, 0.85);
-      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      padding: clamp(22px, 3vw, 30px); border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78); border: 1px solid var(--linea);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 22px 44px -26px rgba(28, 74, 44, 0.5);
+      opacity: 0; transform: translateY(14px);
     }
-    .acceso-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--plata); }
+    .sel.visible .acceso-form { animation: cartel-entra 0.7s cubic-bezier(0.2, 0.9, 0.3, 1) 0.2s forwards; }
+    .acceso-form h2 { margin: 0; font-family: var(--titulos); font-weight: 600; font-size: 20px; letter-spacing: 0.08em; color: var(--verde); text-align: center; }
+    .acceso-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--tinta); }
     .acceso-form input {
-      font: inherit; font-size: 15px; font-weight: 400; color: var(--plata-clara);
-      padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(214, 226, 242, 0.22);
-      background: rgba(6, 13, 28, 0.6); outline: none;
+      font: inherit; font-size: 15px; font-weight: 400; color: var(--tinta);
+      padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(28, 74, 44, 0.22);
+      background: #fffdfa; outline: none;
     }
-    .acceso-form input:focus { border-color: var(--oro); box-shadow: 0 0 0 3px rgba(216, 179, 106, 0.2); }
+    .acceso-form input:focus { border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
     .acceso-boton {
-      margin-top: 4px; font: 700 15px/1 var(--texto); letter-spacing: 0.04em; color: #1a1406; cursor: pointer;
+      margin-top: 4px; font: 700 15px/1 var(--texto); letter-spacing: 0.04em; color: #fffaf0; cursor: pointer;
       padding: 13px 16px; border-radius: 12px; border: 0;
-      background: linear-gradient(180deg, #e6c47f, var(--oro));
+      background: linear-gradient(180deg, var(--verde-claro), var(--verde));
+      box-shadow: 0 10px 22px -12px rgba(28, 74, 44, 0.8);
     }
+    .acceso-boton:hover:not(:disabled) { filter: brightness(1.08); }
     .acceso-boton:disabled { opacity: 0.6; cursor: wait; }
-    .acceso-boton:focus-visible { outline: 2px solid var(--plata-clara); outline-offset: 3px; }
-    .acceso-error { margin: 0; min-height: 1.4em; font-size: 13px; color: #f29b9b; }
-    .acceso-nota { margin: 0; font-size: 12.5px; color: var(--tenue); }
-    .sel-usuario { margin: 0; font-size: 13px; color: var(--tenue); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
-    .sel-usuario button { font: inherit; color: var(--oro); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .acceso-boton:focus-visible { outline: 2px solid var(--oro); outline-offset: 3px; }
+    .acceso-error { margin: 0; min-height: 1.4em; font-size: 13px; color: #a3322a; }
+    .acceso-nota { margin: 0; font-size: 12.5px; color: var(--tenue); text-align: center; }
 
+    @media (max-height: 640px) { .sel-logo { height: clamp(110px, 24vh, 160px); } }
+    @media (max-width: 600px) { .sel-logo { height: clamp(120px, 22vh, 180px); } }
     @media (prefers-reduced-motion: reduce) {
-      .sel, .cartel { transition: none; }
-      .sel.visible .cartel { animation: none; opacity: 1; transform: none; }
+      .sel, .vc, .cartel, .acceso-form { transition: none; }
+      .sel.visible .cartel, .sel.visible .acceso-form, .sel.visible .sel-logo { animation: none; opacity: 1; transform: none; }
     }
   </style>
 </head>
 <body>
   <iframe id="app"
           src="https://script.google.com/macros/s/AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ/exec"
-          title="Tesorería B.G.P Sammar"
+          title="Tesorería · Andrés Sammartino"
           allow="clipboard-read; clipboard-write; camera"
           allowfullscreen></iframe>
   <div id="capa">
-    <div class="vc" id="vc" aria-label="B.G.P Sammar">
-      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg?v=4">
-        <source src="carga.webm?v=4" type="video/webm">
-        <source src="carga.mp4?v=4" type="video/mp4">
+    <div class="vc" id="vc" aria-label="Andrés Sammartino">
+      <video id="vcVideo" muted playsinline autoplay preload="auto" poster="carga.jpg?v=5">
+        <source src="carga.webm?v=5" type="video/webm">
+        <source src="carga.mp4?v=5" type="video/mp4">
       </video>
       <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
     </div>
 
     <section class="sel" id="acceso" hidden aria-labelledby="accesoTitulo">
       <div class="sel-caja">
-        <header>
-          <h1 class="sel-marca" id="accesoTitulo">B<i>.</i>G<i>.</i>P SAMMAR</h1>
-          <p class="sel-sub">Bolsas · Granos · Propiedades</p>
-        </header>
+        <img class="sel-logo" src="marca.png?v=5" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="763" height="558">
         <form class="acceso-form" id="accesoForm" novalidate>
+          <h2 id="accesoTitulo">Ingresar</h2>
           <label>Usuario<input type="text" id="accesoUsuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
           <label>Contraseña<input type="password" id="accesoClave" autocomplete="current-password" required></label>
           <p class="acceso-error" id="accesoError" role="alert"></p>
           <button type="submit" class="acceso-boton" id="accesoBoton">Ingresar</button>
-          <p class="acceso-nota">Usá tu usuario y contraseña de Tesorería.</p>
+          <p class="acceso-nota">Un solo ingreso para todas las secciones.</p>
         </form>
       </div>
     </section>
 
     <section class="sel" id="sel" hidden aria-labelledby="selTitulo">
       <div class="sel-caja">
-        <header>
-          <h1 class="sel-marca" id="selTitulo">B<i>.</i>G<i>.</i>P SAMMAR</h1>
-          <p class="sel-sub">Bolsas · Granos · Propiedades</p>
-        </header>
+        <h1 style="margin:0"><img class="sel-logo" id="selTitulo" src="marca.png?v=5" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="763" height="558"></h1>
         <p class="sel-pregunta">¿A dónde querés entrar?</p>
         <p class="sel-usuario" id="selUsuario" hidden></p>
         <div class="sel-opciones">
@@ -189,9 +188,9 @@
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 23 L10 15 L15 19 L25 7" stroke="#2fd38a" stroke-width="2.2"/>
-                  <path d="M19 7 H25 V13" stroke="#2fd38a" stroke-width="2.2"/>
-                  <path d="M3 26 H25" stroke="#d3dbe6" stroke-opacity=".5" stroke-width="1.6"/>
+                  <path d="M3 23 L10 15 L15 19 L25 7" stroke="#2f6b42" stroke-width="2.2"/>
+                  <path d="M19 7 H25 V13" stroke="#b8893a" stroke-width="2.2"/>
+                  <path d="M3 26 H25" stroke="#1c4a2c" stroke-opacity=".35" stroke-width="1.6"/>
                 </svg>
               </span>
               <span class="pronto" id="invPronto">Próximamente</span>
@@ -201,20 +200,20 @@
           </button>
           <button type="button" class="cartel" id="irTesoreria">
             <span class="cartel-cabeza">
-              <img class="cartel-logo" src="logo-tesoreria.svg" alt="" width="54" height="54">
+              <img class="cartel-logo" src="logo-tesoreria.svg" alt="" width="52" height="52">
             </span>
             <h2>Tesorería</h2>
             <p>Cuentas, cheques, conciliaciones y flujo de fondos.</p>
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
           <!-- ?v=: subirlo al cambiar propiedades.html, así el navegador no usa una copia vieja. -->
-          <a class="cartel" id="irPropiedades" href="propiedades.html?v=3">
+          <a class="cartel" id="irPropiedades" href="propiedades.html?v=5">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 13 L14 5 L24 13" stroke="#d8b36a" stroke-width="2.2"/>
-                  <path d="M7 11 V24 H21 V11" stroke="#d3dbe6" stroke-width="2"/>
-                  <path d="M12 24 V17 H16 V24" stroke="#d8b36a" stroke-width="2"/>
+                  <path d="M4 13 L14 5 L24 13" stroke="#b8893a" stroke-width="2.2"/>
+                  <path d="M7 11 V24 H21 V11" stroke="#1c4a2c" stroke-width="2"/>
+                  <path d="M12 24 V17 H16 V24" stroke="#b8893a" stroke-width="2"/>
                 </svg>
               </span>
             </span>
@@ -226,15 +225,14 @@
       </div>
     </section>
   </div>
-  <script src="loader.js"></script>
-  <script src="sesion.js?v=3"></script>
+  <script src="sesion.js?v=5"></script>
   <script>
-    // Pantalla de inicio: el video de 7 s y, al terminar, el ingreso (si no hay sesión)
-    // y el selector sobre su último cuadro. El ingreso usa los mismos usuarios de
-    // Tesorería (sesion.js). Tesorería abre la app (que ya se viene cargando detrás) y
-    // recibe la sesión por postMessage; Propiedades abre propiedades.html; Inversiones
-    // todavía no está disponible. Si el video no puede reproducirse, o el sistema pide
-    // menos movimiento, se usa la animación de loader.js.
+    // Pantalla de inicio: el video de presentación y, al terminar, el ingreso (si no hay
+    // sesión) o el selector, sobre el mismo fondo crema del video. Hay un solo ingreso,
+    // con los usuarios de Tesorería (sesion.js). Tesorería abre la app (que ya se viene
+    // cargando detrás) y recibe la sesión por postMessage; Propiedades abre
+    // propiedades.html; Inversiones todavía no está disponible. Si el video no puede
+    // reproducirse, o el sistema pide menos movimiento, se pasa directo al ingreso o selector.
     (function () {
       var capa = document.getElementById("capa");
       var app = document.getElementById("app");
@@ -243,7 +241,7 @@
       var sel = document.getElementById("sel");
       var acceso = document.getElementById("acceso");
       var btnTes = document.getElementById("irTesoreria");
-      var appLista = false, eligio = false, cerrada = false, arranco = false, termino = false, carga = null;
+      var appLista = false, eligio = false, cerrada = false, arranco = false, termino = false;
       var usuario = null;
 
       // La sesión se confirma con el servidor mientras corre el video. No se espera esa
@@ -276,12 +274,11 @@
         if (cerrada) return;
         cerrada = true;
         capa.classList.add("fuera");
-        setTimeout(function () { if (carga) carga.destroy(); video.pause(); capa.remove(); }, 800);
+        setTimeout(function () { video.pause(); capa.remove(); }, 800);
       }
 
       function mostrar(seccion) {
         [sel, acceso].forEach(function (x) { if (x !== seccion) { x.hidden = true; x.classList.remove("visible"); } });
-        if (!vc.isConnected) seccion.classList.add("con-fondo");
         capa.classList.add("eligiendo");
         seccion.hidden = false;
         void seccion.offsetWidth;
@@ -387,15 +384,12 @@
         if (eligio) cerrar();
       });
 
-      function usarAnimacion() {
-        if (carga || cerrada || termino) return;
+      // Sin video (no se pudo reproducir o se pide menos movimiento): directo al ingreso o selector.
+      function sinVideo() {
+        if (cerrada || termino) return;
         video.pause();
         vc.remove();
-        try {
-          carga = BGPLoader.create(capa, { duracion: 7000, alTerminar: alTerminar });
-        } catch (e) {
-          alTerminar();
-        }
+        alTerminar();
       }
 
       // Volver con "atrás" después de salir (en Propiedades, por ejemplo): la página
@@ -413,7 +407,7 @@
       }
 
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        usarAnimacion();
+        sinVideo();
         return;
       }
 
@@ -429,8 +423,8 @@
       if (!video.paused && video.currentTime > 0) arranco = true;
       // Al terminar, el video queda quieto en su último cuadro, detrás del ingreso o el selector.
       video.addEventListener("ended", alTerminar);
-      video.addEventListener("error", usarAnimacion);
-      video.querySelector('source[type="video/mp4"]').addEventListener("error", usarAnimacion);
+      video.addEventListener("error", sinVideo);
+      video.querySelector('source[type="video/mp4"]').addEventListener("error", sinVideo);
       document.getElementById("vcSaltar").addEventListener("click", function () {
         video.pause();
         if (video.duration) video.currentTime = Math.max(0, video.duration - 0.05);
@@ -438,11 +432,11 @@
       });
 
       var intento = video.play();
-      if (intento && intento.catch) intento.catch(usarAnimacion);
+      if (intento && intento.catch) intento.catch(sinVideo);
       // Si en 3 s el video no arrancó (conexión lenta, ahorro de batería), va la animación.
       setTimeout(function () {
         if (!arranco && !video.paused && video.currentTime > 0) arranco = true;
-        if (!arranco) usarAnimacion();
+        if (!arranco) sinVideo();
       }, 3000);
     })();
   </script>

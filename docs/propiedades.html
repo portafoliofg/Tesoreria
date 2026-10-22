@@ -4,77 +4,81 @@
   <meta charset="utf-8">
   <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#060d1c">
-  <link rel="icon" type="image/svg+xml" href="logo-tesoreria.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="logo-tesoreria-32.png">
-  <link rel="apple-touch-icon" href="logo-tesoreria-180.png">
-  <title>Propiedades · B.G.P Sammar</title>
+  <meta name="theme-color" content="#ebe5dd">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo-as-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="logo-as-64.png">
+  <link rel="apple-touch-icon" href="logo-as-180.png">
+  <title>Propiedades · Andrés Sammartino</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&family=Marcellus&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&display=swap">
   <style>
+    /* Misma paleta que el inicio (video de presentación): crema, verde y dorado. */
     :root {
-      --noche: #060d1c;
-      --panel: rgba(16, 28, 52, 0.72);
-      --borde: rgba(214, 226, 242, 0.14);
-      --plata: #d3dbe6;
-      --plata-clara: #eef2f7;
-      --tenue: #9aa6b8;
-      --verde: #2fd38a;
-      --rojo: #ef7b7b;
-      --oro: #d8b36a;
-      --display: "Marcellus", Georgia, serif;
+      --crema: #ebe5dd;
+      --crema-clara: #f6f2ec;
+      --panel: rgba(255, 255, 255, 0.78);
+      --borde: rgba(28, 74, 44, 0.14);
+      --tinta: #24322a;
+      --tenue: #6d7469;
+      --verde: #1c4a2c;
+      --verde-claro: #2f6b42;
+      --rojo: #a3322a;
+      --oro: #a87a2f;
+      --titulos: "Cinzel", "Times New Roman", serif;
       --texto: "Manrope", "Segoe UI", system-ui, sans-serif;
       --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
-      color-scheme: dark;
+      color-scheme: light;
     }
     * { box-sizing: border-box; }
     body.verificando .pagina { visibility: hidden; }
-    .usuario { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--tenue); }
-    .usuario button { font: inherit; color: var(--oro); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .usuario { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--tenue); }
+    .usuario button { font: inherit; font-weight: 600; color: var(--oro); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
     body {
-      margin: 0; min-height: 100vh; font-family: var(--texto); color: var(--plata);
-      background: linear-gradient(rgba(6, 13, 28, 0.82), rgba(6, 13, 28, 0.94)), url("carga-final.jpg?v=4") center / cover fixed, var(--noche);
+      margin: 0; min-height: 100vh; font-family: var(--texto); color: var(--tinta);
+      background: radial-gradient(120% 70% at 50% 0%, var(--crema-clara), var(--crema) 60%) fixed, var(--crema);
     }
-    .pagina { width: min(1180px, 100%); margin: 0 auto; padding: 24px 16px 48px; }
-    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 24px; }
-    .volver { color: var(--tenue); text-decoration: none; font-size: 14px; }
-    .volver:hover { color: var(--plata-clara); }
-    .marca { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(24px, 4vw, 36px); letter-spacing: 0.14em; color: var(--plata-clara); }
-    .marca i { font-style: normal; color: var(--oro); }
-    .marca span { display: block; font-family: var(--texto); font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--oro); margin-top: 6px; }
-    .aviso { font-size: 13px; color: var(--oro); border: 1px solid rgba(216, 179, 106, 0.4); background: rgba(216, 179, 106, 0.08); border-radius: 12px; padding: 10px 14px; margin-bottom: 20px; }
+    .pagina { width: min(1180px, 100%); margin: 0 auto; padding: 20px 16px 48px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+    .volver { color: var(--verde); text-decoration: none; font-size: 14px; font-weight: 600; }
+    .volver:hover { color: var(--oro); }
+    .marca { margin: 0; display: flex; align-items: center; gap: 14px; }
+    .marca img { width: 64px; height: 64px; }
+    .marca b { display: block; font-family: var(--titulos); font-weight: 600; font-size: clamp(20px, 3vw, 28px); letter-spacing: 0.08em; color: var(--verde); }
+    .marca .seccion { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--oro); margin-top: 4px; }
+    .aviso { font-size: 13px; color: #7a5a22; border: 1px solid rgba(184, 137, 58, 0.4); background: rgba(217, 180, 106, 0.14); border-radius: 12px; padding: 10px 14px; margin-bottom: 20px; }
 
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
-    .kpi, .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    .kpi, .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; box-shadow: 0 18px 36px -28px rgba(28, 74, 44, 0.5); }
     .kpi { padding: 16px 18px; }
     .kpi small { display: block; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); }
-    .kpi b { display: block; margin-top: 6px; font-family: var(--datos); font-size: 22px; font-weight: 500; color: var(--plata-clara); }
+    .kpi b { display: block; margin-top: 6px; font-family: var(--datos); font-size: 22px; font-weight: 500; color: var(--verde); }
     .kpi span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--tenue); }
 
     .grilla { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; }
     @media (max-width: 860px) { .grilla { grid-template-columns: minmax(0, 1fr); } }
     .panel { padding: 18px; min-width: 0; }
-    .panel h2 { margin: 0 0 12px; font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: 0.06em; color: var(--plata-clara); }
+    .panel h2 { margin: 0 0 12px; font-family: var(--titulos); font-weight: 600; font-size: 18px; letter-spacing: 0.08em; color: var(--verde); }
     .herramientas { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
     .herramientas input, .herramientas select {
-      font: inherit; font-size: 14px; color: var(--plata-clara); background: rgba(6, 13, 28, 0.6);
-      border: 1px solid var(--borde); border-radius: 10px; padding: 8px 12px; min-width: 0;
+      font: inherit; font-size: 14px; color: var(--tinta); background: #fffdfa;
+      border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 8px 12px; min-width: 0;
     }
+    .herramientas input:focus, .herramientas select:focus { outline: none; border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
     .herramientas input { flex: 1 1 200px; }
     .tabla-scroll { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
-    td { padding: 10px; border-bottom: 1px solid rgba(214, 226, 242, 0.07); vertical-align: top; }
+    td { padding: 10px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); vertical-align: top; }
     td.num, th.num { text-align: right; font-family: var(--datos); white-space: nowrap; }
     .sub { display: block; font-size: 12.5px; color: var(--tenue); }
     .estado { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
-    .estado.alquilada { color: var(--verde); background: rgba(47, 211, 138, 0.12); }
-    .estado.disponible { color: var(--oro); background: rgba(216, 179, 106, 0.12); }
-    .estado.uso-propio { color: var(--plata); background: rgba(211, 219, 230, 0.12); }
+    .estado.alquilada { color: var(--verde-claro); background: rgba(47, 107, 66, 0.12); }
+    .estado.disponible { color: var(--oro); background: rgba(217, 180, 106, 0.18); }
+    .estado.uso-propio { color: var(--tenue); background: rgba(109, 116, 105, 0.12); }
     .vacio { color: var(--tenue); padding: 16px 10px; }
     .lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-    .lista li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(214, 226, 242, 0.07); font-size: 14px; }
+    .lista li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); font-size: 14px; }
     .lista li:last-child { border-bottom: 0; }
     .lista .fecha { font-family: var(--datos); color: var(--oro); white-space: nowrap; }
     .lista .cerca .fecha { color: var(--rojo); }
@@ -83,8 +87,8 @@
 <body class="verificando">
   <div class="pagina">
     <header>
-      <h1 class="marca">B<i>.</i>G<i>.</i>P SAMMAR<span>Propiedades</span></h1>
-      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html?v=3#elegir">← Volver al inicio</a></div>
+      <h1 class="marca"><img src="logo-as-180.png" alt="" width="64" height="64"><span><b>Andrés Sammartino</b><span class="seccion">Propiedades</span></span></h1>
+      <div class="usuario"><span id="quien"></span><button type="button" id="salir">Salir</button><a class="volver" href="index.html?v=5#elegir">← Volver al inicio</a></div>
     </header>
 
     <p class="aviso">Sección en armado: los datos de abajo son de ejemplo.</p>
@@ -118,12 +122,12 @@
     </div>
   </div>
 
-  <script src="sesion.js?v=3"></script>
+  <script src="sesion.js?v=5"></script>
   <script>
     // Solo con sesión iniciada (los mismos usuarios de Tesorería). Se muestra al
     // instante con la sesión guardada y se confirma de fondo: solo si el servidor
     // dice que venció se vuelve al ingreso (una demora o un corte de red no echa a nadie).
-    function irAlIngreso() { location.replace("index.html?v=3#elegir"); }
+    function irAlIngreso() { location.replace("index.html?v=5#elegir"); }
     var guardado = BGPSesion.usuario();
     if (!guardado) irAlIngreso();
     else {

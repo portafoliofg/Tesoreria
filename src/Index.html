@@ -974,6 +974,10 @@
     background: linear-gradient(180deg, #e3c27a, var(--bgp-oro) 55%, var(--bgp-oro-osc)); box-shadow: 0 10px 22px -10px rgba(184, 146, 74, .8), inset 0 1px 0 rgba(255, 255, 255, .4); }
   .acceso form button[type=submit]:hover:not(:disabled) { filter: brightness(1.05); background: linear-gradient(180deg, #e8c983, #dcb86f 55%, #be9850); }
   .acceso form button[type=submit]:focus-visible { outline: 2px solid var(--bgp-noche-2); outline-offset: 2px; }
+  .btn-ingreso-sitio { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 22px; height: 46px; border-radius: var(--radius-sm); font-size: 14.5px; font-weight: 650; letter-spacing: .02em; text-decoration: none; color: #0b1a33;
+    background: linear-gradient(180deg, #e3c27a, var(--bgp-oro) 55%, var(--bgp-oro-osc)); box-shadow: 0 10px 22px -10px rgba(184, 146, 74, .8), inset 0 1px 0 rgba(255, 255, 255, .4); }
+  .btn-ingreso-sitio:hover { filter: brightness(1.05); }
+  .btn-ingreso-sitio:focus-visible { outline: 2px solid var(--bgp-noche-2); outline-offset: 2px; }
   .acceso-pie { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--faint); text-align: center; }
 
   @media (max-width: 780px) {
@@ -1219,14 +1223,13 @@
     </aside>
     <div class="acceso-form">
     <div class="acceso-marca"><svg class="acceso-logo" aria-hidden="true"><use href="#logoTesoreria"/></svg><div><b>Tesorería</b><span id="accesoEmpresa">SAMMARTINO</span></div></div>
-    <form id="formLogin" hidden>
-      <h2>Ingresar</h2>
-      <p class="sub">Usá tu usuario y contraseña de Tesorería.</p>
-      <label>Usuario<input type="text" id="loginUsuario" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
-      <label>Contraseña<input type="password" id="loginClave" autocomplete="current-password"></label>
-      <button type="submit" id="btnLogin">Ingresar</button>
+    <!-- Un solo ingreso: el de bgpsammar.com, que le pasa la sesión a esta app. -->
+    <div id="formLogin" hidden>
+      <h2>Ingresá desde el inicio</h2>
+      <p class="sub">El ingreso es uno solo para todas las secciones: entrá con tu usuario y contraseña en bgpsammar.com.</p>
+      <a class="btn-ingreso-sitio" href="https://bgpsammar.com/#elegir" target="_top" rel="noopener">Ir al ingreso</a>
       <p class="hint" id="loginStatus"></p>
-    </form>
+    </div>
     <form id="formInicial" hidden>
       <h2>Configuración inicial</h2>
       <p class="sub">Todavía no hay usuarios. Creá el primero: queda como dueño de las alertas y del WhatsApp que ya estaban configurados.</p>
@@ -6983,6 +6986,7 @@ function sesionVencida(mensaje) {
   guardarToken("");
   limpiarDatosEnPantalla();
   mostrarAcceso("login", mensaje || "Tu sesión venció. Volvé a ingresar.");
+  avisarSitio({ tipo: "bgp-salir" });
 }
 
 function mostrarAcceso(modo, mensaje) {
@@ -6992,7 +6996,7 @@ function mostrarAcceso(modo, mensaje) {
   $("formInicial").hidden = modo !== "inicial";
   const st = modo === "login" ? $("loginStatus") : $("inicialStatus");
   setStatus(st, mensaje || "", "hint" + (mensaje ? " msg-error" : ""));
-  setTimeout(() => { const f = modo === "login" ? $("loginUsuario") : $("inicialNombre"); if (f) f.focus(); }, 50);
+  setTimeout(() => { const f = modo === "login" ? document.querySelector(".btn-ingreso-sitio") : $("inicialNombre"); if (f) f.focus(); }, 50);
 }
 
 function iniciarApp(usuario) {
@@ -7043,25 +7047,6 @@ function arrancar() {
     })
     .catch(err => mostrarAcceso("login", "No se pudo conectar con el servidor: " + msgErr(err)));
 }
-
-$("formLogin").addEventListener("submit", async e => {
-  e.preventDefault();
-  const btn = $("btnLogin");
-  btn.disabled = true;
-  btn.classList.add("is-loading");
-  setStatus($("loginStatus"), "", "hint");
-  try {
-    const res = await runJson("login", { usuario: $("loginUsuario").value, clave: $("loginClave").value });
-    guardarToken(res.token);
-    $("loginClave").value = "";
-    iniciarApp(res.usuario);
-  } catch (err) {
-    setStatus($("loginStatus"), msgErr(err), "hint msg-error");
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove("is-loading");
-  }
-});
 
 $("formInicial").addEventListener("submit", async e => {
   e.preventDefault();
