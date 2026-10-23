@@ -13477,7 +13477,8 @@ function renderPlanillaInicio() {
 function dibujarImagenPlanilla(grupos, fechaIso) {
   const ESC = 2;
   const fuente = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
-  const C = { fondo: "#ffffff", texto: "#1f2a24", tenue: "#7a8279", previo: "#9aa09a", linea: "#e3e0d9", fuerte: "#c9c4ba",
+  // Bordes oscuros y de 1 a 2 px: en WhatsApp la imagen se ve achicada y las líneas claras desaparecen.
+  const C = { fondo: "#ffffff", texto: "#1f2a24", tenue: "#6b7269", previo: "#8d938c", linea: "#a9a397", fuerte: "#4a4f47",
     primario: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#1c4a2c", banda: "#f4f1eb" };
   const tablas = [["Pesos", "$"], ["USD", "U$D"]].map(m => ({ moneda: m[0], signo: m[1], gs: grupos.filter(g => g.moneda === m[0]) })).filter(t => t.gs.length);
   const medir = document.createElement("canvas").getContext("2d");
@@ -13537,6 +13538,7 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
     // Encabezado
     ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, CAB);
     ["CUENTA " + t.signo, "CUENTAS", "FCI", "TOTAL"].forEach((h, i) => texto(h, i === 0 ? xCol[0] + PAD : xCol[i + 1] - PAD, y + CAB / 2, { peso: "600", tam: 12, color: C.tenue, alinear: i === 0 ? "left" : "right" }));
+    const yTabla = y;
     linea(y + CAB - 2, C.fuerte, 2);
     y += CAB;
     let c = 0, f = 0;
@@ -13552,7 +13554,7 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
           texto(num(x.valor), xCol[2] - PAD, yc, { color: x.previo ? C.previo : C.texto, alinear: "right" });
           c += x.valor || 0;
         } else texto("Sin cuentas", xCol[2] - PAD, yc, { color: C.previo, alinear: "right", tam: 13 });
-        if (i < filas - 1) linea(y + FILA - 1, C.linea, 1, xCol[0], xCol[2]);
+        if (i < filas - 1) linea(y + FILA - 0.5, C.linea, 1, xCol[0], xCol[2]);
         y += FILA;
       }
       // FCI y TOTAL: una celda por banco (como las combinadas de la planilla).
@@ -13561,9 +13563,8 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
       f += g.fci.valor || 0;
       texto(num(g.fci.valor), xCol[3] - PAD, ym, { color: g.fci.previo ? C.previo : C.texto, alinear: "right" });
       texto(num(sub), xCol[4] - PAD, ym, { peso: "700", alinear: "right" });
-      ctx.fillStyle = C.linea;
-      [xCol[2], xCol[3]].forEach(xv => ctx.fillRect(xv, y0, 1, y - y0));
-      linea(y - 1, gi === t.gs.length - 1 ? C.fuerte : C.linea, 1);
+      // Entre bancos, línea más marcada que entre cuentas del mismo banco.
+      if (gi < t.gs.length - 1) linea(y - 1, C.fuerte, 1.5);
     });
     // Total
     ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, FILA);
@@ -13573,6 +13574,12 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
     texto(num(c), xCol[2] - PAD, yt, { peso: "700", alinear: "right" });
     texto(num(f), xCol[3] - PAD, yt, { peso: "700", alinear: "right" });
     texto(num(c + f), xCol[4] - PAD, yt, { peso: "800", alinear: "right", color: C.primario });
+    // Columnas y marco de toda la tabla.
+    ctx.fillStyle = C.linea;
+    [xCol[1], xCol[2], xCol[3]].forEach(xv => ctx.fillRect(xv - 0.5, yTabla, 1, y + FILA - yTabla));
+    ctx.strokeStyle = C.fuerte;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(MARGEN + 1, yTabla + 1, anchoTabla - 2, y + FILA - yTabla - 2);
     y += FILA + 26;
   });
   if (hayPrevios) { texto("En gris: último saldo informado (sin cambios ese día).", MARGEN, y, { tam: 12, color: C.tenue }); y += 22; }
