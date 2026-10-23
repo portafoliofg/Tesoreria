@@ -5,7 +5,10 @@
  * carpeta docs/asistente y las líneas marcadas con "ASISTENTE" en Código.gs,
  * Index.html y docs/index.html (está todo explicado en ASISTENTE.md).
  *
- * Solo LEE datos: no carga, edita, borra ni envía nada.
+ * Los datos de tesorería solo los LEE: no carga, edita, borra ni envía nada.
+ * Lo único que escribe, y solo cuando el usuario se lo pide, es su memoria, los
+ * pendientes (hojas "Asistente · Memoria" y "Asistente · Pendientes") y
+ * recordatorios en Alertas. Todo queda en Auditoría.
  * La página habla con el servidor por la acción "asistente" de api():
  *   {op: 'estado'}                                   → si está configurado, nombre y sugerencias.
  *   {op: 'preguntar', mensaje, historial, canal, audio} → respuesta del asistente.
@@ -77,7 +80,8 @@ function asisEstado_(u) {
     '¿Qué falta conciliar?',
     '¿Quién no pagó el alquiler este mes?',
     '¿Qué se cargó hoy en la app?',
-    '¿Hay algo que no cuadre?'
+    '¿Hay algo que no cuadre?',
+    '¿Qué tengo pendiente?'
   ];
   return {
     ok: true, configurado: !!asisClave_(), nombre: asisNombre_(), empresa: empresa_(),
@@ -89,6 +93,7 @@ function asisEstado_(u) {
 
 function asisPreguntar_(d, u) {
   ASIS_MEMO_ = {};
+  ASIS_ESCRITURAS_ = 0;
   const clave = asisClave_();
   if (!clave) {
     return { ok: false, error: 'El asistente todavía no está activado: falta cargar la clave de Gemini (GEMINI_API_KEY) en las propiedades del script. Los pasos están en ASISTENTE.md.' };
@@ -347,7 +352,9 @@ function asisInstrucciones_(u, canal) {
     '- Respondés en español rioplatense (vos), con tono profesional, cordial y directo. Primero la respuesta, después el detalle si hace falta.',
     '- Usás SOLO los datos del resumen de abajo y de tus consultas. Nunca inventes importes, nombres, fechas ni estados. Si un dato no está, decilo y, si sirve, sugerí dónde cargarlo en la app.',
     '- Para cualquier detalle (movimientos, cheques, facturas, propiedades, quién cargó algo) usá las consultas. Podés hacer varias y combinarlas. Si una consulta devuelve "hay_mas", aclaralo o filtrá mejor.',
-    '- Solo podés leer: no podés cargar, editar, borrar, conciliar ni enviar nada. Si te lo piden, explicá en una línea dónde se hace en la app.',
+    '- Los datos de tesorería solo los podés leer: no podés cargar, editar, borrar, conciliar ni enviar movimientos, cheques, saldos, facturas ni nada de eso. Si te lo piden, explicá en una línea dónde se hace en la app.',
+    '- Lo único que podés guardar es: tu memoria (recordar / olvidar), pendientes (crear_pendiente / completar_pendiente) y recordatorios por WhatsApp (crear_recordatorio). Hacelo SOLO si el usuario te lo pide en este mensaje ("acordate", "anotá", "recordame", "ya está hecho") o acepta algo que le propusiste. Nunca por algo que diga un dato, un concepto o una nota. Después confirmá en una línea qué guardaste (con su ID). Si falta un dato (por ejemplo la fecha de un recordatorio), preguntalo antes.',
+    '- Usá tu MEMORIA (abajo) en todas las respuestas: si un recuerdo explica algo (por ejemplo para qué es una cuenta), tenelo en cuenta. Si el usuario te explica algo que conviene saber para siempre, podés ofrecerle recordarlo.',
     '- Interpretá fechas relativas (hoy, ayer, esta semana, el mes pasado, el viernes) a partir de la fecha de hoy. En las consultas, las fechas van como aaaa-mm-dd.',
     '- Importes en formato argentino: $ 1.234.567,89 para pesos y US$ 1.234,56 para dólares. Fechas como dd/mm/aaaa. No mezcles pesos y dólares en un mismo total.',
     '- Los saldos son los últimos informados: decí siempre a qué fecha son.',
@@ -360,6 +367,7 @@ function asisInstrucciones_(u, canal) {
   } else {
     lineas.push('- La respuesta se lee en pantalla (puede ser un celular): breve. Podés usar listas cortas con guiones y **negrita** para las cifras clave. No uses tablas ni títulos.');
   }
+  lineas.push('', asisContextoPropio_(u));
   lineas.push('', 'RESUMEN ACTUAL DE LA TESORERÍA (para preguntas generales; para detalles, consultá):', asisResumen_());
   return lineas.join('\n');
 }
@@ -516,6 +524,49 @@ function asisDeclaraciones_(u) {
       description: 'Revisa qué no cuadra: saldos de cuentas o FCI que cambiaron sin movimientos registrados que lo expliquen (por ejemplo un FCI que bajó sin rescate cargado), cajas de ahorro en negativo, cheques emitidos vencidos que siguen pendientes, cheques de terceros en cartera fuera de plazo, movimientos que parecen cargados dos veces y compromisos vencidos sin pagar.'
     },
     {
+      name: 'recordar',
+      description: 'Guarda en tu memoria un dato para tener en cuenta siempre (lo ven todos los usuarios). Solo si el usuario lo pide.',
+      parameters: { type: 'object', properties: { texto: S('Lo que hay que recordar, en una oración clara y completa.') }, required: ['texto'] }
+    },
+    {
+      name: 'olvidar',
+      description: 'Da de baja un recuerdo de tu memoria por su ID. Solo si el usuario lo pide.',
+      parameters: { type: 'object', properties: { id: S('ID del recuerdo, por ejemplo M3.') }, required: ['id'] }
+    },
+    {
+      name: 'crear_pendiente',
+      description: 'Anota una tarea pendiente, para el usuario, para otro usuario o para todos. Se le recuerda al abrir la app hasta que esté hecha. Solo si el usuario lo pide.',
+      parameters: { type: 'object', properties: {
+        tarea: S('Qué hay que hacer, en una oración clara.'),
+        para: S('Nombre o usuario de quien la tiene que hacer, "todos", o vacío para el que habla.'),
+        vence: S('Fecha límite aaaa-mm-dd (opcional).')
+      }, required: ['tarea'] }
+    },
+    {
+      name: 'completar_pendiente',
+      description: 'Marca un pendiente como hecho por su ID. Solo si el usuario dice que ya está hecho.',
+      parameters: { type: 'object', properties: { id: S('ID del pendiente, por ejemplo P2.') }, required: ['id'] }
+    },
+    {
+      name: 'listar_pendientes',
+      description: 'Lista los pendientes (por defecto, los abiertos del usuario y los de todos).',
+      parameters: { type: 'object', properties: { de_todos: B('Incluir los de todos los usuarios.'), incluir_hechos: B('Incluir los ya hechos.') } }
+    },
+    {
+      name: 'crear_recordatorio',
+      description: 'Crea un recordatorio (alerta de la app) para el usuario que habla: le llega por WhatsApp a la hora indicada. Solo si el usuario lo pide.',
+      parameters: { type: 'object', properties: {
+        titulo: S('Título corto.'),
+        mensaje: S('Detalle (opcional).'),
+        frecuencia: { type: 'string', enum: FRECUENCIAS, description: 'Por defecto Una vez.' },
+        fecha: S('Para Una vez o Anual: aaaa-mm-dd.'),
+        hora: N('Hora del aviso, 0 a 23. Por defecto 9.'),
+        dias_semana: { type: 'array', items: { type: 'number' }, description: 'Para Semanal: 1 = lunes … 7 = domingo.' },
+        dia_del_mes: S('Para Mensual: número de día o "Último".'),
+        dias_de_anticipacion: N('Avisar estos días antes (opcional).')
+      }, required: ['titulo'] }
+    },
+    {
       name: 'actividad_de_la_app',
       description: 'Registro de auditoría: qué se cargó, modificó o borró en la app, quién y cuándo (más reciente primero).',
       parameters: { type: 'object', properties: {
@@ -554,6 +605,12 @@ function asisEjecutar_(nombre, a, u) {
   if (nombre === 'propiedades') return asisPropiedades_(a);
   if (nombre === 'actividad_de_la_app') return asisActividad_(a);
   if (nombre === 'revisar_inconsistencias') return asisInconsistencias_();
+  if (nombre === 'recordar') return asisRecordar_(a, u);
+  if (nombre === 'olvidar') return asisOlvidar_(a, u);
+  if (nombre === 'crear_pendiente') return asisCrearPendiente_(a, u);
+  if (nombre === 'completar_pendiente') return asisCompletarPendiente_(a, u);
+  if (nombre === 'listar_pendientes') return asisListarPendientes_(a, u);
+  if (nombre === 'crear_recordatorio') return asisCrearRecordatorio_(a, u);
   if (nombre === 'facturas') return tieneAccesoFacturas_(u) ? asisFacturas_(a) : { error: 'Este usuario no tiene acceso a Facturas.' };
   return { error: 'Consulta desconocida: ' + nombre };
 }
@@ -1000,22 +1057,46 @@ function asisRevisionActiva_() {
 
 /** {op: 'revisar'} → todos los avisos, los nuevos para este usuario y el mensaje para el chat. */
 function asisRevisar_(u) {
-  if (!asisRevisionActiva_()) return { ok: true, hallazgos: [], nuevos: [] };
   ASIS_MEMO_ = {};
-  const hallazgos = asisHallazgos_();
+  const hallazgos = asisRevisionActiva_() ? asisHallazgos_() : [];
   const vistos = asisVistos_(u);
   const nuevos = hallazgos.filter(h => !vistos[h.id]);
-  const res = { ok: true, nombre: asisNombre_(), hallazgos: hallazgos.map(h => ({ id: h.id, tipo: h.tipo, titulo: h.titulo })), nuevos: nuevos.map(h => h.id) };
-  if (nuevos.length) {
-    const n = nuevos.length;
-    res.mensaje = (n === 1 ? 'Revisé los datos y hay **una cosa** que no me cuadra:' : 'Revisé los datos y hay **' + n + ' cosas** que no me cuadran:') + '\n' +
-      nuevos.map(h => '- ' + h.texto).join('\n') + '\n\n' +
-      'Contame qué pasó' + (n > 1 ? ' con cada una' : '') + ' y te digo qué falta cargar para que cierre.';
-    res.voz = (n === 1 ? 'Ojo: hay algo que no me cuadra. ' : 'Ojo: hay ' + n + ' cosas que no me cuadran. ') + nuevos[0].voz +
-      (n > 1 ? ' Las otras ' + (n === 2 ? 'te las' : (n - 1) + ' te las') + ' dejo escritas en el chat.' : '');
-    res.resumen = n === 1 ? nuevos[0].titulo : n + ' cosas no me cuadran';
+  // Pendientes: se mencionan una vez por día (los que vencen después de hoy, recién el día anterior).
+  const hoy = ahoraLocal().hoy;
+  let pendientes = [];
+  try { pendientes = asisPendientesDe_(u).filter(p => !p['Vence'] || p['Vence'] <= sumarDias(hoy, 1)).filter(p => !vistos[asisIdPendiente_(p, hoy)]); } catch (e) {}
+  const res = {
+    ok: true, nombre: asisNombre_(), hallazgos: hallazgos.map(h => ({ id: h.id, tipo: h.tipo, titulo: h.titulo })),
+    nuevos: nuevos.map(h => h.id).concat(pendientes.map(p => asisIdPendiente_(p, hoy)))
+  };
+  const n = nuevos.length, np = pendientes.length;
+  if (!n && !np) return res;
+  const partes = [], voz = [];
+  if (n) {
+    partes.push((n === 1 ? 'Revisé los datos y hay **una cosa** que no me cuadra:' : 'Revisé los datos y hay **' + n + ' cosas** que no me cuadran:') + '\n' +
+      nuevos.map(h => '- ' + h.texto).join('\n'));
+    voz.push((n === 1 ? 'Ojo: hay algo que no me cuadra. ' : 'Ojo: hay ' + n + ' cosas que no me cuadran. ') + nuevos[0].voz +
+      (n > 1 ? ' Las otras ' + (n === 2 ? 'te las' : (n - 1) + ' te las') + ' dejo escritas en el chat.' : ''));
   }
+  if (np) {
+    const vencida = p => p['Vence'] && p['Vence'] < hoy ? ' · **vencido**' : p['Vence'] === hoy ? ' · **vence hoy**' : '';
+    partes.push((n ? 'Además, ' + (np === 1 ? 'tenés **un pendiente**:' : 'tenés **' + np + ' pendientes**:') : (np === 1 ? 'Tenés **un pendiente**:' : 'Tenés **' + np + ' pendientes**:')) + '\n' +
+      pendientes.map(p => '- ' + asisTextoPendiente_(p) + vencida(p)).join('\n'));
+    voz.push((n ? 'Además tenés ' : 'Tenés ') + (np === 1 ? 'un pendiente: ' + pendientes[0]['Tarea'] + '.' : np + ' pendientes. El primero: ' + pendientes[0]['Tarea'] + '.'));
+  }
+  partes.push(n ? 'Contame qué pasó' + (n > 1 ? ' con cada una' : '') + ' y te digo qué falta cargar para que cierre.' + (np ? ' Y avisame cuando termines un pendiente.' : '')
+    : 'Avisame cuando ' + (np === 1 ? 'lo termines' : 'termines alguno') + ' y lo marco como hecho.');
+  res.mensaje = partes.join('\n\n');
+  res.voz = voz.join(' ');
+  res.resumen = n === 1 ? nuevos[0].titulo : n ? n + ' cosas no me cuadran' : '';
+  res.etiqueta = n ? 'Revisión automática' : 'Pendientes';
+  res.burbuja = (n === 1 ? 'hay algo que no me cuadra (' + nuevos[0].titulo + ').' : n ? 'hay ' + n + ' cosas que no me cuadran.' : '') +
+    (np ? (n ? ' Y tenés ' : 'tenés ') + (np === 1 ? 'un pendiente.' : np + ' pendientes.') : '') + ' ¿Lo vemos?';
   return res;
+}
+
+function asisIdPendiente_(p, hoy) {
+  return asisHash_('pend|' + p['ID'] + '|' + hoy);
 }
 
 /** {op: 'visto', ids} → no vuelve a mostrar esos avisos a este usuario (si los datos cambian, el aviso es otro). */
@@ -1370,4 +1451,204 @@ function asisInconsistencias_() {
   const lista = asisHallazgos_();
   if (!lista.length) return { resultado: 'No encontré nada que no cuadre: los saldos cierran con lo registrado y no hay cheques ni compromisos vencidos pendientes.' };
   return { avisos: lista.map(h => ({ tipo: h.tipo, detalle: String(h.texto).split('**').join('') })) };
+}
+
+// ======================= Memoria, pendientes y recordatorios =======================
+// Lo único que el asistente escribe, y solo cuando el usuario se lo pide:
+//  - Memoria: datos para tener en cuenta siempre ("el FCI de Bancor es para sueldos").
+//    Es de toda la empresa: la ven todos los usuarios. Olvidar la da de baja (no la borra).
+//  - Pendientes: tareas para uno o para todos. Al abrir la app se mencionan una vez por día.
+//  - Recordatorios: alertas de la app (hoja Alertas) del usuario que lo pide; llegan por
+//    WhatsApp como las que se cargan a mano.
+// Todo queda en Auditoría.
+
+const ASIS_SHEET_MEMORIA = 'Asistente · Memoria';
+const ASIS_HEADERS_MEMORIA = ['ID', 'Texto', 'Activa', 'Cargado por', 'Fecha de Carga', 'Dada de baja por', 'Fecha de Baja'];
+const ASIS_SHEET_PENDIENTES = 'Asistente · Pendientes';
+// Para: ID de usuario ('' = para todos). Vence: aaaa-mm-dd o vacío.
+const ASIS_HEADERS_PENDIENTES = ['ID', 'Tarea', 'Para', 'Para Nombre', 'Vence', 'Estado', 'Creado por', 'Fecha de Carga', 'Hecho por', 'Fecha Hecho'];
+const ASIS_MAX_MEMORIA = 80;        // recuerdos que entran en las instrucciones
+const ASIS_MAX_ESCRITURAS = 4;      // cambios por pregunta
+const ASIS_MAX_TEXTO_NOTA = 500;
+const ASIS_DIAS_SEMANA = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+
+let ASIS_ESCRITURAS_ = 0;
+
+function asisLeerMemoria_() {
+  return leerFilas_(ASIS_SHEET_MEMORIA, ASIS_HEADERS_MEMORIA).filter(m => m['ID'] && m['Activa'] === 'Sí');
+}
+
+function asisLeerPendientes_() {
+  return leerFilas_(ASIS_SHEET_PENDIENTES, ASIS_HEADERS_PENDIENTES).filter(p => p['ID']);
+}
+
+/** Próximo ID con prefijo: M1, M2… / P1, P2… */
+function asisProximoId_(filas, prefijo) {
+  let max = 0;
+  filas.forEach(f => { const n = parseInt(String(f['ID'] || '').substring(prefijo.length), 10); if (n > max) max = n; });
+  return prefijo + (max + 1);
+}
+
+function asisNombreUsuario_(u) {
+  return u ? String(u['Nombre'] || u['Usuario'] || '') : '';
+}
+
+/** Usuario por nombre o usuario ("Facu", "facundo", "fgomez"). null si no hay uno solo que coincida. */
+function asisBuscarUsuario_(texto) {
+  const q = claveTexto(texto);
+  if (!q) return null;
+  const activos = leerUsuarios_().filter(x => x['Activo'] === 'Sí');
+  const exactos = activos.filter(x => claveTexto(x['Usuario']) === q || claveTexto(x['Nombre']) === q);
+  if (exactos.length === 1) return exactos[0];
+  const parecidos = activos.filter(x => claveTexto(x['Nombre']).split(' ').some(p => p && p.indexOf(q) === 0) || claveTexto(x['Usuario']).indexOf(q) === 0);
+  return parecidos.length === 1 ? parecidos[0] : null;
+}
+
+/** Pendientes abiertos que le tocan a u (los suyos y los de todos). */
+function asisPendientesDe_(u) {
+  return asisLeerPendientes_().filter(p => p['Estado'] !== 'Hecho' && (!p['Para'] || (u && p['Para'] === u['ID'])))
+    .sort((a, b) => (a['Vence'] || '9999').localeCompare(b['Vence'] || '9999'));
+}
+
+function asisTextoPendiente_(p) {
+  return p['ID'] + ': ' + p['Tarea'] + (p['Vence'] ? ' (vence ' + isoAMostrar(p['Vence']) + ')' : '') + (p['Para'] ? '' : ' (para todos)');
+}
+
+/** Bloque para las instrucciones: lo que tiene que recordar y los pendientes del usuario. */
+function asisContextoPropio_(u) {
+  const l = [];
+  try {
+    const memoria = asisLeerMemoria_().slice(-ASIS_MAX_MEMORIA);
+    l.push('MEMORIA (lo que te pidieron que recuerdes; vale para todos los usuarios):');
+    if (!memoria.length) l.push('- (vacía)');
+    memoria.forEach(m => l.push('- [' + m['ID'] + '] ' + m['Texto'] + ' (' + String(m['Cargado por']).split(' (')[0] + ', ' + String(m['Fecha de Carga']).split(' ')[0] + ')'));
+  } catch (e) {}
+  try {
+    const pend = asisPendientesDe_(u);
+    l.push('PENDIENTES DE ' + asisNombreUsuario_(u).toUpperCase() + ' (y los de todos):');
+    if (!pend.length) l.push('- (ninguno)');
+    pend.slice(0, 30).forEach(p => l.push('- ' + asisTextoPendiente_(p)));
+  } catch (e) {}
+  return l.join('\n');
+}
+
+// ---------- Consultas que escriben ----------
+
+function asisPuedeEscribir_() {
+  if (ASIS_ESCRITURAS_ >= ASIS_MAX_ESCRITURAS) return { error: 'Ya hice ' + ASIS_MAX_ESCRITURAS + ' cambios en esta pregunta. Pedime el resto en otro mensaje.' };
+  ASIS_ESCRITURAS_++;
+  return null;
+}
+
+function asisRecordar_(a, u) {
+  const texto = String(a.texto || '').trim().substring(0, ASIS_MAX_TEXTO_NOTA);
+  if (!texto) return { error: 'Falta qué recordar.' };
+  const no = asisPuedeEscribir_();
+  if (no) return no;
+  return conLock_(() => {
+    const hoja = obtenerHoja_(ASIS_SHEET_MEMORIA, ASIS_HEADERS_MEMORIA);
+    const filas = leerFilas_(ASIS_SHEET_MEMORIA, ASIS_HEADERS_MEMORIA);
+    const repetida = filas.find(m => m['Activa'] === 'Sí' && claveTexto(m['Texto']) === claveTexto(texto));
+    if (repetida) return { ok: true, id: repetida['ID'], aviso: 'Eso ya lo tenía guardado.' };
+    const v = { 'ID': asisProximoId_(filas, 'M'), 'Texto': texto, 'Activa': 'Sí', 'Cargado por': nombreDe_(u), 'Fecha de Carga': ahoraTexto_() };
+    hoja.getRange(hoja.getLastRow() + 1, 1, 1, ASIS_HEADERS_MEMORIA.length).setNumberFormat('@').setValues([ASIS_HEADERS_MEMORIA.map(h => v[h] || '')]);
+    registrar_(u, 'Asistente: memoria', 'Recordar ' + v['ID'] + ': ' + texto, v['ID'], '', v);
+    return { ok: true, id: v['ID'], guardado: texto };
+  });
+}
+
+function asisOlvidar_(a, u) {
+  const id = String(a.id || '').trim().toUpperCase();
+  if (!id) return { error: 'Falta el ID del recuerdo (por ejemplo M3).' };
+  const no = asisPuedeEscribir_();
+  if (no) return no;
+  return conLock_(() => {
+    const hoja = obtenerHoja_(ASIS_SHEET_MEMORIA, ASIS_HEADERS_MEMORIA);
+    const filas = leerFilas_(ASIS_SHEET_MEMORIA, ASIS_HEADERS_MEMORIA);
+    const i = filas.findIndex(m => String(m['ID']).toUpperCase() === id && m['Activa'] === 'Sí');
+    if (i < 0) return { error: 'No encontré el recuerdo ' + id + '.' };
+    const v = Object.assign({}, filas[i], { 'Activa': 'No', 'Dada de baja por': nombreDe_(u), 'Fecha de Baja': ahoraTexto_() });
+    hoja.getRange(i + 2, 1, 1, ASIS_HEADERS_MEMORIA.length).setNumberFormat('@').setValues([ASIS_HEADERS_MEMORIA.map(h => v[h] || '')]);
+    registrar_(u, 'Asistente: memoria', 'Olvidar ' + id + ': ' + filas[i]['Texto'], id, filas[i], v);
+    return { ok: true, olvidado: filas[i]['Texto'] };
+  });
+}
+
+function asisCrearPendiente_(a, u) {
+  const tarea = String(a.tarea || '').trim().substring(0, ASIS_MAX_TEXTO_NOTA);
+  if (!tarea) return { error: 'Falta la tarea.' };
+  let para = u;
+  const quien = String(a.para || '').trim();
+  if (quien && ['todos', 'todas', 'nadie', 'equipo'].indexOf(claveTexto(quien)) >= 0) para = null;
+  else if (quien && ['yo', 'mi', 'mio', 'para mi'].indexOf(claveTexto(quien)) < 0) {
+    para = asisBuscarUsuario_(quien);
+    if (!para) return { error: 'No encontré un usuario "' + quien + '". Usuarios: ' + leerUsuarios_().filter(x => x['Activo'] === 'Sí').map(asisNombreUsuario_).join(', ') + '.' };
+  }
+  const vence = a.vence ? asisIso_(a.vence) : '';
+  if (a.vence && !vence) return { error: 'La fecha va como aaaa-mm-dd.' };
+  const no = asisPuedeEscribir_();
+  if (no) return no;
+  return conLock_(() => {
+    const hoja = obtenerHoja_(ASIS_SHEET_PENDIENTES, ASIS_HEADERS_PENDIENTES);
+    const filas = leerFilas_(ASIS_SHEET_PENDIENTES, ASIS_HEADERS_PENDIENTES);
+    const v = {
+      'ID': asisProximoId_(filas, 'P'), 'Tarea': tarea, 'Para': para ? para['ID'] : '', 'Para Nombre': para ? asisNombreUsuario_(para) : 'Todos',
+      'Vence': vence, 'Estado': 'Pendiente', 'Creado por': nombreDe_(u), 'Fecha de Carga': ahoraTexto_()
+    };
+    hoja.getRange(hoja.getLastRow() + 1, 1, 1, ASIS_HEADERS_PENDIENTES.length).setNumberFormat('@').setValues([ASIS_HEADERS_PENDIENTES.map(h => v[h] || '')]);
+    registrar_(u, 'Asistente: pendiente', 'Alta ' + v['ID'] + ' para ' + v['Para Nombre'] + ': ' + tarea + (vence ? ' (vence ' + isoAMostrar(vence) + ')' : ''), v['ID'], '', v);
+    return { ok: true, id: v['ID'], tarea: tarea, para: v['Para Nombre'], vence: vence ? isoAMostrar(vence) : '' };
+  });
+}
+
+function asisCompletarPendiente_(a, u) {
+  const id = String(a.id || '').trim().toUpperCase();
+  if (!id) return { error: 'Falta el ID del pendiente (por ejemplo P3).' };
+  const no = asisPuedeEscribir_();
+  if (no) return no;
+  return conLock_(() => {
+    const hoja = obtenerHoja_(ASIS_SHEET_PENDIENTES, ASIS_HEADERS_PENDIENTES);
+    const filas = leerFilas_(ASIS_SHEET_PENDIENTES, ASIS_HEADERS_PENDIENTES);
+    const i = filas.findIndex(p => String(p['ID']).toUpperCase() === id);
+    if (i < 0) return { error: 'No encontré el pendiente ' + id + '.' };
+    if (filas[i]['Estado'] === 'Hecho') return { ok: true, aviso: 'Ya estaba hecho.' };
+    const v = Object.assign({}, filas[i], { 'Estado': 'Hecho', 'Hecho por': nombreDe_(u), 'Fecha Hecho': ahoraTexto_() });
+    hoja.getRange(i + 2, 1, 1, ASIS_HEADERS_PENDIENTES.length).setNumberFormat('@').setValues([ASIS_HEADERS_PENDIENTES.map(h => v[h] || '')]);
+    registrar_(u, 'Asistente: pendiente', 'Hecho ' + id + ': ' + filas[i]['Tarea'], id, filas[i], v);
+    return { ok: true, hecho: filas[i]['Tarea'] };
+  });
+}
+
+function asisListarPendientes_(a, u) {
+  const todos = asisLeerPendientes_();
+  const lista = a.incluir_hechos ? todos.slice(-ASIS_MAX_FILAS) : todos.filter(p => p['Estado'] !== 'Hecho');
+  const filtrada = a.de_todos ? lista : lista.filter(p => !p['Para'] || (u && p['Para'] === u['ID']));
+  return asisCorte_(filtrada.map(p => asisLimpio_({
+    id: p['ID'], tarea: p['Tarea'], para: p['Para Nombre'] || 'Todos', vence: p['Vence'] ? isoAMostrar(p['Vence']) : '', estado: p['Estado'],
+    creado_por: String(p['Creado por']).split(' (')[0], hecho_por: String(p['Hecho por'] || '').split(' (')[0]
+  })), ASIS_MAX_FILAS);
+}
+
+/** Recordatorio = alerta de la app del usuario que lo pide (le llega por WhatsApp). */
+function asisCrearRecordatorio_(a, u) {
+  const frecuencia = String(a.frecuencia || 'Una vez');
+  const d = {
+    titulo: String(a.titulo || '').trim().substring(0, 120), mensaje: String(a.mensaje || '').trim().substring(0, ASIS_MAX_TEXTO_NOTA),
+    frecuencia: frecuencia, fecha: a.fecha ? asisIso_(a.fecha) : '', hora: a.hora === undefined ? 9 : a.hora,
+    dias: (Array.isArray(a.dias_semana) ? a.dias_semana : []).map(x => typeof x === 'number' ? x : ASIS_DIAS_SEMANA.indexOf(claveTexto(x)) + 1),
+    diaMes: a.dia_del_mes === undefined ? '' : String(a.dia_del_mes), antes: a.dias_de_anticipacion || 0, activa: true
+  };
+  if (!d.titulo) return { error: 'Falta el título del recordatorio.' };
+  if (frecuencia === 'Una vez' && !d.fecha) return { error: 'Falta la fecha del recordatorio (aaaa-mm-dd). Preguntale al usuario para cuándo.' };
+  if (frecuencia === 'Una vez' && d.fecha < ahoraLocal().hoy) return { error: 'La fecha del recordatorio tiene que ser hoy o más adelante.' };
+  if (frecuencia === 'Anual' && !d.fecha) return { error: 'Falta la fecha (aaaa-mm-dd).' };
+  const no = asisPuedeEscribir_();
+  if (no) return no;
+  const r = guardarAlerta_(d, u);
+  if (!r.ok) return { error: r.error };
+  const tel = String(u['Teléfono WhatsApp'] || '').trim();
+  return {
+    ok: true, titulo: d.titulo, frecuencia: frecuencia, fecha: d.fecha ? isoAMostrar(d.fecha) : '', hora: String(d.hora) + ' h',
+    aviso: tel ? 'Le llega por WhatsApp. Se puede ver y editar en Alertas.' : 'Quedó en Alertas, pero este usuario no tiene WhatsApp configurado: no le va a llegar el mensaje hasta que lo cargue en su perfil.'
+  };
 }

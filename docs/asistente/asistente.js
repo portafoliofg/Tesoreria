@@ -15,8 +15,8 @@
  * "Manos libres": después de leer la respuesta vuelve a escuchar solo.
  *
  * Avisos: al abrir la app (o la página) y después de guardar saldos o movimientos,
- * le pide al servidor la revisión de cosas que no cuadran (op "revisar"). Si hay
- * avisos nuevos, el botón muestra cuántos y aparece un globito; si se acaban de
+ * le pide al servidor la revisión de cosas que no cuadran y los pendientes del
+ * usuario (op "revisar"). Si hay avisos nuevos, el botón muestra cuántos y aparece un globito; si se acaban de
  * guardar saldos, el chat se abre solo, lo dice en voz alta y pregunta qué pasó.
  *
  * Asistente.montarPagina(contenedor, {usuario, alSalir})  chat a pantalla completa
@@ -38,7 +38,8 @@
     buscar_movimientos: "movimientos", buscar_cheques: "cheques", saldos: "saldos", cuentas_bancarias: "cuentas",
     proximos_vencimientos: "vencimientos", compromisos: "compromisos", inversiones: "inversiones",
     propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas",
-    revisar_inconsistencias: "revisión"
+    revisar_inconsistencias: "revisión", recordar: "memoria", olvidar: "memoria", crear_pendiente: "pendientes",
+    completar_pendiente: "pendientes", listar_pendientes: "pendientes", crear_recordatorio: "recordatorios"
   };
   // Acciones de la app después de las cuales se vuelve a revisar si algo no cuadra.
   var ACCIONES_QUE_CAMBIAN = ["guardarSaldos", "guardarSaldo", "guardarMovimientosFci", "eliminarMovimientoFci", "guardarTransferencias", "cambiarCondicion",
@@ -500,12 +501,12 @@
     }
     if (m.rol === "usuario") return el("div", "asis-msg usuario", { texto: m.texto });
     var nodo = el("div", "asis-msg asistente" + (m.alerta ? " alerta" : ""), { html: aHtml(m.texto) });
-    if (m.alerta) nodo.insertBefore(el("div", "asis-etiqueta", { texto: "Revisión automática" }), nodo.firstChild);
+    if (m.alerta) nodo.insertBefore(el("div", "asis-etiqueta", { texto: m.etiqueta || "Revisión automática" }), nodo.firstChild);
     var meta = el("div", "asis-meta");
     if (m.consultas && m.consultas.length) {
       var vistas = [];
       m.consultas.forEach(function (c) { var t = NOMBRES_CONSULTA[c] || c; if (vistas.indexOf(t) < 0) vistas.push(t); });
-      meta.appendChild(el("span", "", { texto: "Consultó: " + vistas.join(" · ") }));
+      meta.appendChild(el("span", "", { texto: "Usó: " + vistas.join(" · ") }));
     }
     if ("speechSynthesis" in window) {
       var escuchar = el("button", "", { type: "button", texto: "Escuchar" });
@@ -557,7 +558,7 @@
    */
   Chat.prototype.mostrarAlerta = function (r, hablar) {
     if (!r || !r.mensaje) return;
-    this.agregar({ rol: "asistente", texto: r.mensaje, alerta: true });
+    this.agregar({ rol: "asistente", texto: r.mensaje, alerta: true, etiqueta: r.etiqueta || "" });
     if (hablar) { prepararVoz(); this.leerEnVoz(r.voz || r.mensaje, false); }
     pedir({ op: "visto", ids: r.nuevos || [] }).then(null, function () {});
   };
@@ -1012,8 +1013,8 @@
     var mostrar = !!n && !abierto && flotante.burbujaCerrada !== a.nuevos.join(",");
     if (mostrar) {
       var nombre = flotante.nombre || "Asistente";
-      flotante.burbujaTexto.innerHTML = "<b>" + esc(nombre) + ":</b> " +
-        (n === 1 ? "hay algo que no me cuadra" + (a.resumen ? " (" + esc(a.resumen) + ")" : "") + "." : "hay " + n + " cosas que no me cuadran.") + " ¿Lo vemos?";
+      flotante.burbujaTexto.innerHTML = "<b>" + esc(nombre) + ":</b> " + esc(a.burbuja ||
+        (n === 1 ? "hay algo que no me cuadra" + (a.resumen ? " (" + a.resumen + ")" : "") + "." : "hay " + n + " cosas que no me cuadran.") + " ¿Lo vemos?");
     }
     flotante.burbuja.hidden = !mostrar;
   }

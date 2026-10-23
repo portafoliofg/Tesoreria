@@ -11,8 +11,9 @@ su nivel **gratuito**.
   agregar a la pantalla de inicio (menú del navegador → *Agregar a la pantalla principal*)
   y queda como una app.
 
-**Solo lee.** No puede cargar, editar, borrar, conciliar ni enviar nada. Lo único que guarda es
-qué avisos ya le mostró a cada usuario (en las propiedades del script, no en las hojas).
+**Los datos de tesorería solo los lee.** No puede cargar, editar, borrar, conciliar ni enviar
+movimientos, cheques, saldos ni facturas. Lo único que escribe, y solo cuando se lo piden, es su
+memoria, los pendientes y recordatorios (ver abajo). Todo queda en Auditoría.
 
 ## Activarlo (una sola vez, 5 minutos)
 
@@ -45,6 +46,26 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
 - **Auriculares** (arriba) = **manos libres**: después de cada respuesta vuelve a escuchar.
   Se apaga diciendo *"listo"*, *"gracias"* o *"chau"*, o si no escucha nada.
 - **Lápiz**: empieza una charla nueva. La charla queda guardada en ese navegador.
+
+## Memoria, pendientes y recordatorios
+
+Se le pide hablando o escribiendo:
+
+| Decile | Qué hace |
+|---|---|
+| *"Acordate que el FCI de Bancor es para sueldos"* | Lo guarda en su **memoria** y lo tiene en cuenta siempre. La memoria es de toda la empresa: la ven todos los usuarios. |
+| *"¿Qué te acordás?"* / *"Olvidate de lo del FCI de Bancor"* | Muestra la memoria / la da de baja. |
+| *"Anotá que Ana tiene que cargar el rescate de BBVA para el viernes"* | Crea un **pendiente** (para vos, para otro usuario o *"para todos"*), con fecha si se la decís. |
+| *"¿Qué tengo pendiente?"* / *"Ya llamé al banco"* | Lista los pendientes / marca uno como hecho. |
+| *"Recordame el martes a las 10 pagar AFIP"* | Crea un **recordatorio** en Alertas: llega por WhatsApp como las demás alertas (hace falta tener el WhatsApp cargado en el perfil). También semanales, mensuales, etc. |
+
+- Al abrir la app, Jarvis menciona los pendientes de ese usuario (y los de todos) una vez por día:
+  los que no tienen fecha y los que vencen hoy o mañana.
+- Todo queda en la planilla, en las hojas **Asistente · Memoria** y **Asistente · Pendientes**
+  (se crean solas la primera vez), y los recordatorios en **Alertas**. Se pueden revisar o corregir
+  a mano.
+- Hace como máximo 4 cambios por pregunta, y nunca guarda nada por algo que diga un dato o un
+  concepto: solo cuando el usuario se lo pide.
 
 ## Avisos: cosas que no cuadran
 
@@ -98,7 +119,7 @@ el chat ofrece abrir su página, donde funciona.
 
 | Archivo | Qué es |
 |---|---|
-| `src/Asistente.gs` | Servidor: llama a Gemini y hace las consultas (solo lectura). |
+| `src/Asistente.gs` | Servidor: llama a Gemini, hace las consultas, la revisión, la memoria y los pendientes. |
 | `docs/asistente/` | Página propia, chat (`asistente.js`, el mismo para la app y la página) y manifiesto. |
 | `ASISTENTE.md` | Este archivo. |
 
@@ -113,7 +134,8 @@ Y tres líneas marcadas con `ASISTENTE` en archivos existentes:
 1. Borrar `src/Asistente.gs`, la carpeta `docs/asistente/` y este archivo.
 2. Borrar las líneas marcadas con `ASISTENTE` (lista de arriba). En `Código.gs` dejá
    `ACCIONES_SITIO` como estaba: `['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades']`.
-3. Opcional: borrar las propiedades `GEMINI_API_KEY` y `ASIS_VISTOS_…`, y la clave en AI Studio.
+3. Opcional: borrar las propiedades `GEMINI_API_KEY` y `ASIS_VISTOS_…`, las hojas `Asistente · Memoria` y
+   `Asistente · Pendientes`, y la clave en AI Studio.
 
 Si solo se borra `Asistente.gs` y quedan las líneas, la app sigue funcionando igual:
 el chat avisa que el asistente no está instalado.
