@@ -154,26 +154,6 @@
     recalcularLiquidacion(d);
   }
 
-  // Importe en letras para el recibo ("doce millones setecientos ocho mil…").
-  function enLetras(n) {
-    n = Math.floor(Math.abs(n));
-    var U = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
-    var D = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
-    var C = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
-    function hasta999(x) {
-      if (x === 100) return "cien";
-      var c = Math.floor(x / 100), r = x % 100, t = [];
-      if (c) t.push(C[c]);
-      if (r < 30) { if (r) t.push(U[r]); }
-      else { var d = Math.floor(r / 10), u = r % 10; t.push(D[d] + (u ? " y " + U[u] : "")); }
-      return t.join(" ");
-    }
-    function grupo(x, sing, plur) { return x === 0 ? "" : x === 1 ? sing : hasta999(x).replace(/uno$/, "un") + " " + plur; }
-    if (n === 0) return "cero";
-    var mill = Math.floor(n / 1e6), miles = Math.floor((n % 1e6) / 1000), resto = n % 1000;
-    return [grupo(mill, "un millón", "millones"), miles === 1 ? "mil" : miles ? hasta999(miles).replace(/uno$/, "un") + " mil" : "", resto ? hasta999(resto) : ""].filter(Boolean).join(" ");
-  }
-
   // ----- Datos -----
   function cargar(seleccion) {
     return BGPSesion.pedir("obtenerPropiedades").then(function (r) {
@@ -302,19 +282,12 @@
 
   // ----- Resumen -----
   function vistaResumen(d) {
+    // Sin los avisos de controles ni las notas de la planilla (pedido): solo números y referencias.
     var box = el("div");
-    var obs = observaciones(d);
-    if (obs.length) {
-      var al = el("div", "alertas");
-      obs.forEach(function (o) { al.append(el("div", "alerta" + (o.error ? " error" : ""), o.texto)); });
-      box.append(al);
-    }
     box.append(kpis(d));
     var g = el("div", "grilla mitad");
     var der = el("div", "columna");
     der.append(panelReferencias(d));
-    var notas = panelNotas(d);
-    if (notas) der.append(notas);
     g.append(panelLiquidacion(d), der);
     box.append(g);
     return box;
@@ -381,31 +354,7 @@
       }
       p.append(acc);
     }
-    var rec = el("div", "recibo");
-    if (editando()) {
-      var ta = el("textarea", "celda");
-      ta.rows = 2; ta.value = d.recibo || ""; ta.setAttribute("aria-label", "Texto del recibo");
-      ta.addEventListener("change", function () { d.recibo = ta.value.trim(); });
-      rec.append(ta);
-      var cob = (d.liquidacion || []).filter(function (x) { return x.tipo === "total"; }).pop();
-      if (cob && typeof cob.monto === "number") {
-        var letras = el("button", "boton secundario chico", "Poner el total en letras");
-        letras.type = "button";
-        letras.addEventListener("click", function () {
-          var txt = "(" + enLetras(cob.monto) + ")";
-          d.recibo = /\(.*\)/.test(d.recibo || "") ? d.recibo.replace(/\(.*\)/, txt) : "Recibí la suma TOTAL de " + txt;
-          repintarPestana();
-        });
-        rec.append(letras);
-      }
-      var fi = campoTxt(d.firma, function (v) { d.firma = v; }, { titulo: "Firma" });
-      fi.classList.add("firma-campo");
-      rec.append(fi);
-    } else if (d.recibo || d.firma) {
-      if (d.recibo) rec.append(el("div", null, d.recibo));
-      if (d.firma) rec.append(el("div", "firma", d.firma));
-    }
-    if (rec.childNodes.length) p.append(rec);
+    // El recibo ("Recibí la suma TOTAL de…" y la firma) ya no se muestra; el dato queda guardado.
     return p;
   }
 
@@ -419,23 +368,6 @@
       refs.append(li);
     });
     p.append(refs);
-    return p;
-  }
-
-  function notasDe(d) {
-    var ex = d.expensas || {}, out = [];
-    [ex.aCargo, ex.impuestos].forEach(function (b) { if (b && b.nota && b.nota.texto) out.push({ bloque: b.titulo, texto: b.nota.texto }); });
-    return out;
-  }
-  function panelNotas(d) {
-    var ns = notasDe(d);
-    if (!ns.length) return null;
-    var p = panel("Notas");
-    ns.forEach(function (n) {
-      var x = el("p", "nota");
-      x.append(el("b", null, n.bloque + ": "), document.createTextNode(n.texto));
-      p.append(x);
-    });
     return p;
   }
 
@@ -613,8 +545,6 @@
     var ex = d.expensas || {};
     var aC = ex.aCargo, imp = ex.impuestos;
     var box = el("div", "columna");
-    var notas = panelNotas(d);
-    if (notas) box.append(notas);
     function campo(cont, etiqueta, valor, alCambiar, ayuda) {
       var lab = el("label", null, etiqueta);
       if (ed) lab.append(campoNum(valor, alCambiar, { titulo: etiqueta, placeholder: "Sin cargar" }));
@@ -763,38 +693,6 @@
     return p;
   }
 
-  // ----- Controles: lo que no cierra o falta cargar -----
-  function observaciones(d) {
-    var out = [];
-    var tp = d.totalesPlanilla || {};
-    var sumaT = hay(d.unidades, "transferencia") ? suma(d.unidades, "transferencia") : null;
-    var ingresos = (d.liquidacion || []).filter(function (x) { return x.tipo === "ingreso" && /TRANSFER/i.test(x.concepto); });
-    if (ingresos.length && typeof sumaT === "number") {
-      var tr = suma(ingresos, "monto"), dif = tr - sumaT;
-      if (Math.abs(dif) >= 0.01) {
-        var u = d.unidades.find(function (x) { return typeof x.transferencia === "number" && Math.abs(Math.abs(dif) - x.transferencia) <= 1; });
-        out.push({ texto: "Transferencias: la liquidación dice " + pesos(tr) + " y la suma de las unidades da " + pesos(sumaT) + " (diferencia " + pesos(dif) + ")." +
-          (u ? " La diferencia coincide con lo que transfirió " + u.unidad + (u.inquilino ? " (" + u.inquilino + ")" : "") + ": puede estar contado dos veces." : "") });
-      }
-    }
-    var base = (d.liquidacion || []).find(function (x) { return x.tipo === "base"; });
-    var sumaTot = hay(d.unidades, "total") ? suma(d.unidades, "total") : (typeof tp.total === "number" ? tp.total : null);
-    if (base && typeof base.monto === "number" && typeof sumaTot === "number" && Math.abs(base.monto - sumaTot) >= 0.005) {
-      out.push({ texto: "Efectivo: la liquidación toma " + pesos(base.monto) + " y las unidades que pagan en efectivo suman " + pesos(sumaTot) + " (diferencia " + pesos(sumaTot - base.monto) + ")." });
-    }
-    var mezcla = d.unidades.filter(function (x) { return x.forma === "Efectivo" && typeof x.transferencia === "number" && x.transferencia && !x.efectivo; });
-    if (mezcla.length) out.push({ texto: mezcla.map(function (x) { return x.unidad; }).join(" y ") + (mezcla.length > 1 ? " figuran" : " figura") + " pagando en efectivo, pero el importe está en la columna Transferencia." });
-    var sinPago = d.unidades.filter(function (x) { return x.estado === "no-abono"; });
-    if (sinPago.length) out.push({ error: true, texto: "No abonaron: " + sinPago.map(function (x) { return x.unidad + (x.inquilino ? " (" + x.inquilino + ")" : ""); }).join(", ") + "." });
-    var imp = (d.expensas || {}).impuestos;
-    if (imp && typeof imp.rentasTotal !== "number" && typeof imp.muniTotal !== "number") out.push({ texto: "Expensas: faltan cargar rentas y municipalidad del mes (pestaña Expensas)." });
-    if (imp && imp.unidades.length) {
-      var sc = suma(imp.unidades, "coeficiente");
-      if (Math.abs(sc - 1) > 0.0005) out.push({ texto: "Los coeficientes de expensas suman " + pct(sc) + " (no 100 %)." });
-    }
-    return out;
-  }
-
   // ----- Importar el Excel -----
   var promesaXlsx = null;
   function cargarXlsx() {
@@ -840,7 +738,7 @@
     }).then(function () { b.disabled = false; b.textContent = "Importar planilla"; });
   });
 
-  // Desde el mapa: propiedades.html?edificio=…&lugar=… abre la última liquidación de ese edificio en ese lugar.
+  // Desde el mapa: propiedades.html?edificio=…&periodo=…&lugar=… abre esa liquidación (o la última) en ese lugar.
   (function () {
     var q = new URLSearchParams(location.search);
     var ed = q.get("edificio");
@@ -849,7 +747,8 @@
     BGPSesion.pedir("obtenerPropiedades").then(function (r) {
       var suyas = (r.liquidaciones || []).filter(function (x) { return x.edificio === ed; })
         .sort(function (a, b) { return String(b.orden).localeCompare(String(a.orden)); });
-      cargar(suyas.length ? clave(suyas[0]) : undefined);
+      var elegida = suyas.find(function (x) { return x.periodo === q.get("periodo"); }) || suyas[0];
+      cargar(elegida ? clave(elegida) : undefined);
     }, function () { cargar(); });
   })();
 })();
