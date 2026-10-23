@@ -13373,8 +13373,11 @@ function renderPlanillaInicio() {
   fecha.addEventListener("change", () => { if (fecha.value) { planillaFecha = fecha.value; renderPlanillaInicio(); } });
   const guardar = el("button", null, "Guardar saldos");
   guardar.type = "button";
+  const copiar = el("button", "secondary", "Copiar imagen");
+  copiar.type = "button";
+  copiar.title = "Copia la planilla como imagen para pegarla en WhatsApp (en el celular, la comparte)";
   const estado = el("span", "dt-sub");
-  acc.append(estado, fecha, guardar);
+  acc.append(estado, fecha, copiar, guardar);
   head.append(tit, acc);
   card.append(head);
   if (!grupos.length) {
@@ -13441,6 +13444,7 @@ function renderPlanillaInicio() {
   });
   card.append(grid);
   recalculos.forEach(r => r());
+  copiar.addEventListener("click", () => copiarImagenPlanilla(grupos, planillaFecha, copiar));
   guardar.addEventListener("click", async () => {
     const saldos = [], fci = [];
     grupos.forEach(g => {
@@ -13462,6 +13466,158 @@ function renderPlanillaInicio() {
     }
   });
   box.replaceChildren(card);
+}
+
+// ---------------- Planilla como imagen (para WhatsApp) ----------------
+// Dibuja la planilla tal como está en pantalla (con lo que se haya editado,
+// aunque no esté guardado) en un canvas, en alta resolución y con colores
+// claros fijos para que se lea bien en el celular. En la compu la copia al
+// portapapeles; en el celular abre "Compartir" (WhatsApp). Si no se puede,
+// la descarga.
+function dibujarImagenPlanilla(grupos, fechaIso) {
+  const ESC = 2;
+  const fuente = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
+  const C = { fondo: "#ffffff", texto: "#1f2a24", tenue: "#7a8279", previo: "#9aa09a", linea: "#e3e0d9", fuerte: "#c9c4ba",
+    primario: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#1c4a2c", banda: "#f4f1eb" };
+  const tablas = [["Pesos", "$"], ["USD", "U$D"]].map(m => ({ moneda: m[0], signo: m[1], gs: grupos.filter(g => g.moneda === m[0]) })).filter(t => t.gs.length);
+  const medir = document.createElement("canvas").getContext("2d");
+  const ancho = (txt, peso, tam) => { medir.font = peso + " " + tam + "px " + fuente; return medir.measureText(txt).width; };
+  const num = v => v === null || v === undefined ? "—" : formatMonto(v);
+  const cuentaTxt = x => [siglaTipo(x.c["Tipo de Cuenta"]), x.c["N° de Cuenta"]].filter(Boolean).join(" ");
+
+  // Anchos de columna: lo que ocupe el texto más largo de cada una.
+  const PAD = 14, FILA = 34, CAB = 30, MARGEN = 28;
+  let wCta = 0, wNum = ancho("TOTAL", "600", 12) + 2 * PAD;
+  tablas.forEach(t => {
+    wCta = Math.max(wCta, ancho("CUENTA " + t.signo, "600", 12) + 2 * PAD, ancho("TOTAL " + t.signo, "700", 15) + 2 * PAD);
+    let c = 0, f = 0;
+    t.gs.forEach(g => {
+      g.cuentas.forEach(x => {
+        wCta = Math.max(wCta, ancho(g.banco + " ", "700", 15) + ancho(cuentaTxt(x), "400", 15) + 2 * PAD);
+        wNum = Math.max(wNum, ancho(num(x.valor), "400", 15) + 2 * PAD);
+        c += x.valor || 0;
+      });
+      const sub = g.cuentas.reduce((a, x) => a + (x.valor || 0), 0) + (g.fci.valor || 0);
+      f += g.fci.valor || 0;
+      wNum = Math.max(wNum, ancho(num(g.fci.valor), "400", 15) + 2 * PAD, ancho(num(sub), "700", 15) + 2 * PAD);
+    });
+    wNum = Math.max(wNum, ancho(num(c + f), "700", 15) + 2 * PAD);
+  });
+  const anchoTabla = Math.ceil(wCta + 3 * wNum);
+  const W = anchoTabla + 2 * MARGEN;
+  let H = MARGEN + 64;
+  tablas.forEach(t => { H += CAB + t.gs.reduce((a, g) => a + Math.max(1, g.cuentas.length), 0) * FILA + FILA + 26; });
+  const hayPrevios = grupos.some(g => g.fci.previo || g.cuentas.some(x => x.previo));
+  H += (hayPrevios ? 22 : 0) + 22 + MARGEN - 10;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * ESC; canvas.height = H * ESC;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ESC, ESC);
+  ctx.fillStyle = C.fondo; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = C.primario; ctx.fillRect(0, 0, W, 6);
+  const texto = (txt, x, y, opc) => {
+    ctx.font = (opc.peso || "400") + " " + (opc.tam || 15) + "px " + fuente;
+    ctx.fillStyle = opc.color || C.texto;
+    ctx.textAlign = opc.alinear || "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(txt, x, y);
+  };
+  const linea = (y, color, grosor, x0, x1) => { ctx.fillStyle = color; ctx.fillRect(x0 === undefined ? MARGEN : x0, y, (x1 === undefined ? MARGEN + anchoTabla : x1) - (x0 === undefined ? MARGEN : x0), grosor); };
+
+  const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const d = new Date(+fechaIso.substring(0, 4), +fechaIso.substring(5, 7) - 1, +fechaIso.substring(8, 10));
+  texto("Saldos y FCI", MARGEN, MARGEN + 12, { peso: "700", tam: 21, color: C.primario });
+  texto("al " + DIAS[d.getDay()] + " " + isoADma(fechaIso), MARGEN + ancho("Saldos y FCI", "700", 21) + 10, MARGEN + 13, { peso: "500", tam: 16, color: C.tenue });
+  texto((config.empresa || "Tesorería") + " · Tesorería", MARGEN, MARGEN + 38, { tam: 12.5, color: C.tenue });
+  let y = MARGEN + 64;
+  const xCol = [MARGEN, MARGEN + wCta, MARGEN + wCta + wNum, MARGEN + wCta + 2 * wNum, MARGEN + anchoTabla];
+
+  tablas.forEach(t => {
+    // Encabezado
+    ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, CAB);
+    ["CUENTA " + t.signo, "CUENTAS", "FCI", "TOTAL"].forEach((h, i) => texto(h, i === 0 ? xCol[0] + PAD : xCol[i + 1] - PAD, y + CAB / 2, { peso: "600", tam: 12, color: C.tenue, alinear: i === 0 ? "left" : "right" }));
+    linea(y + CAB - 2, C.fuerte, 2);
+    y += CAB;
+    let c = 0, f = 0;
+    t.gs.forEach((g, gi) => {
+      const filas = Math.max(1, g.cuentas.length);
+      const y0 = y;
+      for (let i = 0; i < filas; i++) {
+        const x = g.cuentas[i];
+        const yc = y + FILA / 2;
+        texto(g.banco, xCol[0] + PAD, yc, { peso: "700" });
+        if (x) {
+          texto(cuentaTxt(x), xCol[0] + PAD + ancho(g.banco + " ", "700", 15), yc, {});
+          texto(num(x.valor), xCol[2] - PAD, yc, { color: x.previo ? C.previo : C.texto, alinear: "right" });
+          c += x.valor || 0;
+        } else texto("Sin cuentas", xCol[2] - PAD, yc, { color: C.previo, alinear: "right", tam: 13 });
+        if (i < filas - 1) linea(y + FILA - 1, C.linea, 1, xCol[0], xCol[2]);
+        y += FILA;
+      }
+      // FCI y TOTAL: una celda por banco (como las combinadas de la planilla).
+      const ym = y0 + (y - y0) / 2;
+      const sub = g.cuentas.reduce((a, x) => a + (x.valor || 0), 0) + (g.fci.valor || 0);
+      f += g.fci.valor || 0;
+      texto(num(g.fci.valor), xCol[3] - PAD, ym, { color: g.fci.previo ? C.previo : C.texto, alinear: "right" });
+      texto(num(sub), xCol[4] - PAD, ym, { peso: "700", alinear: "right" });
+      ctx.fillStyle = C.linea;
+      [xCol[2], xCol[3]].forEach(xv => ctx.fillRect(xv, y0, 1, y - y0));
+      linea(y - 1, gi === t.gs.length - 1 ? C.fuerte : C.linea, 1);
+    });
+    // Total
+    ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, FILA);
+    linea(y, C.fuerte, 2);
+    const yt = y + FILA / 2 + 1;
+    texto("TOTAL " + t.signo, xCol[0] + PAD, yt, { peso: "700" });
+    texto(num(c), xCol[2] - PAD, yt, { peso: "700", alinear: "right" });
+    texto(num(f), xCol[3] - PAD, yt, { peso: "700", alinear: "right" });
+    texto(num(c + f), xCol[4] - PAD, yt, { peso: "800", alinear: "right", color: C.primario });
+    y += FILA + 26;
+  });
+  if (hayPrevios) { texto("En gris: último saldo informado (sin cambios ese día).", MARGEN, y, { tam: 12, color: C.tenue }); y += 22; }
+  const ahora = new Date();
+  const quien = usuarioActual ? String(usuarioActual.nombre || usuarioActual.usuario).split(" ")[0] : "";
+  texto("Generado el " + isoADma(hoyIso()) + " a las " + String(ahora.getHours()).padStart(2, "0") + ":" + String(ahora.getMinutes()).padStart(2, "0") + (quien ? " por " + quien : ""), MARGEN, y, { tam: 12, color: C.tenue });
+  return canvas;
+}
+
+async function copiarImagenPlanilla(grupos, fechaIso, boton) {
+  const canvas = dibujarImagenPlanilla(grupos, fechaIso);
+  const blob = new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error("No se pudo generar la imagen.")), "image/png"));
+  const nombre = "Saldos y FCI " + isoADma(fechaIso).split("/").join("-") + ".png";
+  const cambios = grupos.some(g => g.fci.cambio || g.cuentas.some(x => x.cambio));
+  const aviso = cambios ? " Ojo: tiene cambios que todavía no guardaste." : "";
+  const enCelular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  boton.disabled = true;
+  try {
+    // En el celular: compartir directo (WhatsApp aparece en la lista).
+    if (enCelular && navigator.canShare) {
+      const archivo = new File([await blob], nombre, { type: "image/png" });
+      if (navigator.canShare({ files: [archivo] })) {
+        try { await navigator.share({ files: [archivo], title: "Saldos y FCI" }); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+    }
+    // En la compu: al portapapeles (el ClipboardItem recibe la promesa para que Safari lo acepte).
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        toast("Imagen copiada. Pegala en WhatsApp con Ctrl+V." + aviso, "ok");
+        return;
+      } catch (e) { /* sin permiso: se descarga */ }
+    }
+    const url = URL.createObjectURL(await blob);
+    const a = el("a");
+    a.href = url; a.download = nombre;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("El navegador no dejó copiarla: se descargó la imagen para que la adjuntes en WhatsApp." + aviso, "ok");
+  } catch (err) {
+    toast(msgErr(err), "error");
+  } finally {
+    boton.disabled = false;
+  }
 }
 
 // ---------------- Salida de cheques ----------------
