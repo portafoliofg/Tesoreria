@@ -2049,6 +2049,7 @@ function importarPlanilla_(d, u) {
   return conLock_(() => {
     const destino = String(d.destino || '');
     const filas = d.filas || [];
+    if (d.depurar) return Object.assign({ ok: true }, depurarPlanilla_(destino, d.depurar, d.archivo, u));
     let res;
     if (destino === 'cuentas') res = importarCuentas_(d, u);
     else if (destino === 'movimientos') res = importarMovimientos_(filas, d, u);
@@ -2188,6 +2189,45 @@ function upsertPlanilla_(nombreHoja, H, filas, opciones) {
   return { nuevos: nuevos, actualizados: actualizados, conciliados: conciliados, sinCambios: sinCambios };
 }
 
+/**
+ * FCI y compromisos no tienen un N° fijo en la planilla: su "ID Planilla" se arma con
+ * el contenido (fecha, fondo, monto, concepto…). Si una fila se corrige en el Excel,
+ * cambia el ID y la versión vieja quedaría duplicada. Por eso, terminada la importación
+ * de esa sección, se quitan las filas que vinieron de la planilla, son de la fecha más
+ * vieja del archivo en adelante y ya no están en él. No toca lo cargado en la app
+ * (rescates FCIM-…, compromisos sin ID) ni lo anterior a esa fecha (por si el archivo
+ * no trae toda la historia).
+ * dep: {ids: [ID Planilla del archivo], desde: aaaa-mm-dd}
+ */
+function depurarPlanilla_(destino, dep, archivo, u) {
+  const conf = {
+    fci: { hoja: SHEET_FCI, H: HEADERS_FCI, fecha: 'Fecha', prefijos: ['FCI-'], nombre: 'FCI' },
+    compromisos: { hoja: SHEET_COMPROMISOS, H: HEADERS_COMPROMISOS, fecha: 'Fecha de Vencimiento', prefijos: ['PLAN-', 'PM-', 'TJ-'], nombre: 'Compromisos' }
+  }[destino];
+  const desde = String(dep.desde || '');
+  const ids = {};
+  (dep.ids || []).forEach(x => { ids[String(x).trim()] = true; });
+  if (!conf || !esIsoValida(desde) || !Object.keys(ids).length) return { quitados: 0 };
+  const iId = conf.H.indexOf('ID Planilla'), iF = conf.H.indexOf(conf.fecha);
+  // La cuota de un plan (PLAN-plan-cuota-total-fecha) es la misma aunque cambie la fecha.
+  const cuota = id => id.indexOf('PLAN-') === 0 ? id.replace(/-\d{8}$/, '') : '';
+  const cuotas = {};
+  Object.keys(ids).forEach(id => { if (cuota(id)) cuotas[cuota(id)] = true; });
+  const salen = eliminarFilasDonde_(conf.hoja, conf.H, f => {
+    const id = String(f[iId] || '').trim();
+    if (!id || ids[id] || !conf.prefijos.some(p => id.indexOf(p) === 0)) return false;
+    if (cuota(id) && cuotas[cuota(id)]) return true;
+    const iso = dmaAIso_(f[iF]);
+    return !!iso && iso >= desde;
+  });
+  if (salen.length) {
+    registrar_(u, 'Importación de planilla',
+      conf.nombre + ': ' + salen.length + ' fila(s) quitada(s) porque cambiaron o ya no están en la planilla (desde el ' + isoAMostrar(desde) + ')',
+      String(archivo || ''), textoCorto_(salen.map(f => filaComoObjeto_(conf.H, f))), '');
+  }
+  return { quitados: salen.length };
+}
+
 function importarMovimientos_(filas, d, u) {
   const H = HEADERS_TRANSFERENCIAS;
   const hoja = obtenerHoja_(SHEET_TRANSFERENCIAS, H);
@@ -2216,14 +2256,33 @@ function importarMovimientos_(filas, d, u) {
       fila[COL_ARCHIVO] = String(d.archivo || 'Planilla de flujo de fondos');
       fila[COL_CARGADO_TRANS] = nombreDe_(u);
     },
-    // Un movimiento cargado antes por comprobante: mismo banco, mismo N° de referencia y mismo importe.
+    // Un movimiento cargado antes en la app (comprobante o a mano), que la planilla también trae:
+    // 1) mismo banco, mismo N° de referencia y mismo importe;
+    // 2) si no, mismo banco y cuenta, misma fecha, mismo importe con signo y misma moneda
+    //    (sin contar los renglones de resúmenes bancarios, que son el lado del banco).
+    // Cada uno se asocia una sola vez: al tomar el ID de la planilla ya no vuelve a coincidir.
     alternativa: (o, datos) => {
+      const sinId = f => !String(f[iId] || '').trim();
       const ref = String(o['N° de Referencia'] || '').trim();
-      if (soloDigitos(ref).length < 4) return -1;
-      const banco = claveTexto(o['Banco']);
-      const imp = Math.abs(importeANumero(o['Monto']));
-      return datos.findIndex(f => !String(f[iId] || '').trim() && claveTexto(f[COL_BANCO_TRANS]) === banco &&
-        String(f[COL_REFERENCIA]).trim() === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - imp) < 0.01);
+      const imp = importeANumero(o['Monto']);
+      if (soloDigitos(ref).length >= 4) {
+        const banco = claveTexto(o['Banco']);
+        const i = datos.findIndex(f => sinId(f) && claveTexto(f[COL_BANCO_TRANS]) === banco &&
+          String(f[COL_REFERENCIA]).trim() === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - Math.abs(imp)) < 0.01);
+        if (i >= 0) return i;
+      }
+      const fecha = dmaAIso_(o['Fecha del Movimiento']);
+      if (!fecha || !imp) return -1;
+      const banco = bancoCanon_(o['Banco']);
+      const cta = sinCerosIzqCta_(soloDigitos(o['N° de Cuenta']));
+      const iFecha = H.indexOf('Fecha del Movimiento');
+      return datos.findIndex(f => {
+        if (!sinId(f) || f[COL_ORIGEN] === 'Resumen') return false;
+        if (dmaAIso_(f[iFecha]) !== fecha || Math.abs(importeANumero(f[COL_MONTO]) - imp) >= 0.01) return false;
+        if ((f[COL_MONEDA] === 'USD' ? 'USD' : 'Pesos') !== o['Moneda'] || bancoCanon_(f[COL_BANCO_TRANS]) !== banco) return false;
+        const c = sinCerosIzqCta_(soloDigitos(f[COL_NUMERO_CUENTA]));
+        return !c || !cta || c === cta || (c.length >= 4 && cta.length >= 4 && (c.slice(-cta.length) === cta || cta.slice(-c.length) === c));
+      });
     }
   });
 }
