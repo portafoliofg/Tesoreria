@@ -146,7 +146,7 @@ function doGet() {
  * consulta de sesión, la salida y los datos de Propiedades (estos con sesión); el
  * resto de la app sigue yendo por api().
  */
-const ACCIONES_SITIO = ['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
+const ACCIONES_SITIO = ['estado', 'login', 'loginGoogle', 'logout','obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
   'ubicacionesPropiedades', 'guardarUbicacionPropiedad', 'guardarVistaCalle']; // mapa de propiedades (PropiedadesMapa.gs)
 
 function doPost(e) {
@@ -175,6 +175,7 @@ function autorizarPermisos() {
 const ACCIONES_PUBLICAS = {
   estado: estado_,
   login: login_,
+  loginGoogle: loginGoogle_,
   crearPrimerUsuario: crearPrimerUsuario_
 };
 
@@ -440,6 +441,96 @@ function login_(d) {
   try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
   registrar_(u, 'Ingreso', 'Inició sesión', '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
+}
+
+// ----- Ingreso con Google (cuentas de Google Workspace de bgpsammar.com) -----
+// Cliente OAuth "Web" del proyecto de Google Cloud (tipo Interno: solo cuentas de la organización).
+const GOOGLE_CLIENT_ID = '852188026915-dlnsq9r0funnukkbhrng4gh0esg3g4ms.apps.googleusercontent.com';
+const GOOGLE_DOMINIO = 'bgpsammar.com';
+// Únicas cuentas que pueden ingresar con Google (en minúsculas).
+const MAILS_PERMITIDOS = [
+  'faliaga@bgpsammar.com', 'asammartino@bgpsammar.com', 'fcasorran@bgpsammar.com',
+  'fgomez@bgpsammar.com', 'jbornancini@bgpsammar.com'
+];
+
+/**
+ * d: {credential} = el ID token (JWT) que da el botón de Google en bgpsammar.com.
+ * Lo valida Google (tokeninfo) y se exige: este cliente, emisor de Google, vigente,
+ * mail verificado, del dominio y en MAILS_PERMITIDOS. Entra con el usuario de
+ * Tesorería que se llama como la parte del mail antes de la @ (faliaga@… → faliaga);
+ * si no existe se crea con una contraseña al azar que nadie conoce (solo Google).
+ * El token de Google no se guarda ni se registra.
+ */
+function loginGoogle_(d) {
+  const credencial = String(d.credential || '');
+  const cache = CacheService.getScriptCache();
+  const error = { ok: false, error: 'No se pudo ingresar con Google. Usá una cuenta autorizada de ' + GOOGLE_DOMINIO + '.' };
+  // Para limitar intentos se usa el mail que dice traer el token (todavía sin validar),
+  // igual que login_ con el nombre de usuario.
+  const mailDicho = mailDeCredencialSinValidar_(credencial);
+  const claveIntentos = 'int_' + (mailDicho || 'google').slice(0, 200);
+  const intentos = parseInt(cache.get(claveIntentos) || '0', 10);
+  if (intentos >= INTENTOS_MAXIMOS) {
+    return { ok: false, error: 'Demasiados intentos fallidos. Esperá 10 minutos y volvé a probar.' };
+  }
+  const fallo = motivo => {
+    cache.put(claveIntentos, String(intentos + 1), BLOQUEO_SEGUNDOS);
+    registrar_(null, 'Ingreso con Google fallido', 'Cuenta: ' + (mailDicho || '(desconocida)') + ' · ' + motivo, '', '', '');
+    return error;
+  };
+  if (!credencial || credencial.length > 4096) return fallo('sin credencial');
+
+  let info = null;
+  try {
+    const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credencial), { muteHttpExceptions: true });
+    if (res.getResponseCode() === 200) info = JSON.parse(res.getContentText());
+  } catch (e) {
+    return { ok: false, error: 'No se pudo verificar la cuenta con Google. Probá de nuevo en un momento.' };
+  }
+  if (!info) return fallo('Google no validó la credencial');
+  const mail = String(info.email || '').trim().toLowerCase();
+  if (info.aud !== GOOGLE_CLIENT_ID) return fallo('credencial de otra aplicación');
+  if (info.iss !== 'accounts.google.com' && info.iss !== 'https://accounts.google.com') return fallo('emisor inválido');
+  if (!(Number(info.exp) * 1000 > Date.now())) return fallo('credencial vencida');
+  if (String(info.email_verified) !== 'true') return fallo('mail sin verificar');
+  if (String(info.hd || '').toLowerCase() !== GOOGLE_DOMINIO) return fallo('cuenta fuera de ' + GOOGLE_DOMINIO);
+  if (MAILS_PERMITIDOS.indexOf(mail) < 0 || mail.slice(mail.indexOf('@') + 1) !== GOOGLE_DOMINIO) return fallo('cuenta no autorizada: ' + mail);
+
+  const nombreUsuario = mail.slice(0, mail.indexOf('@'));
+  let u = leerUsuarios_().find(x => x['Usuario'] === nombreUsuario);
+  if (!u) {
+    u = conLock_(() => {
+      const ya = leerUsuarios_().find(x => x['Usuario'] === nombreUsuario);
+      if (ya) return ya;
+      // Contraseña al azar y larga: el ingreso con usuario y clave queda cerrado para este usuario
+      // hasta que alguien la restablezca desde Usuarios.
+      const clave = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+        Utilities.getUuid() + Utilities.getUuid() + Date.now() + Math.random(), Utilities.Charset.UTF_8));
+      const nombre = String(info.name || '').trim() || nombreUsuario;
+      const fila = altaUsuario_({ usuario: nombreUsuario, nombre: nombre, clave: clave }, null);
+      registrar_(fila, 'Alta de usuario', 'Se creó al ingresar con Google (' + mail + ')', fila['ID'], '', '');
+      return fila;
+    });
+  }
+  if (u['Activo'] !== 'Sí') return fallo('usuario desactivado');
+
+  cache.remove(claveIntentos);
+  actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
+  try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
+  registrar_(u, 'Ingreso con Google', 'Inició sesión con ' + mail, '', '', '');
+  return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
+}
+
+/** Mail que figura dentro del token de Google, SIN validar (solo para contar intentos). */
+function mailDeCredencialSinValidar_(credencial) {
+  try {
+    let parte = String(credencial).split('.')[1] || '';
+    while (parte.length % 4) parte += '=';
+    const datos = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parte)).getDataAsString('UTF-8'));
+    return String(datos.email || '').trim().toLowerCase();
+  } catch (e) {
+    return '';
+  }
 }
 
 function logout_(d, u) {
