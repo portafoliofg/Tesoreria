@@ -14,6 +14,11 @@
  * Las respuestas se leen en voz alta con la voz en español del dispositivo.
  * "Manos libres": después de leer la respuesta vuelve a escuchar solo.
  *
+ * Avisos: al abrir la app (o la página) y después de guardar saldos o movimientos,
+ * le pide al servidor la revisión de cosas que no cuadran (op "revisar"). Si hay
+ * avisos nuevos, el botón muestra cuántos y aparece un globito; si se acaban de
+ * guardar saldos, el chat se abre solo, lo dice en voz alta y pregunta qué pasó.
+ *
  * Asistente.montarPagina(contenedor, {usuario, alSalir})  chat a pantalla completa
  * Asistente.abrir() / Asistente.cerrar()                 panel flotante (dentro de la app)
  */
@@ -32,8 +37,13 @@
   var NOMBRES_CONSULTA = {
     buscar_movimientos: "movimientos", buscar_cheques: "cheques", saldos: "saldos", cuentas_bancarias: "cuentas",
     proximos_vencimientos: "vencimientos", compromisos: "compromisos", inversiones: "inversiones",
-    propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas"
+    propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas",
+    revisar_inconsistencias: "revisión"
   };
+  // Acciones de la app después de las cuales se vuelve a revisar si algo no cuadra.
+  var ACCIONES_QUE_CAMBIAN = ["guardarSaldos", "guardarSaldo", "guardarMovimientosFci", "eliminarMovimientoFci", "guardarTransferencias", "cambiarCondicion",
+    "guardarCheques", "registrarSalidaCheques", "importarPlanilla", "guardarCompromiso", "eliminarCompromiso", "guardarConciliacion", "anularConciliacion"];
+  var ACCIONES_DE_SALDOS = ["guardarSaldos", "guardarSaldo"];
 
   var ICONOS = {
     chispa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>',
@@ -85,6 +95,8 @@
     "#asis-raiz .asis-msg li + li { margin-top: 3px; }",
     "#asis-raiz .asis-msg strong { font-weight: 700; }",
     "#asis-raiz .asis-msg.asistente strong { color: var(--a-primario); }",
+    "#asis-raiz .asis-msg.asistente.alerta { background: rgba(217, 180, 106, .13); border-color: rgba(184, 137, 58, .5); }",
+    "#asis-raiz .asis-etiqueta { margin-bottom: 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--a-acento); }",
     "#asis-raiz .asis-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 7px; font-size: 11.5px; color: var(--a-tenue); }",
     "#asis-raiz .asis-meta button { color: var(--a-tenue); font-size: 11.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }",
     "#asis-raiz .asis-meta button:hover { color: var(--a-primario); }",
@@ -121,6 +133,7 @@
     "@keyframes asis-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }",
     "@keyframes asis-punto { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }",
     "@keyframes asis-onda { 0%, 100% { height: 5px; } 50% { height: 18px; } }",
+    "@keyframes asis-llamada { 0%, 60%, 100% { box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 0 0 0 rgba(179, 57, 47, .45); } 30% { box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 0 0 10px rgba(179, 57, 47, 0); } }",
     "@keyframes asis-latido { 0% { box-shadow: 0 0 0 0 rgba(179, 57, 47, .5); } 70% { box-shadow: 0 0 0 12px rgba(179, 57, 47, 0); } 100% { box-shadow: 0 0 0 0 rgba(179, 57, 47, 0); } }",
     // Botón flotante y panel (dentro de la app)
     "#asis-raiz.flotante .asis-fab { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000; width: 56px; height: 56px; border-radius: 18px; color: #fff;",
@@ -128,6 +141,18 @@
     "#asis-raiz.flotante .asis-fab:hover { transform: translateY(-2px) scale(1.03); }",
     "#asis-raiz.flotante .asis-fab svg { width: 26px; height: 26px; }",
     "#asis-raiz.flotante.abierto .asis-fab { opacity: 0; pointer-events: none; transform: scale(.8); }",
+    "#asis-raiz.flotante .asis-fab.con-aviso { animation: asis-llamada 2.4s infinite; }",
+    "#asis-raiz.flotante .asis-insignia { position: absolute; top: -6px; right: -6px; min-width: 21px; height: 21px; padding: 0 6px; border-radius: 11px; background: var(--a-rojo); color: #fff;",
+    "  font-size: 12px; font-weight: 700; line-height: 21px; text-align: center; box-shadow: 0 0 0 2px var(--a-fondo); }",
+    "#asis-raiz.flotante .asis-insignia[hidden] { display: none; }",
+    "#asis-raiz.flotante .asis-burbuja { position: fixed; right: 20px; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000; width: max-content; max-width: min(300px, calc(100vw - 40px));",
+    "  display: flex; align-items: flex-start; gap: 4px; padding: 10px 6px 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--a-fondo); border: 1px solid rgba(184, 137, 58, .5);",
+    "  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .45); animation: asis-entra .25s ease-out; }",
+    "#asis-raiz.flotante .asis-burbuja[hidden], #asis-raiz.flotante.abierto .asis-burbuja { display: none; }",
+    "#asis-raiz .asis-burbuja .asis-burbuja-texto { display: block; flex: 1; min-width: 0; padding-top: 3px; font-size: 13.5px; line-height: 1.38; color: var(--a-texto); text-align: left; }",
+    "#asis-raiz .asis-burbuja .asis-burbuja-texto b { color: var(--a-primario); }",
+    "#asis-raiz .asis-burbuja .asis-icono { width: 28px; height: 28px; border-radius: 8px; }",
+    "#asis-raiz .asis-burbuja .asis-icono svg { width: 15px; height: 15px; }",
     "#asis-raiz.flotante .asis-panel { position: fixed; right: 20px; bottom: 20px; z-index: 2147483001; width: min(410px, calc(100vw - 40px)); height: min(640px, calc(100vh - 40px));",
     "  border-radius: 20px; overflow: hidden; border: 1px solid var(--a-borde); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .45);",
     "  opacity: 0; transform: translateY(16px) scale(.98); pointer-events: none; transition: opacity .2s ease, transform .2s ease; display: flex; }",
@@ -135,6 +160,7 @@
     "#asis-raiz.flotante .asis-panel .asis-chat { flex: 1; }",
     "@media (max-width: 640px) {",
     "  #asis-raiz.flotante .asis-fab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; border-radius: 16px; }",
+    "  #asis-raiz.flotante .asis-burbuja { right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 28px); }",
     "  #asis-raiz.flotante .asis-panel { inset: 0; right: 0; bottom: 0; width: 100%; height: 100%; height: 100dvh; border-radius: 0; border: 0; }",
     "}",
     ":root[data-modo=oscuro] #asis-raiz .asis-aviso { color: #e9cf95; background: rgba(217, 180, 106, .1); }",
@@ -473,7 +499,8 @@
       return n;
     }
     if (m.rol === "usuario") return el("div", "asis-msg usuario", { texto: m.texto });
-    var nodo = el("div", "asis-msg asistente", { html: aHtml(m.texto) });
+    var nodo = el("div", "asis-msg asistente" + (m.alerta ? " alerta" : ""), { html: aHtml(m.texto) });
+    if (m.alerta) nodo.insertBefore(el("div", "asis-etiqueta", { texto: "Revisión automática" }), nodo.firstChild);
     var meta = el("div", "asis-meta");
     if (m.consultas && m.consultas.length) {
       var vistas = [];
@@ -521,6 +548,18 @@
 
   Chat.prototype.historial = function () {
     return this.mensajes.filter(function (m) { return !m.error; }).slice(-MAX_HISTORIAL).map(function (m) { return { rol: m.rol, texto: m.texto }; });
+  };
+
+  /**
+   * Aviso de la revisión (r: respuesta de op "revisar" con avisos nuevos): queda como
+   * mensaje del asistente, así la respuesta del usuario ("fue un rescate") llega a
+   * Gemini con el aviso en el historial. Se marca como visto para no repetirlo.
+   */
+  Chat.prototype.mostrarAlerta = function (r, hablar) {
+    if (!r || !r.mensaje) return;
+    this.agregar({ rol: "asistente", texto: r.mensaje, alerta: true });
+    if (hablar) { prepararVoz(); this.leerEnVoz(r.voz || r.mensaje, false); }
+    pedir({ op: "visto", ids: r.nuevos || [] }).then(null, function () {});
   };
 
   /** texto: la pregunta; canal: 'texto' | 'voz'; audio: {mime, base64} si se grabó. */
@@ -837,13 +876,28 @@
     var raiz = el("div", "flotante", { id: "asis-raiz" });
     var fab = el("button", "asis-fab", { type: "button", "aria-label": "Abrir el asistente", title: "Asistente (texto y voz)", html: ICONOS.chispa });
     var panel = el("div", "asis-panel", { role: "dialog", "aria-label": "Asistente", "aria-modal": "false" });
+    var insignia = el("span", "asis-insignia", { "aria-hidden": "true" });
+    insignia.hidden = true;
+    fab.appendChild(insignia);
+    var burbujaTexto = el("button", "asis-burbuja-texto", { type: "button" });
+    var burbujaCerrar = el("button", "asis-icono", { type: "button", "aria-label": "Más tarde", title: "Más tarde", html: ICONOS.cerrar });
+    var burbuja = el("div", "asis-burbuja", { role: "status" }, [burbujaTexto, burbujaCerrar]);
+    burbuja.hidden = true;
+    raiz.appendChild(burbuja);
     raiz.appendChild(fab);
     raiz.appendChild(panel);
     raiz.hidden = true;
     document.body.appendChild(raiz);
-    flotante = { raiz: raiz, panel: panel, chat: null, usuario: "" };
+    flotante = { raiz: raiz, panel: panel, chat: null, usuario: "", fab: fab, insignia: insignia, burbuja: burbuja, burbujaTexto: burbujaTexto, aviso: null, burbujaCerrada: "", nombre: "" };
 
     fab.addEventListener("click", function () { abrir(); });
+    burbujaTexto.addEventListener("click", function () { abrir(); });
+    burbujaCerrar.addEventListener("click", function () {
+      // Queda la insignia en el botón; el globito vuelve con el próximo aviso distinto.
+      if (flotante.aviso) flotante.burbujaCerrada = flotante.aviso.nuevos.join(",");
+      pintarAviso();
+    });
+    engancharApp();
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && raiz.classList.contains("abierto")) cerrar();
     });
@@ -860,6 +914,11 @@
         if (flotante.chat && flotante.chat.voz) flotante.chat.voz.cancelar();
         panel.innerHTML = "";
         flotante.chat = null;
+        flotante.aviso = null;
+        flotante.burbujaCerrada = "";
+        pintarAviso();
+        // Revisión al entrar: con avisos nuevos aparece el globito (sin abrir ni hablar: todavía no hubo un toque).
+        if (nombre) setTimeout(function () { if (flotante.usuario === nombre) revisarAvisos("inicio"); }, 2500);
       }
       raiz.hidden = !nombre;
     }
@@ -875,6 +934,7 @@
     }
     flotante.raiz.classList.add("abierto");
     flotante.chat.iniciar();
+    entregarAviso();
     setTimeout(function () { try { flotante.chat.entrada.focus({ preventScroll: true }); } catch (e) {} }, 220);
   }
 
@@ -887,6 +947,85 @@
       flotante.chat.pintarManos();
       callar();
     }
+    pintarAviso();
+  }
+
+  // ---------------- Avisos de la revisión (dentro de la app) ----------------
+  var revisionProgramada = null, motivoRevision = "", revisando = false;
+
+  /**
+   * Envuelve runJson de la app: cuando una acción que cambia saldos, movimientos,
+   * cheques o compromisos sale bien, se vuelve a revisar. Así no hace falta tocar
+   * cada pantalla de Index.html.
+   */
+  function engancharApp() {
+    if (typeof window.runJson !== "function" || window.runJson.asistente) return;
+    var original = window.runJson;
+    var envuelta = function (accion) {
+      var p = original.apply(this, arguments);
+      if (ACCIONES_QUE_CAMBIAN.indexOf(accion) >= 0 && p && typeof p.then === "function") {
+        p.then(function () { programarRevision(ACCIONES_DE_SALDOS.indexOf(accion) >= 0 ? "saldos" : "cambio"); }, function () {});
+      }
+      return p;
+    };
+    envuelta.asistente = true;
+    window.runJson = envuelta;
+  }
+
+  /** Espera un momento (una carga suele mandar varias acciones seguidas) y revisa una sola vez. */
+  function programarRevision(motivo) {
+    if (motivo === "saldos" || !motivoRevision) motivoRevision = motivo;
+    clearTimeout(revisionProgramada);
+    revisionProgramada = setTimeout(function () {
+      if (revisando) { programarRevision(motivoRevision); return; }
+      var m = motivoRevision;
+      motivoRevision = "";
+      revisarAvisos(m);
+    }, 1500);
+  }
+
+  /** motivo: "inicio" (al entrar), "saldos" (se acaban de guardar saldos) o "cambio". */
+  function revisarAvisos(motivo) {
+    if (!flotante || !flotante.usuario || revisando) return;
+    revisando = true;
+    var usuario = flotante.usuario;
+    pedir({ op: "revisar" }).then(function (r) {
+      revisando = false;
+      if (!flotante || flotante.usuario !== usuario) return;
+      if (r && r.nombre) flotante.nombre = r.nombre;
+      flotante.aviso = r && r.mensaje && r.nuevos && r.nuevos.length ? r : null;
+      pintarAviso();
+      // Después de guardar saldos hubo un toque reciente: se puede abrir y hablar.
+      if (flotante.aviso && (motivo === "saldos" || flotante.raiz.classList.contains("abierto"))) abrir();
+    }, function () { revisando = false; });
+  }
+
+  function pintarAviso() {
+    if (!flotante) return;
+    var a = flotante.aviso;
+    var n = a ? a.nuevos.length : 0;
+    flotante.insignia.textContent = n ? String(n) : "";
+    flotante.insignia.hidden = !n;
+    flotante.fab.classList.toggle("con-aviso", !!n);
+    flotante.fab.setAttribute("aria-label", n ? "Abrir el asistente: " + n + (n === 1 ? " aviso" : " avisos") : "Abrir el asistente");
+    var abierto = flotante.raiz.classList.contains("abierto");
+    var mostrar = !!n && !abierto && flotante.burbujaCerrada !== a.nuevos.join(",");
+    if (mostrar) {
+      var nombre = flotante.nombre || "Asistente";
+      flotante.burbujaTexto.innerHTML = "<b>" + esc(nombre) + ":</b> " +
+        (n === 1 ? "hay algo que no me cuadra" + (a.resumen ? " (" + esc(a.resumen) + ")" : "") + "." : "hay " + n + " cosas que no me cuadran.") + " ¿Lo vemos?";
+    }
+    flotante.burbuja.hidden = !mostrar;
+  }
+
+  /** Pasa el aviso pendiente al chat abierto y lo lee en voz alta. */
+  function entregarAviso() {
+    if (!flotante || !flotante.aviso || !flotante.chat || flotante.chat.ocupado) return;
+    var r = flotante.aviso;
+    flotante.aviso = null;
+    flotante.burbujaCerrada = "";
+    pintarAviso();
+    flotante.chat.mostrarAlerta(r, true);
   }
 
   /** Página propia (bgpsammar.com/asistente/). opciones: {usuario, alVencer}. */
@@ -898,6 +1037,10 @@
     raiz.appendChild(chat.nodo);
     contenedor.appendChild(raiz);
     chat.iniciar();
+    // Si hay avisos nuevos, el chat arranca con ellos (la voz suena si el navegador lo permite).
+    pedir({ op: "revisar" }).then(function (r) {
+      if (r && r.mensaje && r.nuevos && r.nuevos.length && !chat.ocupado && raiz.isConnected) chat.mostrarAlerta(r, true);
+    }, function () {});
     return chat;
   }
 
