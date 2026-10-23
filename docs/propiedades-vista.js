@@ -19,7 +19,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   var ADM = 0.06;
-  var PESTANAS = [["resumen", "Resumen"], ["unidades", "Unidades"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"]];
+  var PESTANAS = [["resumen", "Resumen"], ["unidades", "Unidades"], ["contratos", "Contratos"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"]];
   var lista = [];
   var actual = null;      // registro guardado {edificio, periodo, datos, ...}
   var borrador = null;    // copia de actual.datos mientras se edita
@@ -197,6 +197,8 @@
 
   // ----- Vista general -----
   function mostrar() {
+    // Los contratos del edificio (teléfonos para "Recordarle"); al llegar se redibuja la pestaña.
+    if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); });
     var caja = $("contenido");
     caja.replaceChildren();
     $("acciones").replaceChildren();
@@ -268,6 +270,7 @@
     else if (pestana === "expensas") cuerpo.append(panelExpensas(d));
     else if (pestana === "cocheras") { var g = el("div", "grilla mitad"); g.append(panelCocheras(d), panelNovedades(d)); cuerpo.append(g); }
     else if (pestana === "transferencias") cuerpo.append(panelPlanillaTransferencias(d));
+    else if (pestana === "contratos") cuerpo.append(PropContratos.panel(d, actual.edificio, repintarPestana));
     else cuerpo.append(vistaResumen(d));
     if (foco >= 0) { var f = cuerpo.querySelectorAll("input, select, textarea, button")[foco]; if (f) f.focus(); }
     if (!editando()) cuerpo.append(el("p", "meta", "Cargado de " + (actual.archivo || "la planilla") + (actual.cargadoPor ? " · último cambio de " + actual.cargadoPor : "") + (actual.fechaCarga ? " el " + actual.fechaCarga : "")));
@@ -427,6 +430,8 @@
       m.style.background = "#" + (u.color || "FFFFFF");
       cu.append(m, document.createTextNode(u.unidad), el("span", "sub", u.inquilino || "—"));
       var cp = el("td"); cp.append(pillEstado(u));
+      // Unidad que no abonó: mensaje de WhatsApp listo para el inquilino (propiedades-contratos.js).
+      if (u.estado === "no-abono" && window.PropContratos) cp.append(PropContratos.botonRecordar(u, d, actual.edificio));
       r.append(cu, cp);
       cols.forEach(function (c) { var v = u[c[0]]; r.append(el("td", "num" + (v === 0 ? " cero" : ""), typeof v === "number" ? pesos(v) : "—")); });
       r.append(el("td", "num", pct(u.coeficiente)));

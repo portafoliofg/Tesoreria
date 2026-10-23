@@ -574,6 +574,10 @@ function asisDeclaraciones_(u) {
       description: 'Revisa qué no cuadra: saldos de cuentas o FCI que cambiaron sin movimientos registrados que lo expliquen (por ejemplo un FCI que bajó sin rescate cargado), cajas de ahorro en negativo, cheques emitidos vencidos que siguen pendientes, cheques de terceros en cartera fuera de plazo, movimientos que parecen cargados dos veces y compromisos vencidos sin pagar.'
     },
     {
+      name: 'resumen_semanal',
+      description: 'Resumen de la semana: caja de hoy contra la de hace 7 días, lo que entró y salió la semana pasada, lo que vence esta semana, alquileres sin cobrar y contratos por vencer o actualizar.'
+    },
+    {
       name: 'pausar_revision',
       description: 'Hace que la revisión automática ignore todo lo anterior a una fecha (por defecto hoy): por ejemplo mientras migran operaciones, o cuando piden "ignoralo, tomá desde el próximo cambio". Con reanudar=true vuelve a revisar todo. Solo si el usuario lo pide.',
       parameters: { type: 'object', properties: {
@@ -664,6 +668,7 @@ function asisEjecutar_(nombre, a, u) {
   if (nombre === 'actividad_de_la_app') return asisActividad_(a);
   if (nombre === 'revisar_inconsistencias') return asisInconsistencias_();
   if (nombre === 'pausar_revision') return asisPausarRevision_(a, u);
+  if (nombre === 'resumen_semanal') return { resumen: asisResumenSemanal_(u, ahoraLocal().hoy).texto.split('**').join('') };
   if (nombre === 'recordar') return asisRecordar_(a, u);
   if (nombre === 'olvidar') return asisOlvidar_(a, u);
   if (nombre === 'crear_pendiente') return asisCrearPendiente_(a, u);
@@ -1121,38 +1126,125 @@ function asisRevisar_(u) {
   const hallazgos = asisRevisionActiva_() ? asisHallazgos_() : [];
   const vistos = asisVistos_(u);
   const nuevos = hallazgos.filter(h => !vistos[h.id]);
-  // Pendientes: se mencionan una vez por día (los que vencen después de hoy, recién el día anterior).
   const hoy = ahoraLocal().hoy;
+  // Los lunes, el resumen de la semana (una vez por usuario).
+  let lunes = null;
+  const idLunes = asisHash_('lunes|' + hoy);
+  if (diaSemana(hoy) === 1 && !vistos[idLunes]) { try { lunes = asisResumenSemanal_(u, hoy); } catch (e) { console.log('Resumen semanal: ' + e.message); } }
+  // Propiedades: quién no abonó y contratos que vencen o se actualizan.
+  let props = [];
+  try { props = asisAvisosPropiedades_(hoy).filter(a => !vistos[a.id]); } catch (e) { console.log('Avisos de propiedades: ' + e.message); }
+  // Pendientes: se mencionan una vez por día (los que vencen después de hoy, recién el día anterior).
   let pendientes = [];
   try { pendientes = asisPendientesDe_(u).filter(p => !p['Vence'] || p['Vence'] <= sumarDias(hoy, 1)).filter(p => !vistos[asisIdPendiente_(p, hoy)]); } catch (e) {}
   const res = {
     ok: true, nombre: asisNombre_(), hallazgos: hallazgos.map(h => ({ id: h.id, tipo: h.tipo, titulo: h.titulo })),
-    nuevos: nuevos.map(h => h.id).concat(pendientes.map(p => asisIdPendiente_(p, hoy)))
+    nuevos: (lunes ? [idLunes] : []).concat(nuevos.map(h => h.id), props.map(a => a.id), pendientes.map(p => asisIdPendiente_(p, hoy)))
   };
-  const n = nuevos.length, np = pendientes.length;
-  if (!n && !np) return res;
-  const partes = [], voz = [];
+  const n = nuevos.length, na = props.length, np = pendientes.length;
+  if (!lunes && !n && !na && !np) return res;
+  const partes = [], voz = [], burbuja = [];
+  if (lunes) { partes.push(lunes.texto); voz.push(lunes.voz); burbuja.push('tengo el resumen de la semana'); }
   if (n) {
     partes.push((n === 1 ? 'Revisé los datos y hay **una cosa** que no me cuadra:' : 'Revisé los datos y hay **' + n + ' cosas** que no me cuadran:') + '\n' +
       nuevos.map(h => '- ' + h.texto).join('\n'));
-    voz.push((n === 1 ? 'Ojo: hay algo que no me cuadra. ' : 'Ojo: hay ' + n + ' cosas que no me cuadran. ') + nuevos[0].voz +
+    voz.push((lunes ? 'Además, ' : 'Ojo: ') + (n === 1 ? 'hay algo que no me cuadra. ' : 'hay ' + n + ' cosas que no me cuadran. ') + nuevos[0].voz +
       (n > 1 ? ' Las otras ' + (n === 2 ? 'te las' : (n - 1) + ' te las') + ' dejo escritas en el chat.' : ''));
+    burbuja.push(n === 1 ? 'hay algo que no me cuadra (' + nuevos[0].titulo + ')' : 'hay ' + n + ' cosas que no me cuadran');
+  }
+  if (na) {
+    partes.push('**Propiedades:**\n' + props.map(a => '- ' + a.texto).join('\n'));
+    voz.push(props.slice(0, 2).map(a => a.voz).join(' ') + (na > 2 ? ' Y ' + (na - 2) + ' aviso' + (na === 3 ? '' : 's') + ' más de propiedades en el chat.' : ''));
+    burbuja.push(na === 1 ? 'un aviso de propiedades' : na + ' avisos de propiedades');
   }
   if (np) {
     const vencida = p => p['Vence'] && p['Vence'] < hoy ? ' · **vencido**' : p['Vence'] === hoy ? ' · **vence hoy**' : '';
-    partes.push((n ? 'Además, ' + (np === 1 ? 'tenés **un pendiente**:' : 'tenés **' + np + ' pendientes**:') : (np === 1 ? 'Tenés **un pendiente**:' : 'Tenés **' + np + ' pendientes**:')) + '\n' +
+    partes.push((n || na || lunes ? 'Además, ' + (np === 1 ? 'tenés **un pendiente**:' : 'tenés **' + np + ' pendientes**:') : (np === 1 ? 'Tenés **un pendiente**:' : 'Tenés **' + np + ' pendientes**:')) + '\n' +
       pendientes.map(p => '- ' + asisTextoPendiente_(p) + vencida(p)).join('\n'));
-    voz.push((n ? 'Además tenés ' : 'Tenés ') + (np === 1 ? 'un pendiente: ' + pendientes[0]['Tarea'] + '.' : np + ' pendientes. El primero: ' + pendientes[0]['Tarea'] + '.'));
+    voz.push((n || na || lunes ? 'Además tenés ' : 'Tenés ') + (np === 1 ? 'un pendiente: ' + pendientes[0]['Tarea'] + '.' : np + ' pendientes. El primero: ' + pendientes[0]['Tarea'] + '.'));
+    burbuja.push(np === 1 ? 'tenés un pendiente' : 'tenés ' + np + ' pendientes');
   }
-  partes.push(n ? 'Contame qué pasó' + (n > 1 ? ' con cada una' : '') + ' y te digo qué falta cargar para que cierre.' + (np ? ' Y avisame cuando termines un pendiente.' : '')
-    : 'Avisame cuando ' + (np === 1 ? 'lo termines' : 'termines alguno') + ' y lo marco como hecho.');
+  if (n) partes.push('Contame qué pasó' + (n > 1 ? ' con cada una' : '') + ' y te digo qué falta cargar para que cierre.');
+  else if (np) partes.push('Avisame cuando ' + (np === 1 ? 'lo termines' : 'termines alguno') + ' y lo marco como hecho.');
   res.mensaje = partes.join('\n\n');
   res.voz = voz.join(' ');
   res.resumen = n === 1 ? nuevos[0].titulo : n ? n + ' cosas no me cuadran' : '';
-  res.etiqueta = n ? 'Revisión automática' : 'Pendientes';
-  res.burbuja = (n === 1 ? 'hay algo que no me cuadra (' + nuevos[0].titulo + ').' : n ? 'hay ' + n + ' cosas que no me cuadran.' : '') +
-    (np ? (n ? ' Y tenés ' : 'tenés ') + (np === 1 ? 'un pendiente.' : np + ' pendientes.') : '') + ' ¿Lo vemos?';
+  res.etiqueta = lunes ? 'Resumen de la semana' : n ? 'Revisión automática' : na ? 'Propiedades' : 'Pendientes';
+  const b = burbuja.join(', ');
+  res.burbuja = b.charAt(0) + b.substring(1).replace(/, ([^,]*)$/, ' y $1') + '. ¿Lo vemos?';
   return res;
+}
+
+/** Avisos de propiedades: quién no abonó (última liquidación de cada edificio) y contratos (Contratos.gs). */
+function asisAvisosPropiedades_(hoy) {
+  const out = [];
+  const ult = {};
+  (obtenerPropiedades_().liquidaciones || []).forEach(x => {
+    const k = claveTexto(x.edificio);
+    if (!ult[k] || String(x.orden) > String(ult[k].orden)) ult[k] = x;
+  });
+  Object.keys(ult).forEach(k => {
+    const x = ult[k];
+    const no = ((x.datos && x.datos.unidades) || []).filter(un => un.estado === 'no-abono');
+    if (!no.length) return;
+    out.push({
+      tipo: 'no-abono', id: asisHash_('noabono|' + x.edificio + '|' + x.periodo + '|' + no.map(un => un.unidad).sort().join(',')),
+      texto: '**No ' + (no.length === 1 ? 'abonó' : 'abonaron') + ' en ' + x.edificio + '** (' + x.periodo + '): ' + no.map(un => un.unidad + (un.inquilino ? ' (' + un.inquilino + ')' : '')).join(', ') + '. ¿Ya pagaron?',
+      voz: (no.length === 1 ? 'En ' + x.edificio + ' hay un alquiler sin cobrar.' : 'En ' + x.edificio + ' hay ' + no.length + ' alquileres sin cobrar.')
+    });
+  });
+  if (typeof avisosContratos_ === 'function') {
+    avisosContratos_(hoy).forEach(a => out.push({ tipo: 'contrato', id: asisHash_('contrato|' + a.clave), texto: a.texto, voz: a.voz }));
+  }
+  return out;
+}
+
+/** Resumen de los lunes: caja contra el lunes pasado, lo que se movió la semana pasada y lo que vence esta. */
+function asisResumenSemanal_(u, hoy) {
+  const nombre = u ? String(u['Nombre'] || u['Usuario'] || '').split(' ')[0] : '';
+  // Caja hoy y hace 7 días (último saldo informado de cada cuenta y FCI hasta esa fecha, en pesos).
+  const hace7 = sumarDias(hoy, -7);
+  const ult = {};
+  asisFilas_(SHEET_SALDOS, HEADERS_SALDOS).forEach(s => {
+    const id = s['Cuenta ID'], iso = dmaAIso_(s['Fecha']);
+    if (!id || !iso || s['Moneda'] === 'USD') return;
+    const v = importeANumero(s['Saldo']);
+    const x = ult[id] || (ult[id] = { hoy: null, antes: null });
+    if (iso <= hoy && (!x.hoy || iso >= x.hoy.iso)) x.hoy = { iso: iso, v: v };
+    if (iso <= hace7 && (!x.antes || iso >= x.antes.iso)) x.antes = { iso: iso, v: v };
+  });
+  let caja = 0, cajaAntes = 0, comparables = 0;
+  Object.keys(ult).forEach(k => {
+    if (ult[k].hoy) caja += ult[k].hoy.v;
+    if (ult[k].antes) { cajaAntes += ult[k].antes.v; comparables++; }
+  });
+  // Semana pasada (lunes a domingo), sin cuentas propias ni resúmenes ya conciliados.
+  const desde = sumarDias(hoy, -7), hasta = sumarDias(hoy, -1);
+  let ing = 0, egr = 0;
+  asisFilas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS).forEach(f => {
+    const iso = asisIso_(f['Fecha del Movimiento']) || asisIso_(f['Fecha de Carga']);
+    if (!iso || iso < desde || iso > hasta || f['Entre Cuentas Propias'] === 'Sí' || f['Moneda'] === 'USD') return;
+    if (f['Origen'] === 'Resumen' && f['Conciliación']) return;
+    const m = importeANumero(f['Monto']);
+    if (m >= 0) ing += m; else egr += m;
+  });
+  // Esta semana (hoy a domingo).
+  const v = asisVencimientos_({ dias: 6, limite: 1 });
+  const t = (v.totales && v.totales.Pesos) || { a_pagar: 0, a_cobrar: 0 };
+  let noAbono = 0, contratos = 0;
+  try { asisAvisosPropiedades_(hoy).forEach(a => { if (a.tipo === 'no-abono') noAbono++; else contratos++; }); } catch (e) {}
+  const dif = caja - cajaAntes;
+  const l = ['**Resumen de la semana** · lunes ' + isoAMostrar(hoy)];
+  l.push('- Caja hoy (cuentas + FCI, en pesos): **' + asisFormato_(caja, 'Pesos') + '**' + (comparables ? ', ' + (dif >= 0 ? '▲ ' : '▼ ') + asisFormato_(Math.abs(dif), 'Pesos') + ' contra el lunes pasado.' : '.'));
+  l.push('- Semana pasada: entraron ' + asisFormato_(ing, 'Pesos') + ' y salieron ' + asisFormato_(Math.abs(egr), 'Pesos') + ' (sin cuentas propias).');
+  l.push('- Esta semana: ' + (t.a_pagar ? 'vencen **' + asisFormato_(Math.abs(t.a_pagar), 'Pesos') + '** a pagar (incluye lo vencido sin pagar)' : 'no vence nada a pagar') + (t.a_cobrar ? ' y entran ' + asisFormato_(t.a_cobrar, 'Pesos') + ' a cobrar' : '') + '.');
+  if (noAbono) l.push('- Alquileres: hay ' + noAbono + (noAbono === 1 ? ' edificio' : ' edificios') + ' con unidades que no abonaron (detalle abajo).');
+  if (contratos) l.push('- Contratos: ' + contratos + (contratos === 1 ? ' aviso' : ' avisos') + ' de vencimiento o actualización (detalle abajo).');
+  const voz = ['Buen lunes' + (nombre ? ', ' + nombre : '') + '.',
+    'Arrancamos la semana con ' + asisImporteVoz_(caja, 'Pesos') + ' entre cuentas y FCI' + (comparables && Math.abs(dif) >= 1000 ? ', ' + asisImporteVoz_(dif, 'Pesos') + (dif >= 0 ? ' más' : ' menos') + ' que el lunes pasado.' : '.'),
+    t.a_pagar ? 'Esta semana vencen ' + asisImporteVoz_(t.a_pagar, 'Pesos') + ' a pagar.' : 'Esta semana no vence nada a pagar.'];
+  if (noAbono) voz.push('Ojo con los alquileres: hay unidades que no abonaron.');
+  return { texto: l.join('\n'), voz: voz.join(' ') };
 }
 
 function asisIdPendiente_(p, hoy) {

@@ -146,8 +146,10 @@ function doGet() {
  * consulta de sesión, la salida y los datos de Propiedades (estos con sesión); el
  * resto de la app sigue yendo por api().
  */
-const ACCIONES_SITIO = ['estado', 'login', 'loginGoogle', 'logout','obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
-  'ubicacionesPropiedades', 'guardarUbicacionPropiedad', 'guardarVistaCalle']; // mapa de propiedades (PropiedadesMapa.gs)
+const ACCIONES_SITIO = ['estado', 'login', 'loginGoogle', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
+  'ubicacionesPropiedades', 'guardarUbicacionPropiedad', 'guardarVistaCalle', // mapa de propiedades (PropiedadesMapa.gs)
+  'obtenerContratos', 'guardarContrato', 'aplicarActualizacionContrato', 'eliminarContrato', // contratos (Contratos.gs)
+  'tableroF1']; // modo Fórmula 1 (TableroF1.gs)
 
 function doPost(e) {
   let pedido = {};
@@ -249,6 +251,12 @@ const ACCIONES = {
   ubicacionesPropiedades: (d, u) => ubicacionesPropiedades_(d, u),
   guardarUbicacionPropiedad: (d, u) => guardarUbicacionPropiedad_(d, u),
   guardarVistaCalle: (d, u) => guardarVistaCalle_(d, u),
+  // Contratos (Contratos.gs) y modo Fórmula 1 (TableroF1.gs): se cargan después de este archivo.
+  obtenerContratos: (d, u) => obtenerContratos_(d, u),
+  guardarContrato: (d, u) => guardarContrato_(d, u),
+  aplicarActualizacionContrato: (d, u) => aplicarActualizacionContrato_(d, u),
+  eliminarContrato: (d, u) => eliminarContrato_(d, u),
+  tableroF1: (d, u) => tableroF1_(d, u),
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
 };
@@ -1980,6 +1988,10 @@ function revisarAlertas() {
         console.error('No se pudo enviar el resumen de cheques a ' + u['Usuario'] + ': ' + e.message);
       }
     });
+    // Contratos que vencen o tienen que actualizarse (Contratos.gs), a partir de las 9.
+    if (ahora.hora >= 9) {
+      try { if (typeof enviarAvisosContratos_ === 'function') enviarAvisosContratos_(usuarios); } catch (e) { console.error('Avisos de contratos: ' + e.message); }
+    }
   } finally {
     lock.releaseLock();
   }
@@ -3831,6 +3843,10 @@ function guardarPropiedades_(d, u) {
     const fila = idx >= 0 ? idx + 2 : hoja.getLastRow() + 1;
     hoja.getRange(fila, 1, 1, HEADERS_PROPIEDADES.length).setNumberFormat('@').setValues([HEADERS_PROPIEDADES.map(h => valores[h])]);
     const n = (datos.unidades || []).length;
+    // Aviso por WhatsApp de los que pasaron a "no abonó" (Contratos.gs). Si falla, la liquidación igual queda guardada.
+    let datosAntes = null;
+    if (idx >= 0) { try { datosAntes = JSON.parse(filas[idx]['Datos']); } catch (e) {} }
+    try { if (typeof avisarNoAbono_ === 'function') avisarNoAbono_(datos, datosAntes, u); } catch (e) { console.error('Aviso de no abonó: ' + e.message); }
     registrar_(u, idx >= 0 ? 'Propiedades: liquidación actualizada' : 'Propiedades: liquidación cargada',
       edificio + ' · ' + periodo + ' · ' + n + ' unidad(es)' + (d.archivo ? ' · ' + d.archivo : ''), edificio + ' · ' + periodo, '', '');
     return { ok: true, reemplazada: idx >= 0 };

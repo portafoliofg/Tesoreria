@@ -1241,6 +1241,7 @@
       <div class="actions" style="margin-top:0">
         <button id="inicioActualizar" class="secondary" type="button">Actualizar</button>
         <button id="inicioParte" class="secondary" type="button">Parte diario</button>
+        <button id="inicioF1" class="secondary" type="button" title="Tablero para una pantalla de la oficina (se abre aparte)">Modo F1</button>
         <button class="secondary btn-entrada-manual" data-tipo-default="Transferencia" type="button">Entrada manual</button>
         <button id="inicioCargar" type="button">Cargar comprobantes</button>
       </div>
@@ -9961,6 +9962,11 @@ function renderInicio(conciliaciones) {
 
 $("inicioActualizar").addEventListener("click", () => { transferenciasCargadas = false; chequesCargados = false; cargarInicio(); });
 $("inicioCargar").addEventListener("click", () => mostrarVista("cargar"));
+$("inicioF1").addEventListener("click", () => {
+  const w = window.open("https://bgpsammar.com/f1.html", "_blank");
+  if (w) w.opener = null;
+  else toast("El navegador bloqueó la ventana: abrí bgpsammar.com/f1.html.", "error");
+});
 
 // ---------------- Buscador global (Ctrl+K) ----------------
 const SECCIONES = [
