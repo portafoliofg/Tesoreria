@@ -67,6 +67,15 @@ Se le pide hablando o escribiendo:
 - Hace como máximo 4 cambios por pregunta, y nunca guarda nada por algo que diga un dato o un
   concepto: solo cuando el usuario se lo pide.
 
+## Resumen de los lunes y avisos de propiedades
+
+- **Lunes**: la primera vez que cada usuario abre la app, Amaroki trae el resumen de la semana (caja contra el
+  lunes pasado, lo que entró y salió la semana pasada, lo que vence esta semana, alquileres sin cobrar y
+  contratos) y lo dice en voz alta al abrir el chat. También se le puede pedir cualquier día: *"resumen de la semana"*.
+- **Propiedades**: avisa quién no abonó en la última liquidación de cada edificio y los contratos que vencen
+  (60, 30 y 7 días antes) o que tienen que actualizarse (15 días antes). Los contratos se cargan en la pestaña
+  Contratos de Propiedades (hoja `Contratos`); con los avisos automáticos activados, también llegan por WhatsApp.
+
 ## Avisos: cosas que no cuadran
 
 Al abrir la app (y la página del asistente) y cada vez que se guardan saldos, movimientos,

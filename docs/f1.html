@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d10">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo-as-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="logo-as-64.png">
+  <title>Modo F1 · Tesorería</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,400;0,600;0,700;0,900;1,700&family=JetBrains+Mono:wght@500;700&display=swap">
+  <style>
+    /* Tablero estilo transmisión de Fórmula 1: fondo carbono, rojo de carrera, amarillo y violeta para lo mejor. */
+    :root {
+      --fondo: #0b0d10; --panel: #14171c; --panel-2: #1b1f26; --linea: #262b33; --texto: #f2f3f5; --tenue: #8a919c;
+      --rojo: #e10600; --amarillo: #ffd100; --verde: #20d36b; --violeta: #b14cff; --azul: #3ea6ff;
+      --fuente: "Titillium Web", "Segoe UI", system-ui, sans-serif; --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: var(--fuente); color: var(--texto); overflow: hidden;
+      background: radial-gradient(1200px 600px at 50% -10%, rgba(225, 6, 0, 0.18), transparent 60%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 6px), var(--fondo); }
+    body.verificando .tablero { visibility: hidden; }
+    .tablero { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; height: 100dvh; padding: 14px 18px 12px; gap: 14px; }
+    /* Barra superior */
+    .barra { display: flex; align-items: center; gap: 18px; }
+    .logo { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-weight: 900; font-style: italic; font-size: 22px; letter-spacing: 0.02em; text-transform: uppercase; }
+    .logo .bandera { width: 34px; height: 24px; border-radius: 3px; background: conic-gradient(#fff 25%, #111 0 50%, #fff 0 75%, #111 0) 0 0 / 12px 12px; }
+    .logo span b { color: var(--rojo); }
+    .vuelta { white-space: nowrap; font-family: var(--datos); font-size: 15px; color: var(--tenue); padding: 4px 10px; border: 1px solid var(--linea); border-radius: 6px; }
+    .vuelta b { color: var(--texto); }
+    .vivo { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; letter-spacing: 0.12em; color: var(--rojo); }
+    .vivo::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rojo); animation: latido 1.4s infinite; }
+    .espacio { flex: 1; }
+    .reloj { font-family: var(--datos); font-size: 26px; font-weight: 700; letter-spacing: 0.04em; }
+    .boton { font: 700 13px/1 var(--fuente); letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto); background: var(--panel-2); border: 1px solid var(--linea); border-radius: 6px; padding: 9px 12px; cursor: pointer; text-decoration: none; }
+    .boton:hover { border-color: var(--tenue); }
+    /* Cuerpo: torre de tiempos · centro · boxes */
+    .cuerpo { display: grid; grid-template-columns: minmax(280px, 25%) minmax(0, 1fr) minmax(280px, 26%); gap: 14px; min-height: 0; }
+    .caja { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--linea); border-radius: 10px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .caja h2 { margin: 0; padding: 10px 14px; font-size: 14px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tenue); border-bottom: 1px solid var(--linea); display: flex; justify-content: space-between; align-items: center; }
+    .caja h2::before { content: ""; width: 4px; height: 16px; background: var(--rojo); margin-right: 10px; border-radius: 2px; }
+    .caja h2 span { flex: 1; }
+    .lista { overflow-y: auto; flex: 1; min-height: 0; }
+    /* Torre de tiempos */
+    .piloto { display: grid; grid-template-columns: 34px 5px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); animation: entra 0.5s both; }
+    .piloto .pos { font-family: var(--datos); font-weight: 700; font-size: 16px; text-align: center; color: var(--tenue); }
+    .piloto:nth-child(1) .pos { color: var(--amarillo); }
+    .piloto .equipo { height: 26px; border-radius: 2px; }
+    .piloto .nom { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.02em; }
+    .piloto .nom small { display: block; font-weight: 400; font-size: 11.5px; color: var(--tenue); text-transform: none; letter-spacing: 0; }
+    .piloto .t { text-align: right; font-family: var(--datos); font-size: 14px; }
+    .piloto .t small { display: block; font-size: 11.5px; color: var(--tenue); }
+    .piloto .t .sube { color: var(--verde); } .piloto .t .baja { color: var(--rojo); }
+    .grupo { padding: 6px 12px; font-size: 11.5px; letter-spacing: 0.18em; color: var(--tenue); background: rgba(255, 255, 255, 0.03); text-transform: uppercase; }
+    /* Centro */
+    .centro { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; min-height: 0; }
+    .grande { padding: 18px 22px; text-align: center; position: relative; }
+    .grande small { display: block; font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--tenue); }
+    .grande .monto { white-space: nowrap; font-family: var(--datos); font-weight: 700; font-size: clamp(34px, 5.2vw, 88px); line-height: 1.05; margin: 6px 0; letter-spacing: -0.02em; }
+    .grande .delta { display: inline-block; font-family: var(--datos); font-weight: 700; font-size: 20px; padding: 4px 12px; border-radius: 6px; }
+    .delta.sube { color: #04140a; background: var(--verde); } .delta.baja { color: #fff; background: var(--rojo); } .delta.igual { color: var(--tenue); background: var(--panel-2); }
+    .sectores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .sector { padding: 12px 14px; border-radius: 10px; background: var(--panel); border: 1px solid var(--linea); border-top: 4px solid var(--violeta); }
+    .sector:nth-child(2) { border-top-color: var(--amarillo); } .sector:nth-child(3) { border-top-color: var(--azul); }
+    .sector small { display: block; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tenue); }
+    .sector b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--datos); font-size: clamp(16px, 1.6vw, 26px); margin-top: 4px; }
+    .sector span { font-size: 12.5px; color: var(--tenue); }
+    .rotativo { position: relative; min-height: 0; }
+    .rotativo .caja { position: absolute; inset: 0; transition: opacity 0.6s, transform 0.6s; }
+    .rotativo .caja.oculta { opacity: 0; transform: translateY(12px); pointer-events: none; }
+    .mes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px; }
+    .barra-mes { grid-column: 1 / -1; height: 14px; border-radius: 7px; background: var(--panel-2); overflow: hidden; display: flex; }
+    .barra-mes i { display: block; height: 100%; }
+    .dato-mes small { display: block; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tenue); }
+    .dato-mes b { white-space: nowrap; font-family: var(--datos); font-size: clamp(18px, 2vw, 30px); }
+    .props { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 14px; overflow-y: auto; }
+    .prop { background: var(--panel); border: 1px solid var(--linea); border-radius: 8px; padding: 10px 12px; }
+    .prop b { display: block; font-size: 14.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prop .m { font-family: var(--datos); font-size: 20px; margin: 4px 0; }
+    .prop .ocup { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin: 6px 0 4px; }
+    .prop .ocup i { display: block; height: 100%; background: var(--verde); }
+    .prop span { font-size: 12px; color: var(--tenue); }
+    .prop .rojo { color: var(--rojo); font-weight: 700; }
+    /* Boxes */
+    .parada { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); animation: entra 0.5s both; }
+    .parada .dia { text-align: center; line-height: 1; border-radius: 6px; padding: 6px 0; background: var(--panel-2); }
+    .parada .dia b { display: block; font-family: var(--datos); font-size: 18px; } .parada .dia small { font-size: 10.5px; color: var(--tenue); text-transform: uppercase; }
+    .parada.vencido .dia { background: var(--rojo); } .parada.vencido .dia small { color: #fff; }
+    .parada .det { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .parada .det small { display: block; color: var(--tenue); font-size: 11.5px; }
+    .parada .imp { font-family: var(--datos); font-size: 14px; }
+    .parada .imp.cobra { color: var(--verde); }
+    .vacio { padding: 18px 14px; color: var(--tenue); }
+    /* Ticker de banderas */
+    .ticker { display: flex; align-items: center; gap: 0; height: 42px; border-radius: 8px; overflow: hidden; background: var(--panel); border: 1px solid var(--linea); }
+    .ticker .etq { flex: none; height: 100%; display: flex; align-items: center; padding: 0 14px; font-weight: 900; font-style: italic; letter-spacing: 0.08em; background: var(--rojo); }
+    .ticker .pista { flex: 1; overflow: hidden; white-space: nowrap; position: relative; height: 100%; }
+    .ticker .cinta { position: absolute; top: 0; left: 0; height: 100%; display: flex; align-items: center; gap: 42px; padding-left: 100%; animation: cinta linear infinite; font-size: 15px; }
+    .bandera-ic { display: inline-block; width: 14px; height: 10px; margin-right: 8px; border-radius: 2px; vertical-align: 0; }
+    /* Semáforo de largada */
+    .largada { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(5, 6, 8, 0.94); transition: opacity 0.6s; }
+    .largada.fuera { opacity: 0; pointer-events: none; }
+    .luces { display: flex; gap: 22px; padding: 22px 26px; border-radius: 16px; background: #050608; border: 2px solid #1a1d22; }
+    .luz { width: clamp(46px, 7vw, 86px); aspect-ratio: 1; border-radius: 50%; background: #2a0505; box-shadow: inset 0 -6px 12px rgba(0, 0, 0, 0.6); transition: background 0.1s, box-shadow 0.1s; }
+    .luz.on { background: radial-gradient(circle at 40% 35%, #ff6a5c, var(--rojo) 55%, #7a0300); box-shadow: 0 0 40px 8px rgba(225, 6, 0, 0.6); }
+    .largada p { margin: 22px 0 0; text-align: center; font-weight: 900; font-style: italic; font-size: 28px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .error { color: var(--rojo); padding: 14px; }
+    @keyframes latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    @keyframes entra { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes cinta { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+    @media (max-width: 1000px) {
+      body { overflow: auto; }
+      .tablero { height: auto; min-height: 100dvh; }
+      .cuerpo { grid-template-columns: minmax(0, 1fr); }
+      .caja.torre, .caja.boxes { max-height: 420px; }
+      .rotativo { min-height: 360px; }
+      .barra { flex-wrap: wrap; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } .ticker .cinta { padding-left: 14px; } }
+  </style>
+</head>
+<body class="verificando">
+  <div class="largada" id="largada" aria-hidden="true">
+    <div><div class="luces"><i class="luz"></i><i class="luz"></i><i class="luz"></i><i class="luz"></i><i class="luz"></i></div><p id="largadaTexto">Preparados…</p></div>
+  </div>
+  <div class="tablero">
+    <header class="barra">
+      <div class="logo"><i class="bandera" aria-hidden="true"></i><span><b>Tesorería</b> Grand Prix</span></div>
+      <div class="vuelta" id="vuelta">VUELTA <b>—</b></div>
+      <div class="vivo">EN VIVO</div>
+      <div class="espacio"></div>
+      <div class="vuelta" id="proxima" title="Próxima actualización">—</div>
+      <div class="reloj" id="reloj">--:--:--</div>
+      <button type="button" class="boton" id="pantalla">Pantalla completa</button>
+      <a class="boton" href="index.html?v=7#elegir">Salir</a>
+    </header>
+    <main class="cuerpo">
+      <section class="caja torre"><h2><span>Torre de tiempos · saldos</span></h2><div class="lista" id="torre"></div></section>
+      <section class="centro">
+        <div class="caja grande">
+          <small>Total en pista · cuentas + FCI</small>
+          <div class="monto" id="total">—</div>
+          <span class="delta igual" id="delta">—</span>
+        </div>
+        <div class="sectores">
+          <div class="sector"><small>Sector 1 · Cuentas</small><b id="s1">—</b><span id="s1b"></span></div>
+          <div class="sector"><small>Sector 2 · FCI</small><b id="s2">—</b><span id="s2b"></span></div>
+          <div class="sector"><small>Sector 3 · Dólares</small><b id="s3">—</b><span id="s3b"></span></div>
+        </div>
+        <div class="rotativo">
+          <section class="caja" id="panelMes"><h2><span>Ritmo del mes</span></h2><div class="mes" id="mes"></div></section>
+          <section class="caja oculta" id="panelProps"><h2><span>Propiedades · última liquidación</span></h2><div class="props" id="props"></div></section>
+        </div>
+      </section>
+      <section class="caja boxes"><h2><span>Paradas en boxes · 7 días</span></h2><div class="lista" id="boxes"></div></section>
+    </main>
+    <footer class="ticker" aria-label="Avisos"><div class="etq">BANDERAS</div><div class="pista"><div class="cinta" id="cinta"></div></div></footer>
+  </div>
+  <script src="sesion.js?v=7"></script>
+  <script src="f1.js?v=1"></script>
+</body>
+</html>
