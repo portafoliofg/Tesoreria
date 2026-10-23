@@ -840,5 +840,16 @@
     }).then(function () { b.disabled = false; b.textContent = "Importar planilla"; });
   });
 
-  cargar();
+  // Desde el mapa: propiedades.html?edificio=…&lugar=… abre la última liquidación de ese edificio en ese lugar.
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var ed = q.get("edificio");
+    if (q.get("lugar")) { filtro.lugar = q.get("lugar"); pestana = "unidades"; }
+    if (!ed) { cargar(); return; }
+    BGPSesion.pedir("obtenerPropiedades").then(function (r) {
+      var suyas = (r.liquidaciones || []).filter(function (x) { return x.edificio === ed; })
+        .sort(function (a, b) { return String(b.orden).localeCompare(String(a.orden)); });
+      cargar(suyas.length ? clave(suyas[0]) : undefined);
+    }, function () { cargar(); });
+  })();
 })();
