@@ -47,7 +47,8 @@
   var ACCIONES_DE_SALDOS = ["guardarSaldos", "guardarSaldo"];
 
   var ICONOS = {
-    chispa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>',
+    // Amaroki: una pickup doble cabina con barra antivuelco (la Amarok V6).
+    camioneta: '<svg viewBox="0.3 5.6 23.4 14.2" fill="currentColor"><path fill-rule="evenodd" d="M1.4 10.9H7.4L9 7.4C9.2 7 9.6 6.8 10 6.8H15.9C16.4 6.8 16.8 7 17.1 7.4L19.5 10.5L22.3 11C22.9 11.1 23.3 11.6 23.3 12.2V15.6C23.3 16.1 23 16.4 22.5 16.4H21.8A3.3 3.3 0 0 0 15.2 16.4H8.8A3.3 3.3 0 0 0 2.2 16.4H1.5C1 16.4 0.7 16.1 0.7 15.6V11.6C0.7 11.2 1 10.9 1.4 10.9ZM10 7.9 8.7 10.6H12.4V7.9ZM13.4 7.9V10.6H18.1L16.1 7.9Z"/><path d="M3.4 10.9 4.5 8.6H8.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path fill-rule="evenodd" d="M5.5 13.7A2.7 2.7 0 1 1 5.49 13.7ZM5.5 15.3A1.1 1.1 0 1 0 5.51 15.3ZM18.5 13.7A2.7 2.7 0 1 1 18.49 13.7ZM18.5 15.3A1.1 1.1 0 1 0 18.51 15.3Z"/><rect x="21.6" y="11.9" width="1.7" height="1" rx=".4" fill-opacity=".55"/></svg>',
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>',
     parar: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
     enviar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>',
@@ -76,7 +77,7 @@
     "#asis-raiz .asis-cab { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--a-borde); background: var(--a-fondo); }",
     "#asis-raiz .asis-avatar { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; color: #fff; flex: none;",
     "  background: linear-gradient(145deg, var(--a-acento), var(--a-primario)); box-shadow: 0 6px 16px -8px rgba(var(--a-primario-rgb), .9); }",
-    "#asis-raiz .asis-avatar svg { width: 19px; height: 19px; }",
+    "#asis-raiz .asis-avatar svg { width: 25px; height: 25px; }",
     "#asis-raiz .asis-titulo { flex: 1; min-width: 0; }",
     "#asis-raiz .asis-titulo b { display: block; font-size: 15px; font-weight: 700; letter-spacing: .01em; }",
     "#asis-raiz .asis-titulo span { display: block; font-size: 12px; color: var(--a-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
@@ -106,7 +107,10 @@
     "#asis-raiz .asis-pensando i:nth-child(2) { animation-delay: .15s; } #asis-raiz .asis-pensando i:nth-child(3) { animation-delay: .3s; }",
     "#asis-raiz .asis-bienvenida { margin: auto 0; padding: 8px 4px 4px; text-align: center; }",
     "#asis-raiz .asis-bienvenida .asis-avatar { width: 54px; height: 54px; border-radius: 17px; margin: 0 auto 12px; }",
-    "#asis-raiz .asis-bienvenida .asis-avatar svg { width: 28px; height: 28px; }",
+    "#asis-raiz .asis-bienvenida .asis-avatar { position: relative; }",
+    "#asis-raiz .asis-bienvenida .asis-avatar svg { width: 40px; height: 40px; }",
+    "#asis-raiz .asis-v6 { position: absolute; right: -8px; bottom: -6px; padding: 1px 6px; border-radius: 7px; background: var(--a-fondo); color: var(--a-primario);",
+    "  border: 1px solid var(--a-borde); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; line-height: 1.4; font-style: italic; }",
     "#asis-raiz .asis-bienvenida h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }",
     "#asis-raiz .asis-bienvenida p { margin: 0 auto 16px; max-width: 360px; color: var(--a-tenue); font-size: 14px; }",
     "#asis-raiz .asis-sugerencias { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }",
@@ -140,7 +144,7 @@
     "#asis-raiz.flotante .asis-fab { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000; width: 56px; height: 56px; border-radius: 18px; color: #fff;",
     "  background: linear-gradient(145deg, var(--a-acento), var(--a-primario)); box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 2px 6px rgba(0, 0, 0, .15); transition: transform .18s ease, opacity .18s ease; }",
     "#asis-raiz.flotante .asis-fab:hover { transform: translateY(-2px) scale(1.03); }",
-    "#asis-raiz.flotante .asis-fab svg { width: 26px; height: 26px; }",
+    "#asis-raiz.flotante .asis-fab svg { width: 36px; height: 36px; }",
     "#asis-raiz.flotante.abierto .asis-fab { opacity: 0; pointer-events: none; transform: scale(.8); }",
     "#asis-raiz.flotante .asis-fab.con-aviso { animation: asis-llamada 2.4s infinite; }",
     "#asis-raiz.flotante .asis-insignia { position: absolute; top: -6px; right: -6px; min-width: 21px; height: 21px; padding: 0 6px; border-radius: 11px; background: var(--a-rojo); color: #fff;",
@@ -363,7 +367,7 @@
 
   Chat.prototype.construir = function () {
     var yo = this;
-    yo.nodoTitulo = el("b", "", { texto: "Asistente" });
+    yo.nodoTitulo = el("b", "", { texto: "Amaroki" });
     yo.nodoEstado = el("span", "", { texto: "Tesorería y propiedades" });
     yo.btnVoz = el("button", "asis-icono", { type: "button", "aria-label": "Leer las respuestas en voz alta", title: "Leer las respuestas en voz alta", "aria-pressed": String(yo.leerSiempre), html: yo.leerSiempre ? ICONOS.parlante : ICONOS.silencio });
     yo.btnManos = el("button", "asis-icono", { type: "button", "aria-label": "Manos libres: escucha de nuevo después de responder", title: "Manos libres", "aria-pressed": "false", html: ICONOS.manos });
@@ -371,7 +375,7 @@
     yo.btnExpandir = el("button", "asis-icono asis-expandir", { type: "button", "aria-label": "Abrir en pantalla completa", title: "Abrir en su página (pantalla completa)", html: ICONOS.expandir });
     yo.btnCerrar = el("button", "asis-icono asis-cerrar", { type: "button", "aria-label": "Cerrar", title: "Cerrar", html: ICONOS.cerrar });
     var cab = el("div", "asis-cab", null, [
-      el("div", "asis-avatar", { html: ICONOS.chispa, "aria-hidden": "true" }),
+      el("div", "asis-avatar", { html: ICONOS.camioneta, "aria-hidden": "true" }),
       el("div", "asis-titulo", null, [yo.nodoTitulo, yo.nodoEstado]),
       yo.btnVoz, yo.btnManos, yo.btnNueva, yo.btnExpandir, yo.btnCerrar
     ]);
@@ -456,7 +460,7 @@
     yo.estado = { cargando: true };
     pedir({ op: "estado" }).then(function (r) {
       yo.estado = r;
-      yo.nodoTitulo.textContent = r.nombre || "Asistente";
+      yo.nodoTitulo.textContent = r.nombre || "Amaroki";
       if (!r.configurado) yo.mostrarAviso("Falta activar el asistente: hay que cargar la clave gratuita de Gemini en el servidor (ver ASISTENTE.md en el repositorio).");
       yo.pintar();
     }, function (err) {
@@ -485,7 +489,7 @@
         sug.appendChild(b);
       });
       yo.lista.appendChild(el("div", "asis-bienvenida", null, [
-        el("div", "asis-avatar", { html: ICONOS.chispa, "aria-hidden": "true" }),
+        el("div", "asis-avatar", { html: ICONOS.camioneta + '<span class="asis-v6">V6</span>', "aria-hidden": "true" }),
         el("h3", "", { texto: "Hola" + quien + ". Soy " + presentacion + "." }),
         el("p", "", { texto: "Preguntame por saldos, cheques, vencimientos, movimientos, facturas o propiedades. Podés escribir o tocar el micrófono y hablar." }),
         sug
@@ -904,7 +908,7 @@
   function iniciarFlotante() {
     ponerEstilos();
     var raiz = el("div", "flotante", { id: "asis-raiz" });
-    var fab = el("button", "asis-fab", { type: "button", "aria-label": "Abrir el asistente", title: "Asistente (texto y voz)", html: ICONOS.chispa });
+    var fab = el("button", "asis-fab", { type: "button", "aria-label": "Abrir el asistente", title: "Amaroki, el asistente (texto y voz)", html: ICONOS.camioneta });
     var panel = el("div", "asis-panel", { role: "dialog", "aria-label": "Asistente", "aria-modal": "false" });
     var insignia = el("span", "asis-insignia", { "aria-hidden": "true" });
     insignia.hidden = true;
@@ -1041,7 +1045,7 @@
     var abierto = flotante.raiz.classList.contains("abierto");
     var mostrar = !!n && !abierto && flotante.burbujaCerrada !== a.nuevos.join(",");
     if (mostrar) {
-      var nombre = flotante.nombre || "Asistente";
+      var nombre = flotante.nombre || "Amaroki";
       flotante.burbujaTexto.innerHTML = "<b>" + esc(nombre) + ":</b> " + esc(a.burbuja ||
         (n === 1 ? "hay algo que no me cuadra" + (a.resumen ? " (" + a.resumen + ")" : "") + "." : "hay " + n + " cosas que no me cuadran.") + " ¿Lo vemos?");
     }

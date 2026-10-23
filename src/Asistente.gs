@@ -25,7 +25,7 @@
  *   GEMINI_MODELO           (opcional) modelo fijo, por ejemplo gemini-3.8-flash.
  *                           Si no está, se elige solo el mejor modelo Flash disponible
  *                           y, si se agota su cuota del día, pasa a Flash-Lite.
- *   ASISTENTE_NOMBRE        (opcional) cómo se llama el asistente. Por defecto "Asistente".
+ *   ASISTENTE_NOMBRE        (opcional) cómo se llama el asistente. Por defecto "Amaroki".
  *   ASISTENTE_LIMITE_HORA   (opcional) preguntas por usuario por hora. Por defecto 40.
  *   ASISTENTE_REVISAR       (opcional) "no" apaga los avisos de cosas que no cuadran.
  *   ASISTENTE_REVISAR_DESDE (opcional) aaaa-mm-dd: la revisión ignora lo anterior. Jarvis la
@@ -38,7 +38,7 @@ const ASIS_PROP_CLAVE = 'GEMINI_API_KEY';
 const ASIS_PROP_MODELO = 'GEMINI_MODELO';
 const ASIS_PROP_NOMBRE = 'ASISTENTE_NOMBRE';
 const ASIS_PROP_LIMITE = 'ASISTENTE_LIMITE_HORA';
-const ASIS_NOMBRE_DEFAULT = 'Asistente';
+const ASIS_NOMBRE_DEFAULT = 'Amaroki';
 const ASIS_LIMITE_HORA_DEFAULT = 40;
 const ASIS_MAX_PASOS = 6;          // vueltas de consultas por pregunta
 const ASIS_SEG_CERRAR = 60;        // pasado esto, la próxima vuelta tiene que contestar con lo que tiene
@@ -394,7 +394,8 @@ function asisInstrucciones_(u, canal) {
   const hoyIso = ahoraLocal().hoy;
   const quien = u ? (u['Nombre'] || u['Usuario']) : '';
   const lineas = [
-    'Sos ' + asisNombre_() + ', el asistente de la Tesorería de ' + empresa_() + ' (Andrés Sammartino). Hablás con ' + quien + '.',
+    'Sos ' + asisNombre_() + ', el asistente de la Tesorería de ' + empresa_() + ' (Andrés Sammartino). Hablás con ' + quien + '.' +
+      (asisNombre_() === 'Amaroki' ? ' Tu nombre viene de la Amarok V6 (tu ícono es esa camioneta): si te preguntan, podés hacer un chiste corto al respecto, sin exagerar.' : ''),
     'Hoy es ' + DIAS[diaSemana(hoyIso) - 1] + ' ' + isoAMostrar(hoyIso) + ', ' + Utilities.formatDate(ahora, tz, 'HH:mm') + ' (hora de Argentina).',
     '',
     'Cómo trabajás:',
