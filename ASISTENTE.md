@@ -11,7 +11,8 @@ su nivel **gratuito**.
   agregar a la pantalla de inicio (menú del navegador → *Agregar a la pantalla principal*)
   y queda como una app.
 
-**Solo lee.** No puede cargar, editar, borrar, conciliar ni enviar nada.
+**Solo lee.** No puede cargar, editar, borrar, conciliar ni enviar nada. Lo único que guarda es
+qué avisos ya le mostró a cada usuario (en las propiedades del script, no en las hojas).
 
 ## Activarlo (una sola vez, 5 minutos)
 
@@ -33,6 +34,7 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
 | `ASISTENTE_NOMBRE` | Cómo se llama el asistente (por ejemplo `Jarvis`) | `Asistente` |
 | `GEMINI_MODELO` | Forzar un modelo (por ejemplo `gemini-3.8-flash`) | Lo elige solo |
 | `ASISTENTE_LIMITE_HORA` | Preguntas por usuario por hora | `40` |
+| `ASISTENTE_REVISAR` | `no` apaga los avisos de cosas que no cuadran | Prendido |
 
 ## Cómo se usa
 
@@ -43,6 +45,36 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
 - **Auriculares** (arriba) = **manos libres**: después de cada respuesta vuelve a escuchar.
   Se apaga diciendo *"listo"*, *"gracias"* o *"chau"*, o si no escucha nada.
 - **Lápiz**: empieza una charla nueva. La charla queda guardada en ese navegador.
+
+## Avisos: cosas que no cuadran
+
+Al abrir la app (y la página del asistente) y cada vez que se guardan saldos, movimientos,
+cheques, FCI o compromisos, el asistente revisa los datos y avisa si algo no cierra:
+
+- **Saldos de cuentas y FCI**: compara cada saldo con el anterior de la misma cuenta y se fija
+  si lo registrado entre las dos fechas explica la diferencia. Por ejemplo: el FCI de BBVA tenía
+  $ 80 millones el 22/10 y $ 60 millones el 23/10, y no hay ningún rescate cargado. En los FCI
+  tiene en cuenta el rendimiento; en las cuentas, una tolerancia para comisiones e impuestos
+  (lo que sea mayor entre $ 50.000 / US$ 100, el 1 % del saldo y el 2 % de lo movido).
+- **Cajas de ahorro en negativo** (seguramente el saldo está mal cargado).
+- **Cheques emitidos** con la fecha de pago pasada hace más de 3 días que siguen pendientes.
+- **Cheques de terceros** en cartera con más de 30 días desde la fecha de pago.
+- **Movimientos repetidos**: misma cuenta, fecha, importe y destinatario (últimos 30 días).
+- **Compromisos vencidos** que siguen como pendientes.
+
+Cómo avisa:
+
+- Al entrar a la app: el botón del asistente muestra cuántos avisos hay y aparece un globito
+  (*"Jarvis: hay algo que no me cuadra…"*). Al tocarlo, el chat se abre, lo dice en voz alta y
+  pregunta qué pasó.
+- Después de guardar saldos: el chat se abre solo y lo dice en voz alta.
+- Se le contesta en el chat (escribiendo o hablando): verifica con los datos si con eso cierra y
+  dice qué hay que cargar y dónde (por ejemplo, el rescate en Inversiones → FCI).
+- Cada aviso se muestra una sola vez por usuario. Si los datos cambian (otro saldo, otro importe),
+  es un aviso nuevo. También se puede preguntar en cualquier momento *"¿hay algo que no cuadre?"*.
+
+La revisión no usa Gemini (no gasta cuota). Para apagarla: propiedad `ASISTENTE_REVISAR` = `no`.
+Los avisos ya vistos quedan en las propiedades `ASIS_VISTOS_<id de usuario>` (no tocan las hojas).
 
 Navegadores con dictado: Chrome, Edge y Safari (compu y celular). En Firefox graba el
 audio y lo transcribe Gemini. Dentro de la app, si el navegador no deja usar el micrófono,
@@ -81,7 +113,7 @@ Y tres líneas marcadas con `ASISTENTE` en archivos existentes:
 1. Borrar `src/Asistente.gs`, la carpeta `docs/asistente/` y este archivo.
 2. Borrar las líneas marcadas con `ASISTENTE` (lista de arriba). En `Código.gs` dejá
    `ACCIONES_SITIO` como estaba: `['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades']`.
-3. Opcional: borrar la propiedad `GEMINI_API_KEY` y la clave en AI Studio.
+3. Opcional: borrar las propiedades `GEMINI_API_KEY` y `ASIS_VISTOS_…`, y la clave en AI Studio.
 
 Si solo se borra `Asistente.gs` y quedan las líneas, la app sigue funcionando igual:
 el chat avisa que el asistente no está instalado.
