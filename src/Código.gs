@@ -146,7 +146,8 @@ function doGet() {
  * consulta de sesión, la salida y los datos de Propiedades (estos con sesión); el
  * resto de la app sigue yendo por api().
  */
-const ACCIONES_SITIO = ['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente']; // ASISTENTE: 'asistente' (ver Asistente.gs)
+const ACCIONES_SITIO = ['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
+  'ubicacionesPropiedades', 'guardarUbicacionPropiedad']; // mapa de propiedades (PropiedadesMapa.gs)
 
 function doPost(e) {
   let pedido = {};
@@ -243,6 +244,9 @@ const ACCIONES = {
   actualizarOrdenPago: actualizarOrdenPago_,
   obtenerPropiedades: obtenerPropiedades_,
   guardarPropiedades: guardarPropiedades_,
+  // Mapa de propiedades (PropiedadesMapa.gs, que se carga después de este archivo: por eso se lo llama al usarlo).
+  ubicacionesPropiedades: (d, u) => ubicacionesPropiedades_(d, u),
+  guardarUbicacionPropiedad: (d, u) => guardarUbicacionPropiedad_(d, u),
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
 };
