@@ -1,0 +1,15 @@
+{
+  "name": "Asistente · Andrés Sammartino",
+  "short_name": "Asistente",
+  "description": "Asistente de Tesorería y Propiedades por texto y voz.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ebe5dd",
+  "theme_color": "#1c4a2c",
+  "icons": [
+    { "src": "../logo-as-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "../logo-as-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

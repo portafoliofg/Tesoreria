@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#1c4a2c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Asistente">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" sizes="32x32" href="../logo-as-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../logo-as-64.png">
+  <link rel="apple-touch-icon" href="../logo-as-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>Asistente · Andrés Sammartino</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Manrope:wght@400;600;700&display=swap">
+  <style>
+    /* Misma paleta que el resto de bgpsammar.com: crema, verde y dorado.
+       El chat (asistente.js) toma estos colores con los nombres que usa la app. */
+    :root {
+      --primary: #1c4a2c; --primary-rgb: 28, 74, 44; --accent: #a87a2f;
+      --surface: #fffdfa; --surface-2: #f6f2ec; --surface-3: #ebe5dd;
+      --border: rgba(28, 74, 44, 0.14); --text: #24322a; --muted: #6d7469;
+      --font: "Manrope", "Segoe UI", system-ui, sans-serif;
+      --titulos: "Cinzel", "Times New Roman", serif;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: var(--font); color: var(--text); background: var(--surface-3); -webkit-font-smoothing: antialiased; }
+    .marco { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+    .barra {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: calc(10px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+      background: radial-gradient(120% 140% at 0% 0%, #f6f2ec, #ebe5dd); border-bottom: 1px solid var(--border);
+    }
+    .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; min-width: 0; }
+    .marca img { width: 36px; height: 36px; flex: none; }
+    .marca b { display: block; font-family: var(--titulos); font-weight: 600; font-size: 15px; letter-spacing: 0.08em; color: var(--primary); white-space: nowrap; }
+    .marca span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; color: var(--accent); }
+    .usuario { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .usuario button, .usuario a { font: inherit; font-weight: 600; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    @media (max-width: 480px) { #quien { display: none; } }
+    main { flex: 1; min-height: 0; display: flex; }
+    #chat { flex: 1; min-width: 0; display: flex; }
+
+    .acceso { margin: auto; width: min(380px, calc(100% - 32px)); padding: 26px 24px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 24px 50px -32px rgba(28, 74, 44, 0.6); }
+    .acceso h1 { margin: 0 0 4px; font-family: var(--titulos); font-weight: 600; font-size: 22px; letter-spacing: 0.06em; color: var(--primary); }
+    .acceso p { margin: 0 0 18px; font-size: 14px; color: var(--muted); }
+    .acceso label { display: grid; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+    .acceso input { font: inherit; font-size: 16px; color: var(--text); background: #fff; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 10px 12px; }
+    .acceso input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
+    .acceso button { width: 100%; font: 700 15px/1 var(--font); color: #fffaf0; cursor: pointer; padding: 13px 16px; border-radius: 10px; border: 0; background: linear-gradient(180deg, #2f6b42, var(--primary)); }
+    .acceso button:disabled { opacity: 0.6; cursor: wait; }
+    .acceso .error { min-height: 18px; margin: -4px 0 12px; font-size: 13px; color: #a3322a; }
+    .cargando { margin: auto; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="marco">
+    <header class="barra">
+      <a class="marca" href="../index.html?v=7#elegir" title="Volver al inicio">
+        <img src="../logo-as-180.png" alt="" width="36" height="36">
+        <span><b>Andrés Sammartino</b><span>Asistente</span></span>
+      </a>
+      <div class="usuario"><span id="quien"></span><button type="button" id="salir" hidden>Salir</button></div>
+    </header>
+    <main>
+      <div id="chat"><p class="cargando">Cargando…</p></div>
+    </main>
+  </div>
+
+  <template id="tplAcceso">
+    <form class="acceso" novalidate>
+      <h1>Asistente</h1>
+      <p>Ingresá con tu usuario de Tesorería.</p>
+      <label>Usuario<input type="text" name="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Contraseña<input type="password" name="clave" autocomplete="current-password" required></label>
+      <p class="error" role="alert"></p>
+      <button type="submit">Ingresar</button>
+    </form>
+  </template>
+
+  <script src="../sesion.js?v=7"></script>
+  <script src="asistente.js?v=1"></script>
+  <script>
+    // Página del asistente: si hay sesión de bgpsammar.com abre el chat; si no, pide el ingreso.
+    (function () {
+      var contenedor = document.getElementById("chat");
+      var quien = document.getElementById("quien");
+      var salir = document.getElementById("salir");
+
+      function abrirChat(usuario) {
+        quien.textContent = usuario && usuario.nombre ? usuario.nombre : "";
+        salir.hidden = false;
+        Asistente.montarPagina(contenedor, {
+          usuario: (usuario && usuario.usuario) || "",
+          alVencer: function () { pedirIngreso("Tu sesión venció. Volvé a ingresar."); }
+        });
+      }
+
+      function pedirIngreso(mensaje) {
+        quien.textContent = "";
+        salir.hidden = true;
+        contenedor.innerHTML = "";
+        var form = document.getElementById("tplAcceso").content.firstElementChild.cloneNode(true);
+        var error = form.querySelector(".error");
+        var boton = form.querySelector("button");
+        error.textContent = mensaje || "";
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var u = form.usuario.value.trim(), c = form.clave.value;
+          if (!u || !c) { error.textContent = "Escribí tu usuario y tu contraseña."; return; }
+          boton.disabled = true;
+          boton.textContent = "Ingresando…";
+          error.textContent = "";
+          BGPSesion.ingresar(u, c).then(abrirChat, function (err) {
+            error.textContent = err.message;
+            boton.disabled = false;
+            boton.textContent = "Ingresar";
+            form.clave.select();
+          });
+        });
+        contenedor.appendChild(form);
+        setTimeout(function () { try { form.usuario.focus(); } catch (e) {} }, 50);
+      }
+
+      salir.addEventListener("click", function () {
+        BGPSesion.salir().then(function () { pedirIngreso(""); });
+      });
+
+      // Con sesión guardada se abre al instante; después se confirma con el servidor.
+      var guardado = BGPSesion.usuario();
+      if (guardado) abrirChat(guardado);
+      BGPSesion.consultar().then(function (u) {
+        if (!u) pedirIngreso(guardado ? "Tu sesión venció. Volvé a ingresar." : "");
+        else if (!guardado) abrirChat(u);
+      }, function () {
+        if (!guardado) pedirIngreso("No se pudo conectar con el servidor. Revisá la conexión.");
+      });
+    })();
+  </script>
+</body>
+</html>
