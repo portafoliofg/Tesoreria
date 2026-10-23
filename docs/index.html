@@ -191,6 +191,14 @@
     .acceso-boton:focus-visible { outline: 2px solid var(--oro); outline-offset: 3px; }
     .acceso-error { margin: 0; min-height: 1.4em; font-size: 13px; color: #a3322a; }
     .acceso-nota { margin: 0; font-size: 12.5px; color: var(--tenue); text-align: center; }
+    /* Ingreso con Google (botón de Google Identity Services) y, debajo, usuario y clave como alternativa. */
+    .acceso-google { display: flex; justify-content: center; min-height: 44px; transition: opacity 0.2s ease; }
+    .acceso-google.esperando { opacity: 0.55; pointer-events: none; }
+    .acceso-separador { display: flex; align-items: center; gap: 12px; margin: 2px 0 0; font-size: 12.5px; color: var(--tenue); }
+    .acceso-separador::before, .acceso-separador::after { content: ""; flex: 1; height: 1px; background: var(--linea); }
+    .acceso-form:not(.con-google) .acceso-google, .acceso-form:not(.con-google) .acceso-separador { display: none; }
+    .acceso-form.con-google .acceso-boton { color: var(--verde); background: transparent; border: 1px solid rgba(28, 74, 44, 0.32); box-shadow: none; }
+    .acceso-form.con-google .acceso-boton:hover:not(:disabled) { filter: none; background: rgba(28, 74, 44, 0.05); }
 
     @media (max-height: 640px) { .sel-logo { height: clamp(110px, 24vh, 160px); } }
     @media (max-width: 600px) { .sel-logo { height: clamp(120px, 22vh, 180px); } }
@@ -222,8 +230,10 @@
     <section class="sel" id="acceso" hidden aria-labelledby="accesoTitulo">
       <div class="sel-caja">
         <img class="sel-logo" src="marca.png?v=6" alt="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias" width="928" height="700">
-        <form class="acceso-form" id="accesoForm" novalidate>
+        <form class="acceso-form con-google" id="accesoForm" novalidate>
           <h2 id="accesoTitulo">Ingresar</h2>
+          <div class="acceso-google" id="accesoGoogle"></div>
+          <p class="acceso-separador">o con usuario y clave</p>
           <label>Usuario<input type="text" id="accesoUsuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
           <label>Contraseña<input type="password" id="accesoClave" autocomplete="current-password" required></label>
           <p class="acceso-error" id="accesoError" role="alert"></p>
@@ -239,7 +249,8 @@
         <p class="sel-pregunta">¿A dónde querés entrar?</p>
         <p class="sel-usuario" id="selUsuario" hidden></p>
         <div class="sel-opciones">
-          <!-- Inversiones abre la plataforma de cartera (servidor propio en Render, con su propio ingreso). -->
+          <!-- Inversiones abre la plataforma de cartera (servidor propio en Render, con su propio ingreso).
+               Si se ingresó con Google hace poco, le pasa la credencial en el #g= y no pide otro ingreso. -->
           <a class="cartel" id="irInversiones" href="https://azevo.onrender.com/">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
@@ -269,7 +280,7 @@
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
           <!-- ?v=: subirlo al cambiar propiedades.html, así el navegador no usa una copia vieja. -->
-          <a class="cartel" id="irPropiedades" href="propiedades.html?v=7">
+          <a class="cartel" id="irPropiedades" href="propiedades.html?v=8">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -287,13 +298,14 @@
       </div>
     </section>
   </div>
-  <script src="sesion.js?v=5"></script>
+  <script src="sesion.js?v=8"></script>
   <script>
     // Pantalla de inicio: la presentación animada del logo y, al terminar, el ingreso (si
     // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
     // pantalla. Hay un solo ingreso, con los usuarios de Tesorería (sesion.js). Tesorería
     // abre la app (que ya se viene cargando detrás) y recibe la sesión por postMessage;
     // Propiedades abre propiedades.html; Inversiones abre la plataforma de cartera (azevo.onrender.com).
+    // El ingreso principal es con Google (cuentas de bgpsammar.com); usuario y clave quedan como alternativa.
     (function () {
       var capa = document.getElementById("capa");
       var app = document.getElementById("app");
@@ -307,12 +319,22 @@
       var btnTes = document.getElementById("irTesoreria");
       var appLista = false, eligio = false, cerrada = false, termino = false;
       var usuario = null;
+      // Cliente OAuth de Google (el mismo que valida loginGoogle_ en src/Código.gs).
+      var GOOGLE_CLIENT_ID = "852188026915-dlnsq9r0funnukkbhrng4gh0esg3g4ms.apps.googleusercontent.com";
+      var URL_INVERSIONES = "https://azevo.onrender.com/";
+      // La credencial de Google dura 1 hora: se le pasa a Inversiones solo si tiene menos de 50 minutos.
+      var VIGENCIA_GOOGLE_MS = 50 * 60 * 1000;
+      var formAcceso = document.getElementById("accesoForm");
+      var cajaGoogle = document.getElementById("accesoGoogle");
+      var googleListo = false, googleCargando = false, botonGoogle = false;
 
       // La sesión se confirma con el servidor durante la presentación. No se espera esa
       // respuesta para mostrar nada: con una sesión guardada aparece el selector al
       // instante, y solo si el servidor dice que venció se vuelve al ingreso.
       var consulta = BGPSesion.consultar();
       consulta.catch(function () {});
+      // Sin sesión guardada se va a pedir el ingreso: la biblioteca de Google se carga durante la presentación.
+      if (!BGPSesion.token()) cargarGoogle();
 
       // ----- Sesión hacia la app de Tesorería -----
       // La app está en un iframe de Google con otros iframes adentro: se manda a todos.
@@ -382,6 +404,7 @@
           salir.type = "button";
           salir.textContent = "Salir";
           salir.addEventListener("click", function () {
+            try { if (googleListo) google.accounts.id.disableAutoSelect(); } catch (e) {}
             BGPSesion.salir().then(function () {
               difundir(app.contentWindow, { tipo: "bgp-salir" });
               usuario = null;
@@ -399,11 +422,76 @@
         setTimeout(function () { try { btnTes.focus({ preventScroll: true }); } catch (e) {} }, 400);
       }
 
+      // ----- Ingreso con Google (Google Identity Services) -----
+      // Si la biblioteca de Google no carga (red, bloqueador), queda solo usuario y clave.
+      function sinGoogle() {
+        googleCargando = false;
+        formAcceso.classList.remove("con-google");
+      }
+      function cargarGoogle() {
+        if (googleListo || googleCargando) return;
+        if (window.google && google.accounts && google.accounts.id) { iniciarGoogle(); return; }
+        googleCargando = true;
+        var s = document.createElement("script");
+        s.src = "https://accounts.google.com/gsi/client";
+        s.async = true;
+        s.onload = iniciarGoogle;
+        s.onerror = sinGoogle;
+        document.head.appendChild(s);
+      }
+      function iniciarGoogle() {
+        googleCargando = false;
+        if (!(window.google && google.accounts && google.accounts.id)) { sinGoogle(); return; }
+        try {
+          google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: alIngresarGoogle,
+            hd: "bgpsammar.com",
+            ux_mode: "popup",
+            auto_select: false
+          });
+          googleListo = true;
+        } catch (e) { sinGoogle(); return; }
+        dibujarBotonGoogle();
+      }
+      // El botón se dibuja con el ingreso a la vista, para que tome el ancho del formulario.
+      function dibujarBotonGoogle() {
+        if (!googleListo || botonGoogle || acceso.hidden) return;
+        try {
+          google.accounts.id.renderButton(cajaGoogle, {
+            type: "standard", theme: "outline", size: "large", shape: "rectangular",
+            text: "signin_with", logo_alignment: "center", locale: "es-419",
+            width: Math.max(200, Math.min(400, cajaGoogle.clientWidth || 320))
+          });
+          botonGoogle = true;
+        } catch (e) { sinGoogle(); }
+      }
+      function alIngresarGoogle(resp) {
+        var error = document.getElementById("accesoError");
+        if (!resp || !resp.credential) { error.textContent = "No se pudo ingresar con Google. Probá de nuevo."; return; }
+        error.textContent = "";
+        cajaGoogle.classList.add("esperando");
+        BGPSesion.ingresarGoogle(resp.credential).then(function (usr) {
+          usuario = usr;
+          enviarSesion();
+          mostrarSelector();
+        }, function (err) {
+          error.textContent = err.message;
+        }).then(function () {
+          cajaGoogle.classList.remove("esperando");
+        });
+      }
+
       function mostrarAcceso(error) {
         document.getElementById("accesoError").textContent = error || "";
         document.getElementById("accesoClave").value = "";
         mostrar(acceso);
-        setTimeout(function () { try { document.getElementById("accesoUsuario").focus({ preventScroll: true }); } catch (e) {} }, 400);
+        cargarGoogle();
+        dibujarBotonGoogle();
+        // Con el botón de Google como ingreso principal no se enfoca el usuario (en el celular abriría el teclado).
+        if (!formAcceso.classList.contains("con-google")) {
+          setTimeout(function () { try { document.getElementById("accesoUsuario").focus({ preventScroll: true }); } catch (e) {} }, 400);
+        }
       }
 
       // Al terminar la presentación (o saltearla): selector si hay sesión; si no, el ingreso.
@@ -446,6 +534,16 @@
           boton.disabled = false;
           boton.textContent = "Ingresar";
         });
+      });
+
+      // Inversiones: con una credencial de Google reciente, la plataforma la lee del #g=, la
+      // borra de la dirección y entra sin pedir otro ingreso. Si no hay, es el enlace común.
+      // Se cambia el destino en el momento del clic (también sirve para abrir en otra pestaña).
+      var irInversiones = document.getElementById("irInversiones");
+      irInversiones.addEventListener("click", function () {
+        var c = BGPSesion.credencialGoogle(VIGENCIA_GOOGLE_MS);
+        irInversiones.href = c ? URL_INVERSIONES + "#g=" + encodeURIComponent(c) : URL_INVERSIONES;
+        setTimeout(function () { irInversiones.href = URL_INVERSIONES; }, 0);
       });
 
       btnTes.addEventListener("click", function () {

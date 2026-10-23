@@ -146,7 +146,10 @@ function doGet() {
  * consulta de sesión, la salida y los datos de Propiedades (estos con sesión); el
  * resto de la app sigue yendo por api().
  */
-const ACCIONES_SITIO = ['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente']; // ASISTENTE: 'asistente' (ver Asistente.gs)
+const ACCIONES_SITIO = ['estado', 'login', 'loginGoogle', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
+  'ubicacionesPropiedades', 'guardarUbicacionPropiedad', 'guardarVistaCalle', // mapa de propiedades (PropiedadesMapa.gs)
+  'obtenerContratos', 'guardarContrato', 'aplicarActualizacionContrato', 'eliminarContrato', // contratos (Contratos.gs)
+  'tableroF1']; // modo Fórmula 1 (TableroF1.gs)
 
 function doPost(e) {
   let pedido = {};
@@ -174,6 +177,7 @@ function autorizarPermisos() {
 const ACCIONES_PUBLICAS = {
   estado: estado_,
   login: login_,
+  loginGoogle: loginGoogle_,
   crearPrimerUsuario: crearPrimerUsuario_
 };
 
@@ -245,6 +249,16 @@ const ACCIONES = {
   guardarPropiedades: guardarPropiedades_,
   obtenerPreferencias: obtenerPreferencias_,
   guardarPreferencias: guardarPreferencias_,
+  // Mapa de propiedades (PropiedadesMapa.gs, que se carga después de este archivo: por eso se lo llama al usarlo).
+  ubicacionesPropiedades: (d, u) => ubicacionesPropiedades_(d, u),
+  guardarUbicacionPropiedad: (d, u) => guardarUbicacionPropiedad_(d, u),
+  guardarVistaCalle: (d, u) => guardarVistaCalle_(d, u),
+  // Contratos (Contratos.gs) y modo Fórmula 1 (TableroF1.gs): se cargan después de este archivo.
+  obtenerContratos: (d, u) => obtenerContratos_(d, u),
+  guardarContrato: (d, u) => guardarContrato_(d, u),
+  aplicarActualizacionContrato: (d, u) => aplicarActualizacionContrato_(d, u),
+  eliminarContrato: (d, u) => eliminarContrato_(d, u),
+  tableroF1: (d, u) => tableroF1_(d, u),
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
 };
@@ -437,6 +451,96 @@ function login_(d) {
   try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
   registrar_(u, 'Ingreso', 'Inició sesión', '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
+}
+
+// ----- Ingreso con Google (cuentas de Google Workspace de bgpsammar.com) -----
+// Cliente OAuth "Web" del proyecto de Google Cloud (tipo Interno: solo cuentas de la organización).
+const GOOGLE_CLIENT_ID = '852188026915-dlnsq9r0funnukkbhrng4gh0esg3g4ms.apps.googleusercontent.com';
+const GOOGLE_DOMINIO = 'bgpsammar.com';
+// Únicas cuentas que pueden ingresar con Google (en minúsculas).
+const MAILS_PERMITIDOS = [
+  'faliaga@bgpsammar.com', 'asammartino@bgpsammar.com', 'fcasorran@bgpsammar.com',
+  'fgomez@bgpsammar.com', 'jbornancini@bgpsammar.com'
+];
+
+/**
+ * d: {credential} = el ID token (JWT) que da el botón de Google en bgpsammar.com.
+ * Lo valida Google (tokeninfo) y se exige: este cliente, emisor de Google, vigente,
+ * mail verificado, del dominio y en MAILS_PERMITIDOS. Entra con el usuario de
+ * Tesorería que se llama como la parte del mail antes de la @ (faliaga@… → faliaga);
+ * si no existe se crea con una contraseña al azar que nadie conoce (solo Google).
+ * El token de Google no se guarda ni se registra.
+ */
+function loginGoogle_(d) {
+  const credencial = String(d.credential || '');
+  const cache = CacheService.getScriptCache();
+  const error = { ok: false, error: 'No se pudo ingresar con Google. Usá una cuenta autorizada de ' + GOOGLE_DOMINIO + '.' };
+  // Para limitar intentos se usa el mail que dice traer el token (todavía sin validar),
+  // igual que login_ con el nombre de usuario.
+  const mailDicho = mailDeCredencialSinValidar_(credencial);
+  const claveIntentos = 'int_' + (mailDicho || 'google').slice(0, 200);
+  const intentos = parseInt(cache.get(claveIntentos) || '0', 10);
+  if (intentos >= INTENTOS_MAXIMOS) {
+    return { ok: false, error: 'Demasiados intentos fallidos. Esperá 10 minutos y volvé a probar.' };
+  }
+  const fallo = motivo => {
+    cache.put(claveIntentos, String(intentos + 1), BLOQUEO_SEGUNDOS);
+    registrar_(null, 'Ingreso con Google fallido', 'Cuenta: ' + (mailDicho || '(desconocida)') + ' · ' + motivo, '', '', '');
+    return error;
+  };
+  if (!credencial || credencial.length > 4096) return fallo('sin credencial');
+
+  let info = null;
+  try {
+    const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credencial), { muteHttpExceptions: true });
+    if (res.getResponseCode() === 200) info = JSON.parse(res.getContentText());
+  } catch (e) {
+    return { ok: false, error: 'No se pudo verificar la cuenta con Google. Probá de nuevo en un momento.' };
+  }
+  if (!info) return fallo('Google no validó la credencial');
+  const mail = String(info.email || '').trim().toLowerCase();
+  if (info.aud !== GOOGLE_CLIENT_ID) return fallo('credencial de otra aplicación');
+  if (info.iss !== 'accounts.google.com' && info.iss !== 'https://accounts.google.com') return fallo('emisor inválido');
+  if (!(Number(info.exp) * 1000 > Date.now())) return fallo('credencial vencida');
+  if (String(info.email_verified) !== 'true') return fallo('mail sin verificar');
+  if (String(info.hd || '').toLowerCase() !== GOOGLE_DOMINIO) return fallo('cuenta fuera de ' + GOOGLE_DOMINIO);
+  if (MAILS_PERMITIDOS.indexOf(mail) < 0 || mail.slice(mail.indexOf('@') + 1) !== GOOGLE_DOMINIO) return fallo('cuenta no autorizada: ' + mail);
+
+  const nombreUsuario = mail.slice(0, mail.indexOf('@'));
+  let u = leerUsuarios_().find(x => x['Usuario'] === nombreUsuario);
+  if (!u) {
+    u = conLock_(() => {
+      const ya = leerUsuarios_().find(x => x['Usuario'] === nombreUsuario);
+      if (ya) return ya;
+      // Contraseña al azar y larga: el ingreso con usuario y clave queda cerrado para este usuario
+      // hasta que alguien la restablezca desde Usuarios.
+      const clave = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+        Utilities.getUuid() + Utilities.getUuid() + Date.now() + Math.random(), Utilities.Charset.UTF_8));
+      const nombre = String(info.name || '').trim() || nombreUsuario;
+      const fila = altaUsuario_({ usuario: nombreUsuario, nombre: nombre, clave: clave }, null);
+      registrar_(fila, 'Alta de usuario', 'Se creó al ingresar con Google (' + mail + ')', fila['ID'], '', '');
+      return fila;
+    });
+  }
+  if (u['Activo'] !== 'Sí') return fallo('usuario desactivado');
+
+  cache.remove(claveIntentos);
+  actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
+  try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
+  registrar_(u, 'Ingreso con Google', 'Inició sesión con ' + mail, '', '', '');
+  return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
+}
+
+/** Mail que figura dentro del token de Google, SIN validar (solo para contar intentos). */
+function mailDeCredencialSinValidar_(credencial) {
+  try {
+    let parte = String(credencial).split('.')[1] || '';
+    while (parte.length % 4) parte += '=';
+    const datos = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parte)).getDataAsString('UTF-8'));
+    return String(datos.email || '').trim().toLowerCase();
+  } catch (e) {
+    return '';
+  }
 }
 
 function logout_(d, u) {
@@ -1886,6 +1990,10 @@ function revisarAlertas() {
         console.error('No se pudo enviar el resumen de cheques a ' + u['Usuario'] + ': ' + e.message);
       }
     });
+    // Contratos que vencen o tienen que actualizarse (Contratos.gs), a partir de las 9.
+    if (ahora.hora >= 9) {
+      try { if (typeof enviarAvisosContratos_ === 'function') enviarAvisosContratos_(usuarios); } catch (e) { console.error('Avisos de contratos: ' + e.message); }
+    }
   } finally {
     lock.releaseLock();
   }
@@ -2051,6 +2159,7 @@ function importarPlanilla_(d, u) {
   return conLock_(() => {
     const destino = String(d.destino || '');
     const filas = d.filas || [];
+    if (d.depurar) return Object.assign({ ok: true }, depurarPlanilla_(destino, d.depurar, d.archivo, u));
     let res;
     if (destino === 'cuentas') res = importarCuentas_(d, u);
     else if (destino === 'movimientos') res = importarMovimientos_(filas, d, u);
@@ -2190,6 +2299,45 @@ function upsertPlanilla_(nombreHoja, H, filas, opciones) {
   return { nuevos: nuevos, actualizados: actualizados, conciliados: conciliados, sinCambios: sinCambios };
 }
 
+/**
+ * FCI y compromisos no tienen un N° fijo en la planilla: su "ID Planilla" se arma con
+ * el contenido (fecha, fondo, monto, concepto…). Si una fila se corrige en el Excel,
+ * cambia el ID y la versión vieja quedaría duplicada. Por eso, terminada la importación
+ * de esa sección, se quitan las filas que vinieron de la planilla, son de la fecha más
+ * vieja del archivo en adelante y ya no están en él. No toca lo cargado en la app
+ * (rescates FCIM-…, compromisos sin ID) ni lo anterior a esa fecha (por si el archivo
+ * no trae toda la historia).
+ * dep: {ids: [ID Planilla del archivo], desde: aaaa-mm-dd}
+ */
+function depurarPlanilla_(destino, dep, archivo, u) {
+  const conf = {
+    fci: { hoja: SHEET_FCI, H: HEADERS_FCI, fecha: 'Fecha', prefijos: ['FCI-'], nombre: 'FCI' },
+    compromisos: { hoja: SHEET_COMPROMISOS, H: HEADERS_COMPROMISOS, fecha: 'Fecha de Vencimiento', prefijos: ['PLAN-', 'PM-', 'TJ-'], nombre: 'Compromisos' }
+  }[destino];
+  const desde = String(dep.desde || '');
+  const ids = {};
+  (dep.ids || []).forEach(x => { ids[String(x).trim()] = true; });
+  if (!conf || !esIsoValida(desde) || !Object.keys(ids).length) return { quitados: 0 };
+  const iId = conf.H.indexOf('ID Planilla'), iF = conf.H.indexOf(conf.fecha);
+  // La cuota de un plan (PLAN-plan-cuota-total-fecha) es la misma aunque cambie la fecha.
+  const cuota = id => id.indexOf('PLAN-') === 0 ? id.replace(/-\d{8}$/, '') : '';
+  const cuotas = {};
+  Object.keys(ids).forEach(id => { if (cuota(id)) cuotas[cuota(id)] = true; });
+  const salen = eliminarFilasDonde_(conf.hoja, conf.H, f => {
+    const id = String(f[iId] || '').trim();
+    if (!id || ids[id] || !conf.prefijos.some(p => id.indexOf(p) === 0)) return false;
+    if (cuota(id) && cuotas[cuota(id)]) return true;
+    const iso = dmaAIso_(f[iF]);
+    return !!iso && iso >= desde;
+  });
+  if (salen.length) {
+    registrar_(u, 'Importación de planilla',
+      conf.nombre + ': ' + salen.length + ' fila(s) quitada(s) porque cambiaron o ya no están en la planilla (desde el ' + isoAMostrar(desde) + ')',
+      String(archivo || ''), textoCorto_(salen.map(f => filaComoObjeto_(conf.H, f))), '');
+  }
+  return { quitados: salen.length };
+}
+
 function importarMovimientos_(filas, d, u) {
   const H = HEADERS_TRANSFERENCIAS;
   const hoja = obtenerHoja_(SHEET_TRANSFERENCIAS, H);
@@ -2218,14 +2366,33 @@ function importarMovimientos_(filas, d, u) {
       fila[COL_ARCHIVO] = String(d.archivo || 'Planilla de flujo de fondos');
       fila[COL_CARGADO_TRANS] = nombreDe_(u);
     },
-    // Un movimiento cargado antes por comprobante: mismo banco, mismo N° de referencia y mismo importe.
+    // Un movimiento cargado antes en la app (comprobante o a mano), que la planilla también trae:
+    // 1) mismo banco, mismo N° de referencia y mismo importe;
+    // 2) si no, mismo banco y cuenta, misma fecha, mismo importe con signo y misma moneda
+    //    (sin contar los renglones de resúmenes bancarios, que son el lado del banco).
+    // Cada uno se asocia una sola vez: al tomar el ID de la planilla ya no vuelve a coincidir.
     alternativa: (o, datos) => {
+      const sinId = f => !String(f[iId] || '').trim();
       const ref = String(o['N° de Referencia'] || '').trim();
-      if (soloDigitos(ref).length < 4) return -1;
-      const banco = claveTexto(o['Banco']);
-      const imp = Math.abs(importeANumero(o['Monto']));
-      return datos.findIndex(f => !String(f[iId] || '').trim() && claveTexto(f[COL_BANCO_TRANS]) === banco &&
-        String(f[COL_REFERENCIA]).trim() === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - imp) < 0.01);
+      const imp = importeANumero(o['Monto']);
+      if (soloDigitos(ref).length >= 4) {
+        const banco = claveTexto(o['Banco']);
+        const i = datos.findIndex(f => sinId(f) && claveTexto(f[COL_BANCO_TRANS]) === banco &&
+          String(f[COL_REFERENCIA]).trim() === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - Math.abs(imp)) < 0.01);
+        if (i >= 0) return i;
+      }
+      const fecha = dmaAIso_(o['Fecha del Movimiento']);
+      if (!fecha || !imp) return -1;
+      const banco = bancoCanon_(o['Banco']);
+      const cta = sinCerosIzqCta_(soloDigitos(o['N° de Cuenta']));
+      const iFecha = H.indexOf('Fecha del Movimiento');
+      return datos.findIndex(f => {
+        if (!sinId(f) || f[COL_ORIGEN] === 'Resumen') return false;
+        if (dmaAIso_(f[iFecha]) !== fecha || Math.abs(importeANumero(f[COL_MONTO]) - imp) >= 0.01) return false;
+        if ((f[COL_MONEDA] === 'USD' ? 'USD' : 'Pesos') !== o['Moneda'] || bancoCanon_(f[COL_BANCO_TRANS]) !== banco) return false;
+        const c = sinCerosIzqCta_(soloDigitos(f[COL_NUMERO_CUENTA]));
+        return !c || !cta || c === cta || (c.length >= 4 && cta.length >= 4 && (c.slice(-cta.length) === cta || cta.slice(-c.length) === c));
+      });
     }
   });
 }
@@ -3704,6 +3871,10 @@ function guardarPropiedades_(d, u) {
     const fila = idx >= 0 ? idx + 2 : hoja.getLastRow() + 1;
     hoja.getRange(fila, 1, 1, HEADERS_PROPIEDADES.length).setNumberFormat('@').setValues([HEADERS_PROPIEDADES.map(h => valores[h])]);
     const n = (datos.unidades || []).length;
+    // Aviso por WhatsApp de los que pasaron a "no abonó" (Contratos.gs). Si falla, la liquidación igual queda guardada.
+    let datosAntes = null;
+    if (idx >= 0) { try { datosAntes = JSON.parse(filas[idx]['Datos']); } catch (e) {} }
+    try { if (typeof avisarNoAbono_ === 'function') avisarNoAbono_(datos, datosAntes, u); } catch (e) { console.error('Aviso de no abonó: ' + e.message); }
     registrar_(u, idx >= 0 ? 'Propiedades: liquidación actualizada' : 'Propiedades: liquidación cargada',
       edificio + ' · ' + periodo + ' · ' + n + ' unidad(es)' + (d.archivo ? ' · ' + d.archivo : ''), edificio + ' · ' + periodo, '', '');
     return { ok: true, reemplazada: idx >= 0 };

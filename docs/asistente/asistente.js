@@ -14,6 +14,11 @@
  * Las respuestas se leen en voz alta con la voz en español del dispositivo.
  * "Manos libres": después de leer la respuesta vuelve a escuchar solo.
  *
+ * Avisos: al abrir la app (o la página) y después de guardar saldos o movimientos,
+ * le pide al servidor la revisión de cosas que no cuadran y los pendientes del
+ * usuario (op "revisar"). Si hay avisos nuevos, el botón muestra cuántos y aparece un globito; si se acaban de
+ * guardar saldos, el chat se abre solo, lo dice en voz alta y pregunta qué pasó.
+ *
  * Asistente.montarPagina(contenedor, {usuario, alSalir})  chat a pantalla completa
  * Asistente.abrir() / Asistente.cerrar()                 panel flotante (dentro de la app)
  */
@@ -24,7 +29,7 @@
   // Misma URL /exec que docs/sesion.js: si cambia, actualizarla en los dos.
   var URL_APP = "https://script.google.com/macros/s/AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ/exec";
   var PAGINA = "https://bgpsammar.com/asistente/";
-  var ESPERA_MS = 120000;
+  var ESPERA_MS = 180000;  // el servidor corta antes (ASIS_SEG_MAX en Asistente.gs)
   var MAX_GUARDADOS = 40;
   var MAX_HISTORIAL = 12;
   var GRABACION_MAX_MS = 25000;
@@ -32,11 +37,18 @@
   var NOMBRES_CONSULTA = {
     buscar_movimientos: "movimientos", buscar_cheques: "cheques", saldos: "saldos", cuentas_bancarias: "cuentas",
     proximos_vencimientos: "vencimientos", compromisos: "compromisos", inversiones: "inversiones",
-    propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas"
+    propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas",
+    revisar_inconsistencias: "revisión", recordar: "memoria", olvidar: "memoria", crear_pendiente: "pendientes",
+    completar_pendiente: "pendientes", listar_pendientes: "pendientes", crear_recordatorio: "recordatorios"
   };
+  // Acciones de la app después de las cuales se vuelve a revisar si algo no cuadra.
+  var ACCIONES_QUE_CAMBIAN = ["guardarSaldos", "guardarSaldo", "guardarMovimientosFci", "eliminarMovimientoFci", "guardarTransferencias", "cambiarCondicion",
+    "guardarCheques", "registrarSalidaCheques", "importarPlanilla", "guardarCompromiso", "eliminarCompromiso", "guardarConciliacion", "anularConciliacion"];
+  var ACCIONES_DE_SALDOS = ["guardarSaldos", "guardarSaldo"];
 
   var ICONOS = {
-    chispa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8L19 20.4l-.8-1.9-1.9-.8 1.9-.8z"/></svg>',
+    // Amaroki: una pickup doble cabina con barra antivuelco (la Amarok V6).
+    camioneta: '<svg viewBox="0.3 5.6 23.4 14.2" fill="currentColor"><path fill-rule="evenodd" d="M1.4 10.9H7.4L9 7.4C9.2 7 9.6 6.8 10 6.8H15.9C16.4 6.8 16.8 7 17.1 7.4L19.5 10.5L22.3 11C22.9 11.1 23.3 11.6 23.3 12.2V15.6C23.3 16.1 23 16.4 22.5 16.4H21.8A3.3 3.3 0 0 0 15.2 16.4H8.8A3.3 3.3 0 0 0 2.2 16.4H1.5C1 16.4 0.7 16.1 0.7 15.6V11.6C0.7 11.2 1 10.9 1.4 10.9ZM10 7.9 8.7 10.6H12.4V7.9ZM13.4 7.9V10.6H18.1L16.1 7.9Z"/><path d="M3.4 10.9 4.5 8.6H8.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path fill-rule="evenodd" d="M5.5 13.7A2.7 2.7 0 1 1 5.49 13.7ZM5.5 15.3A1.1 1.1 0 1 0 5.51 15.3ZM18.5 13.7A2.7 2.7 0 1 1 18.49 13.7ZM18.5 15.3A1.1 1.1 0 1 0 18.51 15.3Z"/><rect x="21.6" y="11.9" width="1.7" height="1" rx=".4" fill-opacity=".55"/></svg>',
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></svg>',
     parar: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
     enviar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg>',
@@ -65,7 +77,7 @@
     "#asis-raiz .asis-cab { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--a-borde); background: var(--a-fondo); }",
     "#asis-raiz .asis-avatar { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; color: #fff; flex: none;",
     "  background: linear-gradient(145deg, var(--a-acento), var(--a-primario)); box-shadow: 0 6px 16px -8px rgba(var(--a-primario-rgb), .9); }",
-    "#asis-raiz .asis-avatar svg { width: 19px; height: 19px; }",
+    "#asis-raiz .asis-avatar svg { width: 25px; height: 25px; }",
     "#asis-raiz .asis-titulo { flex: 1; min-width: 0; }",
     "#asis-raiz .asis-titulo b { display: block; font-size: 15px; font-weight: 700; letter-spacing: .01em; }",
     "#asis-raiz .asis-titulo span { display: block; font-size: 12px; color: var(--a-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
@@ -85,6 +97,8 @@
     "#asis-raiz .asis-msg li + li { margin-top: 3px; }",
     "#asis-raiz .asis-msg strong { font-weight: 700; }",
     "#asis-raiz .asis-msg.asistente strong { color: var(--a-primario); }",
+    "#asis-raiz .asis-msg.asistente.alerta { background: rgba(217, 180, 106, .13); border-color: rgba(184, 137, 58, .5); }",
+    "#asis-raiz .asis-etiqueta { margin-bottom: 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--a-acento); }",
     "#asis-raiz .asis-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 7px; font-size: 11.5px; color: var(--a-tenue); }",
     "#asis-raiz .asis-meta button { color: var(--a-tenue); font-size: 11.5px; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }",
     "#asis-raiz .asis-meta button:hover { color: var(--a-primario); }",
@@ -93,7 +107,10 @@
     "#asis-raiz .asis-pensando i:nth-child(2) { animation-delay: .15s; } #asis-raiz .asis-pensando i:nth-child(3) { animation-delay: .3s; }",
     "#asis-raiz .asis-bienvenida { margin: auto 0; padding: 8px 4px 4px; text-align: center; }",
     "#asis-raiz .asis-bienvenida .asis-avatar { width: 54px; height: 54px; border-radius: 17px; margin: 0 auto 12px; }",
-    "#asis-raiz .asis-bienvenida .asis-avatar svg { width: 28px; height: 28px; }",
+    "#asis-raiz .asis-bienvenida .asis-avatar { position: relative; }",
+    "#asis-raiz .asis-bienvenida .asis-avatar svg { width: 40px; height: 40px; }",
+    "#asis-raiz .asis-v6 { position: absolute; right: -8px; bottom: -6px; padding: 1px 6px; border-radius: 7px; background: var(--a-fondo); color: var(--a-primario);",
+    "  border: 1px solid var(--a-borde); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; line-height: 1.4; font-style: italic; }",
     "#asis-raiz .asis-bienvenida h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }",
     "#asis-raiz .asis-bienvenida p { margin: 0 auto 16px; max-width: 360px; color: var(--a-tenue); font-size: 14px; }",
     "#asis-raiz .asis-sugerencias { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }",
@@ -121,13 +138,26 @@
     "@keyframes asis-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }",
     "@keyframes asis-punto { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }",
     "@keyframes asis-onda { 0%, 100% { height: 5px; } 50% { height: 18px; } }",
+    "@keyframes asis-llamada { 0%, 60%, 100% { box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 0 0 0 rgba(179, 57, 47, .45); } 30% { box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 0 0 10px rgba(179, 57, 47, 0); } }",
     "@keyframes asis-latido { 0% { box-shadow: 0 0 0 0 rgba(179, 57, 47, .5); } 70% { box-shadow: 0 0 0 12px rgba(179, 57, 47, 0); } 100% { box-shadow: 0 0 0 0 rgba(179, 57, 47, 0); } }",
     // Botón flotante y panel (dentro de la app)
     "#asis-raiz.flotante .asis-fab { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000; width: 56px; height: 56px; border-radius: 18px; color: #fff;",
     "  background: linear-gradient(145deg, var(--a-acento), var(--a-primario)); box-shadow: 0 14px 30px -12px rgba(var(--a-primario-rgb), .9), 0 2px 6px rgba(0, 0, 0, .15); transition: transform .18s ease, opacity .18s ease; }",
     "#asis-raiz.flotante .asis-fab:hover { transform: translateY(-2px) scale(1.03); }",
-    "#asis-raiz.flotante .asis-fab svg { width: 26px; height: 26px; }",
+    "#asis-raiz.flotante .asis-fab svg { width: 36px; height: 36px; }",
     "#asis-raiz.flotante.abierto .asis-fab { opacity: 0; pointer-events: none; transform: scale(.8); }",
+    "#asis-raiz.flotante .asis-fab.con-aviso { animation: asis-llamada 2.4s infinite; }",
+    "#asis-raiz.flotante .asis-insignia { position: absolute; top: -6px; right: -6px; min-width: 21px; height: 21px; padding: 0 6px; border-radius: 11px; background: var(--a-rojo); color: #fff;",
+    "  font-size: 12px; font-weight: 700; line-height: 21px; text-align: center; box-shadow: 0 0 0 2px var(--a-fondo); }",
+    "#asis-raiz.flotante .asis-insignia[hidden] { display: none; }",
+    "#asis-raiz.flotante .asis-burbuja { position: fixed; right: 20px; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000; width: max-content; max-width: min(300px, calc(100vw - 40px));",
+    "  display: flex; align-items: flex-start; gap: 4px; padding: 10px 6px 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--a-fondo); border: 1px solid rgba(184, 137, 58, .5);",
+    "  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .45); animation: asis-entra .25s ease-out; }",
+    "#asis-raiz.flotante .asis-burbuja[hidden], #asis-raiz.flotante.abierto .asis-burbuja { display: none; }",
+    "#asis-raiz .asis-burbuja .asis-burbuja-texto { display: block; flex: 1; min-width: 0; padding-top: 3px; font-size: 13.5px; line-height: 1.38; color: var(--a-texto); text-align: left; }",
+    "#asis-raiz .asis-burbuja .asis-burbuja-texto b { color: var(--a-primario); }",
+    "#asis-raiz .asis-burbuja .asis-icono { width: 28px; height: 28px; border-radius: 8px; }",
+    "#asis-raiz .asis-burbuja .asis-icono svg { width: 15px; height: 15px; }",
     "#asis-raiz.flotante .asis-panel { position: fixed; right: 20px; bottom: 20px; z-index: 2147483001; width: min(410px, calc(100vw - 40px)); height: min(640px, calc(100vh - 40px));",
     "  border-radius: 20px; overflow: hidden; border: 1px solid var(--a-borde); box-shadow: 0 30px 70px -24px rgba(0, 0, 0, .45);",
     "  opacity: 0; transform: translateY(16px) scale(.98); pointer-events: none; transition: opacity .2s ease, transform .2s ease; display: flex; }",
@@ -135,6 +165,7 @@
     "#asis-raiz.flotante .asis-panel .asis-chat { flex: 1; }",
     "@media (max-width: 640px) {",
     "  #asis-raiz.flotante .asis-fab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; border-radius: 16px; }",
+    "  #asis-raiz.flotante .asis-burbuja { right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 28px); }",
     "  #asis-raiz.flotante .asis-panel { inset: 0; right: 0; bottom: 0; width: 100%; height: 100%; height: 100dvh; border-radius: 0; border: 0; }",
     "}",
     ":root[data-modo=oscuro] #asis-raiz .asis-aviso { color: #e9cf95; background: rgba(217, 180, 106, .1); }",
@@ -267,7 +298,15 @@
   }
 
   function pedir(datos) {
-    if (enApp()) return runJson("asistente", datos);
+    if (enApp()) {
+      // google.script.run no tiene tiempo máximo: sin esto, si el servidor no contesta, el chat queda esperando para siempre.
+      return new Promise(function (resolve, reject) {
+        var reloj = setTimeout(function () {
+          reject(new Error("El asistente tardó demasiado en responder. Probá de nuevo; si se repite, preguntalo más corto."));
+        }, ESPERA_MS);
+        runJson("asistente", datos).then(function (r) { clearTimeout(reloj); resolve(r); }, function (err) { clearTimeout(reloj); reject(err); });
+      });
+    }
     var token = window.BGPSesion ? window.BGPSesion.token() : "";
     var control = typeof AbortController !== "undefined" ? new AbortController() : null;
     var reloj = setTimeout(function () { if (control) control.abort(); }, ESPERA_MS);
@@ -328,7 +367,7 @@
 
   Chat.prototype.construir = function () {
     var yo = this;
-    yo.nodoTitulo = el("b", "", { texto: "Asistente" });
+    yo.nodoTitulo = el("b", "", { texto: "Amaroki" });
     yo.nodoEstado = el("span", "", { texto: "Tesorería y propiedades" });
     yo.btnVoz = el("button", "asis-icono", { type: "button", "aria-label": "Leer las respuestas en voz alta", title: "Leer las respuestas en voz alta", "aria-pressed": String(yo.leerSiempre), html: yo.leerSiempre ? ICONOS.parlante : ICONOS.silencio });
     yo.btnManos = el("button", "asis-icono", { type: "button", "aria-label": "Manos libres: escucha de nuevo después de responder", title: "Manos libres", "aria-pressed": "false", html: ICONOS.manos });
@@ -336,7 +375,7 @@
     yo.btnExpandir = el("button", "asis-icono asis-expandir", { type: "button", "aria-label": "Abrir en pantalla completa", title: "Abrir en su página (pantalla completa)", html: ICONOS.expandir });
     yo.btnCerrar = el("button", "asis-icono asis-cerrar", { type: "button", "aria-label": "Cerrar", title: "Cerrar", html: ICONOS.cerrar });
     var cab = el("div", "asis-cab", null, [
-      el("div", "asis-avatar", { html: ICONOS.chispa, "aria-hidden": "true" }),
+      el("div", "asis-avatar", { html: ICONOS.camioneta, "aria-hidden": "true" }),
       el("div", "asis-titulo", null, [yo.nodoTitulo, yo.nodoEstado]),
       yo.btnVoz, yo.btnManos, yo.btnNueva, yo.btnExpandir, yo.btnCerrar
     ]);
@@ -421,7 +460,7 @@
     yo.estado = { cargando: true };
     pedir({ op: "estado" }).then(function (r) {
       yo.estado = r;
-      yo.nodoTitulo.textContent = r.nombre || "Asistente";
+      yo.nodoTitulo.textContent = r.nombre || "Amaroki";
       if (!r.configurado) yo.mostrarAviso("Falta activar el asistente: hay que cargar la clave gratuita de Gemini en el servidor (ver ASISTENTE.md en el repositorio).");
       yo.pintar();
     }, function (err) {
@@ -450,7 +489,7 @@
         sug.appendChild(b);
       });
       yo.lista.appendChild(el("div", "asis-bienvenida", null, [
-        el("div", "asis-avatar", { html: ICONOS.chispa, "aria-hidden": "true" }),
+        el("div", "asis-avatar", { html: ICONOS.camioneta + '<span class="asis-v6">V6</span>', "aria-hidden": "true" }),
         el("h3", "", { texto: "Hola" + quien + ". Soy " + presentacion + "." }),
         el("p", "", { texto: "Preguntame por saldos, cheques, vencimientos, movimientos, facturas o propiedades. Podés escribir o tocar el micrófono y hablar." }),
         sug
@@ -473,12 +512,19 @@
       return n;
     }
     if (m.rol === "usuario") return el("div", "asis-msg usuario", { texto: m.texto });
-    var nodo = el("div", "asis-msg asistente", { html: aHtml(m.texto) });
+    var nodo = el("div", "asis-msg asistente" + (m.alerta ? " alerta" : ""), { html: aHtml(m.texto) });
+    if (m.alerta) nodo.insertBefore(el("div", "asis-etiqueta", { texto: m.etiqueta || "Revisión automática" }), nodo.firstChild);
     var meta = el("div", "asis-meta");
     if (m.consultas && m.consultas.length) {
       var vistas = [];
       m.consultas.forEach(function (c) { var t = NOMBRES_CONSULTA[c] || c; if (vistas.indexOf(t) < 0) vistas.push(t); });
-      meta.appendChild(el("span", "", { texto: "Consultó: " + vistas.join(" · ") }));
+      meta.appendChild(el("span", "", { texto: "Usó: " + vistas.join(" · ") }));
+    }
+    if (m.alerta && m.etiqueta !== "Pendientes") {
+      var ignorar = el("button", "", { type: "button", texto: "Ignorar lo anterior a hoy" });
+      ignorar.title = "Por ejemplo, mientras están migrando: desde ahora solo revisa los cambios nuevos";
+      ignorar.addEventListener("click", function () { yo.pausarRevision(ignorar); });
+      meta.appendChild(ignorar);
     }
     if ("speechSynthesis" in window) {
       var escuchar = el("button", "", { type: "button", texto: "Escuchar" });
@@ -521,6 +567,33 @@
 
   Chat.prototype.historial = function () {
     return this.mensajes.filter(function (m) { return !m.error; }).slice(-MAX_HISTORIAL).map(function (m) { return { rol: m.rol, texto: m.texto }; });
+  };
+
+  /**
+   * Aviso de la revisión (r: respuesta de op "revisar" con avisos nuevos): queda como
+   * mensaje del asistente, así la respuesta del usuario ("fue un rescate") llega a
+   * Gemini con el aviso en el historial. Se marca como visto para no repetirlo.
+   */
+  Chat.prototype.mostrarAlerta = function (r, hablar) {
+    if (!r || !r.mensaje) return;
+    this.agregar({ rol: "asistente", texto: r.mensaje, alerta: true, etiqueta: r.etiqueta || "" });
+    if (hablar) { prepararVoz(); this.leerEnVoz(r.voz || r.mensaje, false); }
+    pedir({ op: "visto", ids: r.nuevos || [] }).then(null, function () {});
+  };
+
+  /** Botón "Ignorar lo anterior a hoy" de un aviso: la revisión arranca desde hoy. */
+  Chat.prototype.pausarRevision = function (boton) {
+    var yo = this;
+    if (!window.confirm("¿Ignorar todos los avisos de antes de hoy? Desde ahora solo reviso los saldos y movimientos que se carguen de acá en adelante.")) return;
+    boton.textContent = "Un momento…";
+    pedir({ op: "pausarRevision" }).then(function (r) {
+      boton.remove();
+      yo.agregar({ rol: "asistente", texto: r.resultado || "Listo." });
+      if (flotante && flotante.aviso) { flotante.aviso = null; pintarAviso(); }
+    }, function (err) {
+      boton.textContent = "Ignorar lo anterior a hoy";
+      yo.agregar({ rol: "asistente", error: true, texto: (err && err.message) || "No se pudo." });
+    });
   };
 
   /** texto: la pregunta; canal: 'texto' | 'voz'; audio: {mime, base64} si se grabó. */
@@ -835,15 +908,30 @@
   function iniciarFlotante() {
     ponerEstilos();
     var raiz = el("div", "flotante", { id: "asis-raiz" });
-    var fab = el("button", "asis-fab", { type: "button", "aria-label": "Abrir el asistente", title: "Asistente (texto y voz)", html: ICONOS.chispa });
+    var fab = el("button", "asis-fab", { type: "button", "aria-label": "Abrir el asistente", title: "Amaroki, el asistente (texto y voz)", html: ICONOS.camioneta });
     var panel = el("div", "asis-panel", { role: "dialog", "aria-label": "Asistente", "aria-modal": "false" });
+    var insignia = el("span", "asis-insignia", { "aria-hidden": "true" });
+    insignia.hidden = true;
+    fab.appendChild(insignia);
+    var burbujaTexto = el("button", "asis-burbuja-texto", { type: "button" });
+    var burbujaCerrar = el("button", "asis-icono", { type: "button", "aria-label": "Más tarde", title: "Más tarde", html: ICONOS.cerrar });
+    var burbuja = el("div", "asis-burbuja", { role: "status" }, [burbujaTexto, burbujaCerrar]);
+    burbuja.hidden = true;
+    raiz.appendChild(burbuja);
     raiz.appendChild(fab);
     raiz.appendChild(panel);
     raiz.hidden = true;
     document.body.appendChild(raiz);
-    flotante = { raiz: raiz, panel: panel, chat: null, usuario: "" };
+    flotante = { raiz: raiz, panel: panel, chat: null, usuario: "", fab: fab, insignia: insignia, burbuja: burbuja, burbujaTexto: burbujaTexto, aviso: null, burbujaCerrada: "", nombre: "" };
 
     fab.addEventListener("click", function () { abrir(); });
+    burbujaTexto.addEventListener("click", function () { abrir(); });
+    burbujaCerrar.addEventListener("click", function () {
+      // Queda la insignia en el botón; el globito vuelve con el próximo aviso distinto.
+      if (flotante.aviso) flotante.burbujaCerrada = flotante.aviso.nuevos.join(",");
+      pintarAviso();
+    });
+    engancharApp();
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && raiz.classList.contains("abierto")) cerrar();
     });
@@ -860,6 +948,11 @@
         if (flotante.chat && flotante.chat.voz) flotante.chat.voz.cancelar();
         panel.innerHTML = "";
         flotante.chat = null;
+        flotante.aviso = null;
+        flotante.burbujaCerrada = "";
+        pintarAviso();
+        // Revisión al entrar: con avisos nuevos aparece el globito (sin abrir ni hablar: todavía no hubo un toque).
+        if (nombre) setTimeout(function () { if (flotante.usuario === nombre) revisarAvisos("inicio"); }, 2500);
       }
       raiz.hidden = !nombre;
     }
@@ -875,6 +968,7 @@
     }
     flotante.raiz.classList.add("abierto");
     flotante.chat.iniciar();
+    entregarAviso();
     setTimeout(function () { try { flotante.chat.entrada.focus({ preventScroll: true }); } catch (e) {} }, 220);
   }
 
@@ -887,6 +981,85 @@
       flotante.chat.pintarManos();
       callar();
     }
+    pintarAviso();
+  }
+
+  // ---------------- Avisos de la revisión (dentro de la app) ----------------
+  var revisionProgramada = null, motivoRevision = "", revisando = false;
+
+  /**
+   * Envuelve runJson de la app: cuando una acción que cambia saldos, movimientos,
+   * cheques o compromisos sale bien, se vuelve a revisar. Así no hace falta tocar
+   * cada pantalla de Index.html.
+   */
+  function engancharApp() {
+    if (typeof window.runJson !== "function" || window.runJson.asistente) return;
+    var original = window.runJson;
+    var envuelta = function (accion) {
+      var p = original.apply(this, arguments);
+      if (ACCIONES_QUE_CAMBIAN.indexOf(accion) >= 0 && p && typeof p.then === "function") {
+        p.then(function () { programarRevision(ACCIONES_DE_SALDOS.indexOf(accion) >= 0 ? "saldos" : "cambio"); }, function () {});
+      }
+      return p;
+    };
+    envuelta.asistente = true;
+    window.runJson = envuelta;
+  }
+
+  /** Espera un momento (una carga suele mandar varias acciones seguidas) y revisa una sola vez. */
+  function programarRevision(motivo) {
+    if (motivo === "saldos" || !motivoRevision) motivoRevision = motivo;
+    clearTimeout(revisionProgramada);
+    revisionProgramada = setTimeout(function () {
+      if (revisando) { programarRevision(motivoRevision); return; }
+      var m = motivoRevision;
+      motivoRevision = "";
+      revisarAvisos(m);
+    }, 1500);
+  }
+
+  /** motivo: "inicio" (al entrar), "saldos" (se acaban de guardar saldos) o "cambio". */
+  function revisarAvisos(motivo) {
+    if (!flotante || !flotante.usuario || revisando) return;
+    revisando = true;
+    var usuario = flotante.usuario;
+    pedir({ op: "revisar" }).then(function (r) {
+      revisando = false;
+      if (!flotante || flotante.usuario !== usuario) return;
+      if (r && r.nombre) flotante.nombre = r.nombre;
+      flotante.aviso = r && r.mensaje && r.nuevos && r.nuevos.length ? r : null;
+      pintarAviso();
+      // Después de guardar saldos hubo un toque reciente: se puede abrir y hablar.
+      if (flotante.aviso && (motivo === "saldos" || flotante.raiz.classList.contains("abierto"))) abrir();
+    }, function () { revisando = false; });
+  }
+
+  function pintarAviso() {
+    if (!flotante) return;
+    var a = flotante.aviso;
+    var n = a ? a.nuevos.length : 0;
+    flotante.insignia.textContent = n ? String(n) : "";
+    flotante.insignia.hidden = !n;
+    flotante.fab.classList.toggle("con-aviso", !!n);
+    flotante.fab.setAttribute("aria-label", n ? "Abrir el asistente: " + n + (n === 1 ? " aviso" : " avisos") : "Abrir el asistente");
+    var abierto = flotante.raiz.classList.contains("abierto");
+    var mostrar = !!n && !abierto && flotante.burbujaCerrada !== a.nuevos.join(",");
+    if (mostrar) {
+      var nombre = flotante.nombre || "Amaroki";
+      flotante.burbujaTexto.innerHTML = "<b>" + esc(nombre) + ":</b> " + esc(a.burbuja ||
+        (n === 1 ? "hay algo que no me cuadra" + (a.resumen ? " (" + a.resumen + ")" : "") + "." : "hay " + n + " cosas que no me cuadran.") + " ¿Lo vemos?");
+    }
+    flotante.burbuja.hidden = !mostrar;
+  }
+
+  /** Pasa el aviso pendiente al chat abierto y lo lee en voz alta. */
+  function entregarAviso() {
+    if (!flotante || !flotante.aviso || !flotante.chat || flotante.chat.ocupado) return;
+    var r = flotante.aviso;
+    flotante.aviso = null;
+    flotante.burbujaCerrada = "";
+    pintarAviso();
+    flotante.chat.mostrarAlerta(r, true);
   }
 
   /** Página propia (bgpsammar.com/asistente/). opciones: {usuario, alVencer}. */
@@ -898,6 +1071,10 @@
     raiz.appendChild(chat.nodo);
     contenedor.appendChild(raiz);
     chat.iniciar();
+    // Si hay avisos nuevos, el chat arranca con ellos (la voz suena si el navegador lo permite).
+    pedir({ op: "revisar" }).then(function (r) {
+      if (r && r.mensaje && r.nuevos && r.nuevos.length && !chat.ocupado && raiz.isConnected) chat.mostrarAlerta(r, true);
+    }, function () {});
     return chat;
   }
 

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ebe5dd">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo-as-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="logo-as-64.png">
+  <link rel="apple-touch-icon" href="logo-as-180.png">
+  <title>Mapa de propiedades · Andrés Sammartino</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=JetBrains+Mono:wght@500&family=Manrope:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <style>
+    /* Misma paleta que Propiedades: crema, verde y dorado. */
+    :root {
+      --crema: #ebe5dd; --crema-clara: #f6f2ec; --panel: rgba(255, 253, 249, 0.94); --borde: rgba(28, 74, 44, 0.16);
+      --tinta: #24322a; --tenue: #6d7469; --verde: #1c4a2c; --verde-claro: #2f6b42; --rojo: #a3322a; --oro: #a87a2f;
+      --titulos: "Cinzel", "Times New Roman", serif; --texto: "Manrope", "Segoe UI", system-ui, sans-serif; --datos: "JetBrains Mono", ui-monospace, Menlo, monospace;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: var(--texto); color: var(--tinta); background: var(--crema); overflow: hidden; }
+    body.verificando .app { visibility: hidden; }
+    .app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; height: 100dvh; }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 16px; background: var(--crema-clara); border-bottom: 1px solid var(--borde); z-index: 3; }
+    .marca { margin: 0; display: flex; align-items: center; gap: 12px; }
+    .marca img { width: 40px; height: 40px; }
+    .marca b { display: block; font-family: var(--titulos); font-weight: 600; font-size: 18px; letter-spacing: 0.08em; color: var(--verde); }
+    .marca .seccion { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.26em; text-transform: uppercase; color: var(--oro); margin-top: 2px; }
+    .usuario { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--tenue); }
+    .usuario a { color: var(--verde); text-decoration: none; font-weight: 600; font-size: 14px; }
+    .usuario a:hover { color: var(--oro); }
+    .cuerpo { position: relative; display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
+    #mapa { position: relative; min-height: 0; background: #1d2620; }
+    /* Panel de lugares */
+    .lado { display: flex; flex-direction: column; min-height: 0; background: var(--crema-clara); border-right: 1px solid var(--borde); z-index: 2; }
+    .lado-cab { padding: 14px 16px 10px; border-bottom: 1px solid var(--borde); }
+    .lado-cab h1 { margin: 0; font-family: var(--titulos); font-weight: 600; font-size: 19px; letter-spacing: 0.06em; color: var(--verde); }
+    .lado-cab p { margin: 4px 0 10px; font-size: 12.5px; color: var(--tenue); }
+    .botones { display: flex; flex-wrap: wrap; gap: 8px; }
+    .boton { font: 700 13px/1 var(--texto); letter-spacing: 0.02em; color: #fffaf0; cursor: pointer; padding: 9px 12px; border-radius: 10px; border: 0;
+      background: linear-gradient(180deg, var(--verde-claro), var(--verde)); box-shadow: 0 8px 18px -12px rgba(28, 74, 44, 0.8); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .boton:hover:not(:disabled) { filter: brightness(1.08); }
+    .boton:disabled { opacity: 0.6; cursor: wait; }
+    .boton.secundario { color: var(--verde); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); box-shadow: none; }
+    .boton.activo { color: #fffaf0; background: var(--oro); border-color: var(--oro); }
+    .boton:focus-visible, .lugar:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; }
+    .lista { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+    .lugar { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: none; border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; margin-bottom: 4px; }
+    .lugar:hover { background: rgba(255, 255, 255, 0.7); border-color: var(--borde); }
+    .lugar.sel { background: #fffdfa; border-color: rgba(168, 122, 47, 0.55); box-shadow: 0 8px 20px -16px rgba(28, 74, 44, 0.7); }
+    .lugar b { display: flex; align-items: center; gap: 8px; font-size: 14.5px; }
+    .lugar .sub { display: block; font-size: 12px; color: var(--tenue); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .punto { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px #fff; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: rgba(28, 74, 44, 0.08); color: var(--verde); }
+    .chip.rojo { background: rgba(163, 50, 42, 0.1); color: var(--rojo); }
+    .chip.gris { background: rgba(109, 116, 105, 0.14); color: var(--tenue); }
+    .chip.oro { background: rgba(217, 180, 106, 0.22); color: #7a5a22; }
+    .vacio { color: var(--tenue); font-size: 13.5px; padding: 16px 10px; }
+    .error { color: var(--rojo); font-size: 13.5px; padding: 12px; margin: 8px; border-radius: 10px; background: rgba(163, 50, 42, 0.07); border: 1px solid rgba(163, 50, 42, 0.3); }
+    /* Pines */
+    .pin { display: flex; flex-direction: column; align-items: center; cursor: pointer; transform-origin: bottom center; }
+    .pin .etq { font: 700 12px/1.2 var(--texto); color: var(--tinta); background: #fffdf9; padding: 4px 8px; border-radius: 8px; white-space: nowrap; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.55); border: 1px solid rgba(28, 74, 44, 0.2); }
+    .pin .palo { width: 2px; height: 14px; background: #fffdf9; box-shadow: 0 0 2px rgba(0, 0, 0, 0.6); }
+    .pin .base { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fffdf9; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
+    .pin.sel .etq { background: var(--verde); color: #fffaf0; border-color: var(--verde); }
+    .pin.arrastrable .etq { background: var(--oro); color: #fff; }
+    /* Panel del lugar: Street View de la entrada + liquidación resumida */
+    .ficha { position: absolute; right: 0; top: 0; bottom: 0; width: min(600px, 100%); overflow-y: auto; background: #fbf8f3;
+      border-left: 1px solid var(--borde); box-shadow: -24px 0 50px -30px rgba(0, 0, 0, 0.55); padding: 16px 16px 24px; z-index: 2; }
+    .ficha[hidden] { display: none; }
+    .ficha h2 { margin: 0 32px 2px 0; font-family: var(--titulos); font-weight: 600; font-size: 19px; letter-spacing: 0.05em; color: var(--verde); }
+    .ficha .dir { font-size: 12.5px; color: var(--tenue); margin-bottom: 12px; }
+    .ficha .cerrar { position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; border-radius: 8px; border: 0; background: none; cursor: pointer; font-size: 22px; color: var(--tenue); }
+    .ficha .cerrar:hover { background: rgba(28, 74, 44, 0.08); color: var(--tinta); }
+    .bloque { padding: 12px 0; border-top: 1px solid var(--borde); }
+    .bloque:first-of-type { border-top: 0; padding-top: 0; }
+    .bloque-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .bloque-cab h3 { margin: 0; font-family: var(--titulos); font-weight: 600; font-size: 16px; letter-spacing: 0.05em; color: var(--verde); }
+    .bloque-cab select { font: inherit; font-size: 13.5px; color: var(--tinta); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 6px 10px; }
+    .marco-calle { position: relative; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #2a332d; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1); }
+    .marco-calle iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    /* Street View ampliado: ocupa toda la pantalla debajo del encabezado. */
+    .marco-calle.grande { position: fixed; inset: 0; z-index: 20; aspect-ratio: auto; border-radius: 0; }
+    .marco-calle .achicar { display: none; position: absolute; top: 12px; right: 12px; z-index: 1; }
+    .marco-calle.grande .achicar { display: inline-flex; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.7); }
+    .barra-calle { margin-top: 8px; }
+    .boton.chico { font-size: 12.5px; padding: 7px 10px; }
+    .boton[hidden] { display: none; }
+    .datos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+    .dato { background: #fffdfa; border: 1px solid var(--borde); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+    .dato small { display: block; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dato b { display: block; margin-top: 2px; font-family: var(--datos); font-weight: 500; font-size: 15px; color: var(--verde); }
+    .dato span { display: block; font-size: 11.5px; color: var(--tenue); margin-top: 2px; }
+    .dato.baja span { color: var(--rojo); font-weight: 600; }
+    .resalte { font-size: 13px; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background: rgba(217, 180, 106, 0.16); color: #5e4416; }
+    .resalte.rojo { background: rgba(163, 50, 42, 0.08); color: var(--rojo); }
+    .resalte ul { margin: 4px 0 0; padding-left: 18px; }
+    table.unidades { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 10px; }
+    table.unidades td { padding: 7px 4px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); vertical-align: middle; }
+    table.unidades td .sub { display: block; font-size: 11.5px; color: var(--tenue); }
+    table.unidades td.num { text-align: right; font-family: var(--datos); white-space: nowrap; }
+    .tabla-scroll { max-height: 280px; overflow-y: auto; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; color: var(--verde-claro); background: rgba(47, 107, 66, 0.12); }
+    .pill.no-abono { color: var(--rojo); background: rgba(163, 50, 42, 0.1); }
+    .pill.desocupado { color: var(--tenue); background: rgba(109, 116, 105, 0.14); }
+    .pill.efectivo { color: var(--oro); background: rgba(217, 180, 106, 0.2); }
+    .pill.amoblado { color: #3b5b99; background: rgba(142, 170, 219, 0.25); }
+    .liq-resumen { background: #fffdfa; border: 1px solid var(--borde); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+    .liq-resumen small { display: block; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue); margin-bottom: 4px; }
+    .liq-resumen div { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+    .liq-resumen .m { font-family: var(--datos); white-space: nowrap; }
+    .liq-resumen .final { font-weight: 700; color: var(--verde); border-top: 1px solid var(--borde); margin-top: 4px; padding-top: 6px; }
+    .corregir { margin-top: 10px; display: grid; gap: 8px; }
+    .corregir[hidden] { display: none; }
+    .corregir input { font: inherit; font-size: 14px; color: var(--tinta); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 9px 12px; width: 100%; }
+    .corregir input:focus { outline: none; border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
+    .nota { font-size: 12px; color: var(--tenue); margin-top: 6px; }
+    .nota:empty { display: none; }
+    .aviso-ficha { font-size: 12.5px; color: #7a5a22; background: rgba(217, 180, 106, 0.16); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+    /* Controles flotantes */
+    .capas { position: absolute; left: 16px; top: 16px; display: flex; gap: 6px; z-index: 2; padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--borde); box-shadow: 0 12px 30px -18px rgba(0, 0, 0, 0.6); }
+    .capas button { font: 600 12.5px/1 var(--texto); color: var(--tenue); background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+    .capas button.activa { color: #fffaf0; background: var(--verde); }
+    .maplibregl-ctrl-attrib { font-size: 10.5px; }
+    /* Con el panel abierto, los controles del mapa se corren para no quedar debajo. */
+    .cuerpo.con-ficha .maplibregl-ctrl-bottom-right { right: min(600px, 100%); }
+    @media (max-width: 760px) {
+      .cuerpo { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+      #mapa { grid-row: 1; }
+      .lado { grid-row: 2; max-height: 38vh; border-right: 0; border-top: 1px solid var(--borde); }
+      .lado-cab { padding: 10px 14px 8px; }
+      .lado-cab p { display: none; }
+      .lista { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 8px; }
+      .lugar { flex: 0 0 220px; margin: 0; }
+      .cuerpo.con-ficha .lado { display: none; }
+      .cuerpo.con-ficha .maplibregl-ctrl-bottom-right { right: 0; bottom: 82%; }
+      .ficha { top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: 80%; border-left: 0; border-top: 1px solid var(--borde); border-radius: 18px 18px 0 0; box-shadow: 0 -20px 40px -24px rgba(0, 0, 0, 0.5); }
+      .marca img { width: 32px; height: 32px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body class="verificando">
+  <div class="app">
+    <header>
+      <h1 class="marca"><img src="logo-as-180.png" alt="" width="40" height="40"><span><b>Andrés Sammartino</b><span class="seccion">Mapa de propiedades</span></span></h1>
+      <div class="usuario"><span id="quien"></span><a href="propiedades.html">← Propiedades</a></div>
+    </header>
+    <div class="cuerpo">
+      <aside class="lado" aria-label="Lugares">
+        <div class="lado-cab">
+          <h1>Propiedades</h1>
+          <p id="resumen">Buscando las ubicaciones…</p>
+          <div class="botones">
+            <button type="button" class="boton secundario" id="verTodo">Ver todas</button>
+            <button type="button" class="boton secundario" id="recorrer">Recorrer</button>
+            <button type="button" class="boton secundario" id="girar" aria-pressed="true">Girar</button>
+          </div>
+        </div>
+        <div class="lista" id="lista" role="list"></div>
+      </aside>
+      <div id="mapa">
+        <div class="capas" role="group" aria-label="Tipo de mapa">
+          <button type="button" class="activa" data-capa="satelite">Satélite</button>
+          <button type="button" data-capa="mapa">Mapa</button>
+        </div>
+        <section class="ficha" id="ficha" hidden aria-live="polite"></section>
+      </div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="sesion.js?v=8"></script>
+  <script src="propiedades-mapa.js?v=4"></script>
+</body>
+</html>
