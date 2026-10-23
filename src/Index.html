@@ -597,6 +597,25 @@
   .ini-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 6px; border-top: 2px solid var(--border); font-size: 13px; color: var(--muted); }
   .ini-total b { color: var(--text); font-size: 15.5px; }
   @media (max-width: 900px) { .ini-grid { grid-template-columns: minmax(0, 1fr); } }
+  /* Accesos plegables del inicio */
+  .ini-accesos-cab { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 2px 10px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .ini-accesos-cab .link-btn { text-transform: none; letter-spacing: 0; }
+  .ini-accesos { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  button.ini-acceso { height: auto; min-height: 64px; padding: 10px 12px; justify-content: flex-start; gap: 10px; text-align: left; white-space: normal; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  button.ini-acceso:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  button.ini-acceso[aria-expanded="true"] { background: var(--primary-soft); border-color: rgba(var(--primary-rgb), .45); }
+  .acc-ico { width: 38px; height: 38px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+  button.ini-acceso[aria-expanded="true"] .acc-ico { background: var(--primary); color: var(--on-primary); }
+  .acc-ico svg { width: 21px; height: 21px; }
+  .acc-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .acc-txt b { font-size: 13px; font-weight: 600; }
+  .acc-dato { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+  .acc-dato:empty { display: none; }
+  .acc-dato.alerta-txt { color: var(--warn); font-weight: 600; }
+  .ini-card[hidden], .viz-card[hidden] { display: none !important; }
+  .ini-grid:not(:has(> .ini-card:not([hidden]))) { display: none; }
+  @media (max-width: 520px) { .ini-accesos { grid-template-columns: repeat(2, minmax(0, 1fr)); } button.ini-acceso { flex-direction: column; align-items: flex-start; } }
+  @media print { .ini-accesos, .ini-accesos-cab { display: none !important; } .ini-card[hidden], .viz-card[hidden] { display: block !important; } }
 
   /* ---------- Buscador global ---------- */
   .paleta-overlay { align-items: flex-start; padding-top: 11vh; }
@@ -1229,12 +1248,27 @@
     <div id="kpisInicio" class="kpis"></div>
     <div id="inicioFondos"></div>
     <div id="inicioPlanilla"></div>
+    <!-- El resto del inicio va plegado: cada ícono abre o cierra su tarjeta (se recuerda en el navegador). -->
+    <div class="ini-accesos-cab">
+      <span>Más información</span>
+      <button type="button" class="link-btn" id="inicioAbrirTodo">Abrir todo</button>
+    </div>
+    <div class="ini-accesos" id="inicioAccesos">
+        <button type="button" class="ini-acceso" data-seccion="saldos" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg></span><span class="acc-txt"><b>Saldos por cuenta</b><span class="acc-dato" data-dato="saldos"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="vencimientos" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M8 13.5h3"/></svg></span><span class="acc-txt"><b>Próximos 14 días</b><span class="acc-dato" data-dato="vencimientos"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="conciliar" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h11"/><path d="M4 12h8"/><path d="M4 17h6"/><path d="M14 16l2.5 2.5L21 14"/></svg></span><span class="acc-txt"><b>Pendientes de conciliar</b><span class="acc-dato" data-dato="conciliar"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="ultimas" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><span class="acc-txt"><b>Últimas cargas</b><span class="acc-dato" data-dato="ultimas"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="semana" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16"/><path d="M5 8h14"/><path d="M5 8l-2.5 6a3 3 0 0 0 5 0z"/><path d="M19 8l-2.5 6a3 3 0 0 0 5 0z"/><path d="M8 20h8"/></svg></span><span class="acc-txt"><b>¿Me alcanza la caja?</b><span class="acc-dato" data-dato="semana"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="bolsa" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="M5 15l4-5 3.5 3L19 6"/><path d="M15 6h4v4"/></svg></span><span class="acc-txt"><b>Deuda en bolsa</b><span class="acc-dato" data-dato="bolsa"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="fci" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v8.5h8.5"/><path d="M20.3 14.5A8.5 8.5 0 1 1 9.5 3.9"/></svg></span><span class="acc-txt"><b>Fondos (FCI)</b><span class="acc-dato" data-dato="fci"></span></span></button>
+        <button type="button" class="ini-acceso" data-seccion="mes" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6" rx=".8"/><rect x="10.5" y="7" width="3" height="10" rx=".8"/><rect x="15.5" y="13" width="3" height="4" rx=".8"/></svg></span><span class="acc-txt"><b>Mes a mes</b><span class="acc-dato" data-dato="mes"></span></span></button>
+    </div>
     <div id="inicioGraficos" class="viz-grid"></div>
     <div class="ini-grid">
-      <div class="card ini-card" id="inicioSaldos"></div>
-      <div class="card ini-card" id="inicioVencimientos"></div>
-      <div class="card ini-card" id="inicioConciliar"></div>
-      <div class="card ini-card" id="inicioUltimos"></div>
+      <div class="card ini-card" id="inicioSaldos" data-seccion="saldos" hidden></div>
+      <div class="card ini-card" id="inicioVencimientos" data-seccion="vencimientos" hidden></div>
+      <div class="card ini-card" id="inicioConciliar" data-seccion="conciliar" hidden></div>
+      <div class="card ini-card" id="inicioUltimos" data-seccion="ultimas" hidden></div>
     </div>
   </section>
 
@@ -9827,6 +9861,7 @@ function renderInicio(conciliaciones) {
     lista.append(fila);
   });
   bs.append(lista);
+  datoAcceso("saldos", saldos.length + (saldos.length === 1 ? " cuenta" : " cuentas") + (fcis.length ? " + " + fcis.length + " FCI" : "") + (sinSaldo ? " · " + sinSaldo + " sin saldo" : ""), sinSaldo > 0);
   if (saldos.length || fcis.length) {
     const sub = (txt, v, fmt) => { const d = el("div", "ini-sub-total"); d.append(el("span", null, txt), el("b", "importe" + (v < 0 ? " neg" : ""), fmt(v))); return d; };
     bs.append(sub("Cuentas en pesos", totalHoy, formatImporte));
@@ -9846,7 +9881,9 @@ function renderInicio(conciliaciones) {
 
   // Próximos vencimientos
   const bv = tarjetaInicio("inicioVencimientos", "Próximos 14 días", "Ver todos", () => mostrarVista("flujo"));
-  const ev = eventosFlujo(hoy, sumarDiasIso(hoy, 14)).slice(0, 7);
+  const ev14 = eventosFlujo(hoy, sumarDiasIso(hoy, 14));
+  const ev = ev14.slice(0, 7);
+  datoAcceso("vencimientos", ev14.length ? ev14.length + (ev14.length === 1 ? " vencimiento" : " vencimientos") : "Nada a la vista");
   if (!ev.length) bv.append(el("p", "hint", "No hay cheques, movimientos ni alertas con importe en los próximos 14 días."));
   const lv = el("div", "ini-lista");
   ev.forEach(e => {
@@ -9873,6 +9910,7 @@ function renderInicio(conciliaciones) {
     if (iso && iso < p.desde) p.desde = iso;
   });
   const pend = Object.keys(porCuenta).map(k => porCuenta[k]).sort((a, b) => b.n - a.n);
+  datoAcceso("conciliar", sinConc.length ? sinConc.length + " mov. en " + pend.length + (pend.length === 1 ? " cuenta" : " cuentas") : "Todo conciliado", sinConc.length > 0);
   if (!pend.length) bc.append(el("p", "ok-line", "No hay movimientos del banco pendientes de conciliar."));
   const lc = el("div", "ini-lista");
   pend.forEach(p => {
@@ -9917,6 +9955,7 @@ function renderInicio(conciliaciones) {
     lu.append(fila);
   });
   bu.append(lu);
+  datoAcceso("ultimas", ultMov.length ? "Último: N° " + ultMov[0].f["N° Interno"] : "");
   renderGraficosInicio(totalHoy);
 }
 
@@ -15501,6 +15540,51 @@ function graficoIngresosEgresos(t) {
   tablaViz(t.tabla, ["Mes", "Ingresos", "Egresos", "Resultado"], cats.map(c => [mesLargo(c.mes), fmtImp(c.ing), fmtImp(c.egr), fmtImp(c.neto)]));
 }
 
+// ---------------- Inicio: secciones plegables ----------------
+// Arriba siempre: resumen, total de fondos y planilla de saldos y FCI. El resto
+// (tarjetas y gráficos) se abre con su ícono; lo abierto se recuerda en el navegador.
+let seccionesInicio = [];
+try { seccionesInicio = JSON.parse(localStorage.getItem("lc-inicio-abiertas") || "[]") || []; } catch (e) {}
+
+function aplicarSeccionesInicio() {
+  document.querySelectorAll("#vista-inicio [data-seccion]").forEach(n => {
+    const abierta = seccionesInicio.indexOf(n.dataset.seccion) >= 0;
+    if (n.classList.contains("ini-acceso")) n.setAttribute("aria-expanded", abierta ? "true" : "false");
+    else n.hidden = !abierta;
+  });
+  const todas = document.querySelectorAll("#inicioAccesos .ini-acceso").length;
+  $("inicioAbrirTodo").textContent = seccionesInicio.length >= todas ? "Cerrar todo" : "Abrir todo";
+}
+
+function guardarSeccionesInicio() {
+  try { localStorage.setItem("lc-inicio-abiertas", JSON.stringify(seccionesInicio)); } catch (e) {}
+  aplicarSeccionesInicio();
+}
+
+document.querySelectorAll("#inicioAccesos .ini-acceso").forEach(b => b.addEventListener("click", () => {
+  const k = b.dataset.seccion;
+  const i = seccionesInicio.indexOf(k);
+  if (i >= 0) { seccionesInicio.splice(i, 1); guardarSeccionesInicio(); return; }
+  seccionesInicio.push(k);
+  guardarSeccionesInicio();
+  const destino = document.querySelector('#vista-inicio [data-seccion="' + k + '"]:not(.ini-acceso)');
+  if (destino) destino.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}));
+$("inicioAbrirTodo").addEventListener("click", () => {
+  const todas = Array.from(document.querySelectorAll("#inicioAccesos .ini-acceso")).map(b => b.dataset.seccion);
+  seccionesInicio = seccionesInicio.length >= todas.length ? [] : todas;
+  guardarSeccionesInicio();
+});
+aplicarSeccionesInicio();
+
+/** Dato chico debajo del nombre de cada ícono (cantidad de cuentas, vencimientos, etc.). */
+function datoAcceso(k, texto, alerta) {
+  const n = document.querySelector('#inicioAccesos [data-dato="' + k + '"]');
+  if (!n) return;
+  n.textContent = texto || "";
+  n.classList.toggle("alerta-txt", !!alerta);
+}
+
 function renderGraficosInicio(saldoHoy) {
   const box = $("inicioGraficos");
   if (!box) return;
@@ -15511,7 +15595,12 @@ function renderGraficosInicio(saldoHoy) {
   const t4 = tarjetaViz("¿Cómo vengo mes a mes?", "Ingresos y egresos de los últimos 12 meses.", "ingresos");
   t1.card.classList.add("viz-ancho");
   t4.card.classList.add("viz-ancho");
+  t1.card.dataset.seccion = "semana";
+  t2.card.dataset.seccion = "bolsa";
+  t3.card.dataset.seccion = "fci";
+  t4.card.dataset.seccion = "mes";
   box.append(t1.card, t2.card, t3.card, t4.card);
+  aplicarSeccionesInicio();
   const seguro = (t, fn) => { try { fn(); } catch (err) { datoViz(t, ["No se pudo armar el gráfico: " + msgErr(err)], true); vacioViz(t, "No se pudo armar el gráfico."); } };
   seguro(t1, () => graficoSemanaCorta(t1, saldoHoy));
   seguro(t2, () => graficoBolsa(t2));
