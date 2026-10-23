@@ -248,7 +248,16 @@
     ifr.referrerPolicy = "no-referrer-when-downgrade";
     ifr.allowFullscreen = true;
     ifr.src = urlCalle(l, rumbo);
-    marco.append(ifr);
+    // Ampliar: el mismo marco pasa a pantalla completa (Escape o "Achicar" para volver).
+    var achicar = el("button", "boton achicar", "✕ Achicar");
+    achicar.type = "button";
+    var ampliado = function (si) {
+      marco.classList.toggle("grande", si);
+      if (si) achicar.focus();
+    };
+    achicar.addEventListener("click", function () { ampliado(false); });
+    marco.addEventListener("keydown", function (ev) { if (ev.key === "Escape") ampliado(false); });
+    marco.append(ifr, achicar);
     box.append(marco);
     var bs = el("div", "botones barra-calle");
     var izq = el("button", "boton secundario chico", "◀"), der = el("button", "boton secundario chico", "▶");
@@ -268,7 +277,11 @@
     abrir.href = urlStreetView(l, rumbo); abrir.target = "_blank"; abrir.rel = "noopener";
     var ajustar = el("button", "boton secundario chico", l.panorama ? "Cambiar la vista" : "Fijar la entrada");
     ajustar.type = "button";
-    bs.append(izq, der, guardar, abrir, ajustar);
+    var ampliar = el("button", "boton chico", "⤢ Ampliar");
+    ampliar.type = "button";
+    ampliar.title = "Ver Street View en pantalla completa";
+    ampliar.addEventListener("click", function () { ampliado(true); });
+    bs.append(ampliar, izq, der, guardar, abrir, ajustar);
     box.append(bs);
     var nota = el("div", "nota");
     var panel = el("div", "corregir");
