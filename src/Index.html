@@ -598,6 +598,66 @@
   .ini-total b { color: var(--text); font-size: 15.5px; }
   @media (max-width: 900px) { .ini-grid { grid-template-columns: minmax(0, 1fr); } }
 
+  /* Tablero de Inicio personalizable: cada tarjeta ocupa el ancho completo o la mitad. */
+  .ini-tablero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .ini-widget { position: relative; min-width: 0; grid-column: span 1; display: flex; flex-direction: column; }
+  .ini-widget.ancho { grid-column: 1 / -1; }
+  .ini-widget[hidden] { display: none; }
+  .ini-widget > div > .card, .ini-widget > div > .viz-card, .ini-widget .kpis, #inicioFondos .fondos-card { margin-bottom: 0; }
+  .ini-widget > div:empty { display: none; }
+  /* Dos tarjetas de media columna en la misma fila quedan del mismo alto. */
+  .ini-widget > div:not(.ini-w-barra) { flex: 1; min-width: 0; }
+  .ini-slot { display: flex; flex-direction: column; }
+  .ini-slot > * { flex: 1; }
+  .ini-w-barra { display: none; }
+  .ini-editor { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 16px; margin-bottom: 16px; border-radius: var(--radius); border: 1px dashed var(--primary); background: var(--primary-soft); font-size: 13px; color: var(--muted); }
+  .ini-editor b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+  .ini-editor-acc { display: flex; gap: 8px; }
+  .ini-agarre-ej { font-weight: 700; color: var(--primary); }
+  .ini-editando .ini-widget, .ini-editando .ini-widget[hidden] { display: flex; padding-top: 44px; border-radius: calc(var(--radius) + 4px); outline: 2px dashed var(--border); outline-offset: 4px; }
+  .ini-editando .ini-widget > div:not(.ini-w-barra) { pointer-events: none; user-select: none; }
+  .ini-editando .ini-widget > div:empty { display: block; min-height: 60px; border-radius: var(--radius); background: var(--surface-2); }
+  .ini-editando .ini-widget.oculto > div:not(.ini-w-barra) { opacity: .35; filter: grayscale(1); }
+  .ini-editando .ini-widget.arrastrando { opacity: .5; outline-color: var(--primary); }
+  .ini-editando .ini-w-barra { display: flex; align-items: center; gap: 6px; position: absolute; top: 0; left: 0; right: 0; height: 36px; padding: 0 6px 0 4px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); z-index: 2; }
+  .ini-w-agarre { cursor: grab; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--muted); font-size: 16px; font-weight: 700; touch-action: none; }
+  .ini-w-agarre:hover { background: var(--surface-2); color: var(--primary); }
+  .ini-w-agarre:active { cursor: grabbing; }
+  .ini-w-tit { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ini-widget.oculto .ini-w-tit { color: var(--faint); text-decoration: line-through; }
+  .ini-w-barra button { height: 28px; min-width: 28px; padding: 0 8px; font-size: 12px; }
+  @keyframes ini-tiembla { 0%, 100% { transform: rotate(-.25deg); } 50% { transform: rotate(.25deg); } }
+  .ini-editando .ini-widget:not(.arrastrando):not(.oculto) > div:not(.ini-w-barra) { animation: ini-tiembla .32s ease-in-out infinite; }
+  .ini-editando .ini-widget:nth-child(2n) > div:not(.ini-w-barra) { animation-delay: -.16s; }
+  @media (prefers-reduced-motion: reduce) { .ini-editando .ini-widget > div:not(.ini-w-barra) { animation: none !important; } }
+  @media (max-width: 900px) { .ini-tablero { grid-template-columns: minmax(0, 1fr); } .ini-widget, .ini-widget.ancho { grid-column: auto; } }
+  @media print { .ini-editor, .ini-w-barra { display: none !important; } }
+  /* ---------- Atajos de teclado ---------- */
+  .atajos-grid { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; align-items: center; font-size: 13.5px; }
+  .atajo-grupo { grid-column: 1 / -1; margin-top: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .atajo-grupo:first-child { margin-top: 0; }
+  .atajo-teclas { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .atajo-sep { font-size: 11px; color: var(--faint); }
+  .atajo-espera { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 90; padding: 8px 14px; border-radius: 99px; background: var(--text); color: var(--surface); font-size: 13px; box-shadow: var(--shadow-lg); }
+  .atajo-espera[hidden] { display: none; }
+  .atajo-espera kbd { color: var(--text); }
+  button.secondary.activo { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+
+  /* ---------- Cheques agrupados por chequera ---------- */
+  .chq-grupo { border: 1px solid var(--border); border-radius: var(--radius-sm); margin: 12px 0; overflow: hidden; background: var(--surface); }
+  .chq-grupo:first-child { margin-top: 4px; }
+  .chq-cab { display: flex; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 56px; padding: 10px 14px; border: none; border-radius: 0; box-shadow: none; background: var(--surface-2); color: var(--text); font-weight: 400; text-align: left; white-space: normal; cursor: pointer; }
+  .chq-cab:hover { background: var(--surface-3); }
+  .chq-cab-txt { min-width: 150px; }
+  .chq-tit { font-weight: 600; font-size: 14px; }
+  .chq-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  .chq-total { font-weight: 600; white-space: nowrap; }
+  .chq-flecha { color: var(--muted); transition: transform .15s; }
+  .chq-grupo.cerrado .chq-flecha { transform: rotate(-90deg); }
+  .chq-cuerpo { padding: 0 8px 4px; }
+  .chq-cuerpo .dt-pag { padding-bottom: 6px; }
+  @media (max-width: 700px) { .chq-cab { flex-wrap: wrap; } .chq-chips { order: 4; flex-basis: 100%; } }
+
   /* ---------- Buscador global ---------- */
   .paleta-overlay { align-items: flex-start; padding-top: 11vh; }
   .paleta { width: 100%; max-width: 660px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg); overflow: hidden; transform: translateY(-6px); transition: transform .18s; }
@@ -1221,20 +1281,35 @@
       </div>
       <div class="actions" style="margin-top:0">
         <button id="inicioActualizar" class="secondary" type="button">Actualizar</button>
+        <button id="inicioPersonalizar" class="secondary" type="button" title="Ordenar, agrandar u ocultar las tarjetas de Inicio">Personalizar</button>
         <button id="inicioParte" class="secondary" type="button">Parte diario</button>
         <button class="secondary btn-entrada-manual" data-tipo-default="Transferencia" type="button">Entrada manual</button>
         <button id="inicioCargar" type="button">Cargar comprobantes</button>
       </div>
     </div>
-    <div id="kpisInicio" class="kpis"></div>
-    <div id="inicioFondos"></div>
-    <div id="inicioPlanilla"></div>
-    <div id="inicioGraficos" class="viz-grid"></div>
-    <div class="ini-grid">
-      <div class="card ini-card" id="inicioSaldos"></div>
-      <div class="card ini-card" id="inicioVencimientos"></div>
-      <div class="card ini-card" id="inicioConciliar"></div>
-      <div class="card ini-card" id="inicioUltimos"></div>
+    <!-- Tablero: cada tarjeta es un "widget" que el usuario ordena, agranda u oculta (Personalizar). -->
+    <div class="ini-editor" id="iniEditor" hidden>
+      <div>
+        <b>Personalizando Inicio</b>
+        <span>Arrastrá las tarjetas desde <span class="ini-agarre-ej" aria-hidden="true">⠿</span> o usá las flechas. Se guarda solo, para vos, en cualquier compu o celular.</span>
+      </div>
+      <div class="ini-editor-acc">
+        <button id="iniRestablecer" class="secondary small" type="button">Restablecer</button>
+        <button id="iniListo" class="small" type="button">Listo</button>
+      </div>
+    </div>
+    <div class="ini-tablero" id="iniTablero">
+      <div class="ini-widget" data-widget="kpis"><div id="kpisInicio" class="kpis"></div></div>
+      <div class="ini-widget" data-widget="fondos"><div class="ini-slot" id="inicioFondos"></div></div>
+      <div class="ini-widget" data-widget="planilla"><div class="ini-slot" id="inicioPlanilla"></div></div>
+      <div class="ini-widget" data-widget="g-semana"><div class="ini-slot" id="iniG-semana"></div></div>
+      <div class="ini-widget" data-widget="g-bolsa"><div class="ini-slot" id="iniG-bolsa"></div></div>
+      <div class="ini-widget" data-widget="g-fci"><div class="ini-slot" id="iniG-fci"></div></div>
+      <div class="ini-widget" data-widget="g-ingresos"><div class="ini-slot" id="iniG-ingresos"></div></div>
+      <div class="ini-widget" data-widget="saldos"><div class="card ini-card" id="inicioSaldos"></div></div>
+      <div class="ini-widget" data-widget="vencimientos"><div class="card ini-card" id="inicioVencimientos"></div></div>
+      <div class="ini-widget" data-widget="conciliar"><div class="card ini-card" id="inicioConciliar"></div></div>
+      <div class="ini-widget" data-widget="ultimos"><div class="card ini-card" id="inicioUltimos"></div></div>
     </div>
   </section>
 
@@ -1270,6 +1345,7 @@
         </label>
         <p class="hint sin-banco-nota" id="notaTercerosCarga" hidden>Los cheques de terceros se guardan sin banco ni cuenta propia: solo los emitidos los llevan.</p>
       </div>
+      <p class="hint carga-recordada" id="cargaRecordada" hidden>Banco y cuenta de tu última carga de este tipo. Si los cambiás, la próxima vez se proponen los nuevos.</p>
       <p class="hint">Lectura automática disponible: <strong>transferencias</strong> (BBVA con formato propio, resto genérico) y <strong>resúmenes de cuenta</strong> de cualquier banco, en PDF, imagen, Excel o CSV (las planillas se toman siempre como resumen). En los resúmenes, los movimientos cuyo concepto menciona a la empresa u otra cuenta del listado se marcan como <strong>entre cuentas propias</strong>.</p>
 
       <label class="dropzone" id="dropzone">
@@ -1387,6 +1463,7 @@
         <select id="filtro-cheques-banco" aria-label="Banco"></select>
         <select id="filtro-cheques-cuenta" aria-label="Cuenta"></select>
         <div class="tb-fechas" title="Rango de fechas de pago"><input type="date" id="filtro-cheques-desde" aria-label="Pago desde" title="Pago desde"><span class="tb-guion">–</span><input type="date" id="filtro-cheques-hasta" aria-label="Pago hasta" title="Pago hasta"></div>
+        <button class="secondary" id="btnAgruparCheques" type="button" aria-pressed="false" title="Ver los cheques separados por chequera, con su rango de números y los que faltan">Agrupar por chequera</button>
         <div class="tb-mas">
           <button class="secondary" id="btnMas-cheques" type="button">Más filtros</button>
           <div class="mas-filtros" id="mas-cheques" hidden>
@@ -2506,9 +2583,19 @@
   <div class="paleta" role="dialog" aria-modal="true" aria-label="Buscar">
     <div class="paleta-input"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><input type="text" id="paletaInput" placeholder="Buscá un movimiento, cheque, cuenta o sección…" autocomplete="off" spellcheck="false" aria-label="Buscar"><kbd>Esc</kbd></div>
     <div class="paleta-res" id="paletaRes"></div>
-    <div class="paleta-pie"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>Enter</kbd> abrir</span><span>Buscá por monto, CUIT, N°, nombre o fecha</span></div>
+    <div class="paleta-pie"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>Enter</kbd> abrir</span><span>Buscá por monto, CUIT, N°, nombre o fecha</span><span><kbd>?</kbd> atajos</span></div>
   </div>
 </div>
+
+<!-- ===================== MODAL: ATAJOS DE TECLADO ===================== -->
+<div class="modal-overlay" id="modalAtajos">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="atajosTitulo">
+    <div class="modal__head"><h3 id="atajosTitulo">Atajos de teclado</h3></div>
+    <div class="modal__body"><div class="atajos-grid" id="atajosLista"></div></div>
+    <div class="modal__foot"><button class="secondary" type="button" data-cerrar="modalAtajos">Cerrar</button></div>
+  </div>
+</div>
+<div class="atajo-espera" id="atajoEspera" hidden><kbd>G</kbd> … elegí la sección</div>
 
 <div id="areaImpresion"></div>
 <div class="toasts" id="toasts" aria-live="polite"><div class="cola-drive" id="colaDrive" role="status" hidden></div></div>
@@ -3759,6 +3846,7 @@ function cargarCatalogo() {
       catalogo.cuentas = res.cuentas || [];
       catalogoCargado = true;
       poblarSelects();
+      restaurarCarga();
       if ($("vista-cuentas").classList.contains("active")) renderCuentas();
       if (transferenciasCargadas) aplicarFiltrosTransferencias();
       if (chequesCargados) aplicarFiltrosCheques();
@@ -4847,6 +4935,33 @@ function actualizarBancoCarga() {
   $("notaTercerosCarga").hidden = !terceros;
 }
 $("tipo").addEventListener("change", actualizarBancoCarga);
+
+// Carga: el banco y la cuenta se recuerdan por tipo de documento y por usuario
+// (preferencias.carga = {"Transferencia": {banco, cuenta}, ...}).
+function restaurarCarga() {
+  const r = (preferencias.carga || {})[$("tipo").value];
+  let aplicado = false;
+  if (r && r.banco && Array.from($("banco").options).some(o => o.value === r.banco)) {
+    $("banco").value = r.banco;
+    poblarCuentasDependientes();
+    aplicado = true;
+    if (Array.from($("cuentaCargar").options).some(o => o.value === (r.cuenta || ""))) $("cuentaCargar").value = r.cuenta || "";
+  }
+  $("cargaRecordada").hidden = !aplicado || $("tipo").value === "Cheque de terceros";
+}
+
+function recordarCarga() {
+  const tipo = $("tipo").value;
+  if (tipo === "Cheque de terceros" || !$("banco").value) return;
+  preferencias.carga = Object.assign({}, preferencias.carga || {});
+  preferencias.carga[tipo] = { banco: $("banco").value, cuenta: $("cuentaCargar").value };
+  $("cargaRecordada").hidden = true;
+  guardarPreferencias();
+}
+
+$("tipo").addEventListener("change", restaurarCarga);
+$("banco").addEventListener("change", recordarCarga);
+$("cuentaCargar").addEventListener("change", recordarCarga);
 
 function pintarMontoManual() {
   const neg = $("manualCondicion").value === "Egreso";
@@ -6936,6 +7051,7 @@ function iniciarApp(usuario) {
   ordenesDatos = [];
   aplicarPermisos();
   poblarSelects();
+  cargarPreferencias();
   promesaCatalogo = cargarCatalogo();
   cargarConfig();
   mostrarVista("inicio");
@@ -6957,7 +7073,9 @@ function limpiarDatosEnPantalla() {
     "kpisTransferencias", "kpisCheques", "kpisCuentas", "kpisAlertas", "concResultado", "concGuardadas", "kpisConciliacion", "flujoBox", "kpisFlujo", "areaImpresion"].forEach(id => { if ($(id)) $(id).replaceChildren(); });
   document.querySelectorAll(".modal-overlay.is-open").forEach(m => m.classList.remove("is-open"));
   cerrarDetalle();
-  ["kpisInicio", "inicioPlanilla", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
+  ["kpisInicio", "inicioFondos", "inicioPlanilla", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-ingresos", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
+  preferencias = {};
+  editarInicio(false);
 }
 
 function arrancar() {
@@ -9284,7 +9402,7 @@ function renderCheques(filas) {
   renderRapidas("cheques", RAPIDAS_CHEQUES, filas, () => renderCheques(ultimasFilasCheques));
   const visibles = filas.filter(def.f);
 
-  renderTabla($("chequesBox"), {
+  const cfg = {
     id: "cheques",
     filas: visibles,
     seleccion: "cheques",
@@ -9319,10 +9437,112 @@ function renderCheques(filas) {
         { texto: textoImporte(neto, "Pesos"), clase: "num dt-total " + (neto < 0 ? "neg" : "pos") }
       ];
     }
-  });
+  };
+  const agrupar = !!(preferencias.cheques && preferencias.cheques.agrupar);
+  $("btnAgruparCheques").classList.toggle("activo", agrupar);
+  $("btnAgruparCheques").setAttribute("aria-pressed", agrupar ? "true" : "false");
+  if (agrupar) renderChequesPorChequera($("chequesBox"), cfg);
+  else renderTabla($("chequesBox"), cfg);
   refrescarDetalle();
   actualizarBarraSeleccion();
 }
+
+// ---------------- Cheques agrupados por chequera ----------------
+// Emitidos: por la chequera de la planilla de flujo de fondos; si no tiene, por banco y
+// cuenta. Los de terceros van juntos al final. En cada chequera se muestra el rango de
+// números y los que faltan en la secuencia (cheques sin cargar, anulados o perdidos).
+const gruposChequesCerrados = {};
+const SALTO_MAXIMO_CHEQUERA = 25; // más lejos que esto ya es otra chequera, no un faltante
+
+function chequeraDe(c) {
+  if (c["Tipo"] === "De terceros") return { clave: "terceros", titulo: "Cheques de terceros", sub: "Recibidos y endosados", banco: "", emitidos: false };
+  const banco = c["Banco"] || "";
+  const cuenta = c["N° de Cuenta"] ? (siglaTipo(c["Tipo de Cuenta"]) + " " + c["N° de Cuenta"]).trim() : "Sin cuenta";
+  const ch = String(c["Chequera"] || "").trim();
+  if (ch) return { clave: "ch|" + normalizar(banco) + "|" + soloDigitos(c["N° de Cuenta"]) + "|" + normalizar(ch), titulo: "Chequera " + ch, sub: (banco || "Sin banco") + " · " + cuenta, banco: banco, emitidos: true };
+  return { clave: "cta|" + normalizar(banco) + "|" + soloDigitos(c["N° de Cuenta"]), titulo: (banco || "Sin banco") + " · " + cuenta, sub: "Sin chequera asignada", banco: banco, emitidos: true };
+}
+
+/** Números que faltan entre el primero y el último de la chequera (saltos cortos). */
+function faltantesChequera(cheques) {
+  const nums = Array.from(new Set(cheques.map(c => parseInt(soloDigitos(c["N° de Cheque"]), 10)).filter(n => n > 0))).sort((a, b) => a - b);
+  const faltan = [];
+  for (let i = 1; i < nums.length; i++) {
+    const salto = nums[i] - nums[i - 1];
+    if (salto > 1 && salto <= SALTO_MAXIMO_CHEQUERA) for (let n = nums[i - 1] + 1; n < nums[i]; n++) faltan.push(n);
+  }
+  return { nums: nums, faltan: faltan };
+}
+
+function textoFaltantes(faltan) {
+  const tramos = [];
+  faltan.forEach(n => {
+    const t = tramos[tramos.length - 1];
+    if (t && n === t[1] + 1) t[1] = n; else tramos.push([n, n]);
+  });
+  const txt = tramos.slice(0, 6).map(t => t[0] === t[1] ? String(t[0]) : t[0] + "–" + t[1]).join(", ");
+  return txt + (tramos.length > 6 ? "…" : "");
+}
+
+function renderChequesPorChequera(box, cfg) {
+  box.replaceChildren();
+  if (!cfg.filas.length) { renderTabla(box, cfg); return; }
+  // Los faltantes se calculan con todos los cheques de la chequera, no solo los filtrados.
+  const todos = {};
+  chequesDatos.forEach(c => { const g = chequeraDe(c); (todos[g.clave] = todos[g.clave] || []).push(c); });
+  const grupos = {};
+  cfg.filas.forEach(c => {
+    const g = chequeraDe(c);
+    (grupos[g.clave] = grupos[g.clave] || Object.assign(g, { filas: [] })).filas.push(c);
+  });
+  const lista = Object.keys(grupos).map(k => grupos[k])
+    .sort((a, b) => (a.emitidos === b.emitidos ? 0 : a.emitidos ? -1 : 1) || a.banco.localeCompare(b.banco) || a.titulo.localeCompare(b.titulo, "es", { numeric: true }));
+  lista.forEach(g => {
+    const sec = el("section", "chq-grupo" + (gruposChequesCerrados[g.clave] ? " cerrado" : ""));
+    const cab = el("button", "chq-cab");
+    cab.type = "button";
+    cab.setAttribute("aria-expanded", gruposChequesCerrados[g.clave] ? "false" : "true");
+    const dot = el("span", "cta-dot");
+    dot.style.background = g.banco ? colorBanco(g.banco) : "var(--faint)";
+    const txt = el("div", "chq-cab-txt");
+    txt.append(el("div", "chq-tit", g.titulo), el("div", "dt-sub", g.sub));
+    const chips = el("div", "chq-chips");
+    chips.append(pill(g.filas.length + " cheque(s)", "pill-none"));
+    const abiertos = g.filas.filter(c => chequeAbierto(c));
+    if (abiertos.length) chips.append(pill(abiertos.length + " pendiente(s)", "pill-ca"));
+    if (g.emitidos) {
+      const f = faltantesChequera(todos[g.clave] || g.filas);
+      if (f.nums.length > 1) chips.append(pill("N° " + f.nums[0] + " al " + f.nums[f.nums.length - 1], "pill-none"));
+      if (f.faltan.length) {
+        const p = pill("Faltan " + f.faltan.length + ": " + textoFaltantes(f.faltan), "pill-egr");
+        p.title = "Números sin cargar dentro de la secuencia: " + f.faltan.join(", ");
+        chips.append(p);
+      }
+    }
+    const neto = g.filas.reduce((a, c) => a + importeCheque(c), 0);
+    const tot = el("div", "importe chq-total " + (neto < 0 ? "neg" : "pos"), textoImporte(neto, "Pesos"));
+    const flecha = el("span", "chq-flecha", "▾");
+    flecha.setAttribute("aria-hidden", "true");
+    cab.append(dot, txt, chips, tot, flecha);
+    const cuerpo = el("div", "chq-cuerpo");
+    cuerpo.hidden = !!gruposChequesCerrados[g.clave];
+    cab.addEventListener("click", () => {
+      gruposChequesCerrados[g.clave] = !gruposChequesCerrados[g.clave];
+      cuerpo.hidden = !!gruposChequesCerrados[g.clave];
+      sec.classList.toggle("cerrado", cuerpo.hidden);
+      cab.setAttribute("aria-expanded", cuerpo.hidden ? "false" : "true");
+    });
+    renderTabla(cuerpo, Object.assign({}, cfg, { id: "cheques|" + g.clave, filas: g.filas, porPagina: 25 }));
+    sec.append(cab, cuerpo);
+    box.append(sec);
+  });
+}
+
+$("btnAgruparCheques").addEventListener("click", () => {
+  preferencias.cheques = Object.assign({}, preferencias.cheques || {}, { agrupar: !(preferencias.cheques && preferencias.cheques.agrupar) });
+  guardarPreferencias();
+  renderCheques(ultimasFilasCheques || []);
+});
 
 // ---------------- Panel de detalle ----------------
 let detalle = null;
@@ -9923,6 +10143,224 @@ function renderInicio(conciliaciones) {
 $("inicioActualizar").addEventListener("click", () => { transferenciasCargadas = false; chequesCargados = false; cargarInicio(); });
 $("inicioCargar").addEventListener("click", () => mostrarVista("cargar"));
 
+// ---------------- Preferencias del usuario ----------------
+// Se guardan en el servidor (una por usuario, sirven en cualquier compu o celular) y
+// una copia en este navegador para mostrarlas al instante al entrar.
+let preferencias = {};
+let prefTimer = null;
+
+function clavePrefLocal() {
+  return "lc-pref-" + (usuarioActual ? usuarioActual.id : "");
+}
+
+function cargarPreferencias() {
+  try { preferencias = JSON.parse(localStorage.getItem(clavePrefLocal()) || "{}") || {}; } catch (e) { preferencias = {}; }
+  aplicarPreferencias();
+  const id = usuarioActual && usuarioActual.id;
+  runJson("obtenerPreferencias", {}).then(res => {
+    if (!usuarioActual || usuarioActual.id !== id) return;
+    const delServidor = res.preferencias || {};
+    if (!Object.keys(delServidor).length) {
+      // Primera vez con preferencias en el servidor: se sube lo que había en este navegador.
+      if (Object.keys(preferencias).length) guardarPreferencias(true);
+      return;
+    }
+    if (JSON.stringify(delServidor) === JSON.stringify(preferencias)) return;
+    preferencias = delServidor;
+    try { localStorage.setItem(clavePrefLocal(), JSON.stringify(preferencias)); } catch (e) {}
+    aplicarPreferencias();
+  }).catch(() => {});
+}
+
+function aplicarPreferencias() {
+  aplicarDisenoInicio();
+  restaurarCarga();
+}
+
+/** Guarda en este navegador ya y en el servidor un momento después (junta varios cambios seguidos). */
+function guardarPreferencias(ahora) {
+  try { localStorage.setItem(clavePrefLocal(), JSON.stringify(preferencias)); } catch (e) {}
+  clearTimeout(prefTimer);
+  const enviar = () => runJson("guardarPreferencias", { preferencias: preferencias })
+    .catch(err => toast("No se pudo guardar tu preferencia en el servidor: " + msgErr(err), "error"));
+  if (ahora) enviar();
+  else prefTimer = setTimeout(enviar, 900);
+}
+
+// ---------------- Inicio personalizable ----------------
+// Como la pantalla de un celular: "Personalizar" deja arrastrar las tarjetas, agrandarlas
+// (ancho completo o media columna) u ocultarlas. preferencias.inicio = {orden, ocultos, tam}.
+const WIDGETS_INICIO = [
+  { id: "kpis", titulo: "Indicadores", tam: "ancho" },
+  { id: "fondos", titulo: "Total de fondos", tam: "ancho" },
+  { id: "planilla", titulo: "Planilla de saldos y FCI", tam: "ancho" },
+  { id: "g-semana", titulo: "Gráfico · ¿Me alcanza la caja?", tam: "ancho" },
+  { id: "g-bolsa", titulo: "Gráfico · Deuda en bolsa", tam: "mitad" },
+  { id: "g-fci", titulo: "Gráfico · Fondos (FCI)", tam: "mitad" },
+  { id: "g-ingresos", titulo: "Gráfico · Mes a mes", tam: "ancho" },
+  { id: "saldos", titulo: "Saldos por cuenta", tam: "mitad" },
+  { id: "vencimientos", titulo: "Próximos 14 días", tam: "mitad" },
+  { id: "conciliar", titulo: "Pendientes de conciliar", tam: "mitad" },
+  { id: "ultimos", titulo: "Últimas cargas", tam: "mitad" }
+];
+let inicioEditando = false;
+
+function prefInicio() {
+  const p = preferencias.inicio || {};
+  return { orden: Array.isArray(p.orden) ? p.orden : [], ocultos: Array.isArray(p.ocultos) ? p.ocultos : [], tam: p.tam && typeof p.tam === "object" ? p.tam : {} };
+}
+
+function widgetInicio(id) {
+  return document.querySelector('#iniTablero > .ini-widget[data-widget="' + id + '"]');
+}
+
+/** Orden final: el guardado, con las tarjetas nuevas (que el usuario todavía no vio) en su lugar por defecto. */
+function ordenInicio() {
+  const ids = WIDGETS_INICIO.map(w => w.id);
+  const orden = prefInicio().orden.filter(id => ids.indexOf(id) >= 0);
+  ids.forEach((id, i) => {
+    if (orden.indexOf(id) >= 0) return;
+    const anterior = ids.slice(0, i).reverse().find(x => orden.indexOf(x) >= 0);
+    orden.splice(anterior ? orden.indexOf(anterior) + 1 : 0, 0, id);
+  });
+  return orden;
+}
+
+function aplicarDisenoInicio() {
+  const tablero = $("iniTablero");
+  if (!tablero) return;
+  const p = prefInicio();
+  ordenInicio().forEach(id => {
+    const w = widgetInicio(id);
+    if (!w) return;
+    const def = WIDGETS_INICIO.find(x => x.id === id);
+    const oculto = p.ocultos.indexOf(id) >= 0;
+    w.classList.toggle("ancho", (p.tam[id] || def.tam) === "ancho");
+    w.classList.toggle("oculto", oculto);
+    w.hidden = oculto;
+    tablero.append(w);
+    if (inicioEditando) barraWidget(w, def);
+  });
+}
+
+function guardarDisenoInicio() {
+  const p = prefInicio();
+  p.orden = Array.from($("iniTablero").children).map(w => w.dataset.widget);
+  preferencias.inicio = p;
+  guardarPreferencias();
+}
+
+function editarInicio(activar) {
+  inicioEditando = !!activar;
+  $("iniEditor").hidden = !inicioEditando;
+  $("iniTablero").classList.toggle("ini-editando", inicioEditando);
+  $("inicioPersonalizar").classList.toggle("activo", inicioEditando);
+  document.querySelectorAll("#iniTablero > .ini-widget").forEach(w => {
+    const def = WIDGETS_INICIO.find(x => x.id === w.dataset.widget);
+    if (inicioEditando) barraWidget(w, def);
+    else { const b = w.querySelector(":scope > .ini-w-barra"); if (b) b.remove(); w.draggable = false; }
+  });
+  if (inicioEditando) $("iniEditor").scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+}
+
+function barraWidget(w, def) {
+  const vieja = w.querySelector(":scope > .ini-w-barra");
+  if (vieja) vieja.remove();
+  const p = prefInicio();
+  const oculto = p.ocultos.indexOf(def.id) >= 0;
+  const ancho = (p.tam[def.id] || def.tam) === "ancho";
+  const barra = el("div", "ini-w-barra");
+  const agarre = el("span", "ini-w-agarre", "⠿");
+  agarre.title = "Arrastrar para mover";
+  agarre.setAttribute("aria-hidden", "true");
+  // Solo se arrastra desde el agarre (adentro hay campos y gráficos).
+  agarre.addEventListener("mousedown", () => { w.draggable = true; });
+  agarre.addEventListener("mouseup", () => { w.draggable = false; });
+  const boton = (texto, titulo, fn) => {
+    const b = el("button", "secondary small", texto);
+    b.type = "button";
+    b.title = titulo;
+    b.setAttribute("aria-label", titulo + ": " + def.titulo);
+    b.addEventListener("click", fn);
+    return b;
+  };
+  const mover = paso => {
+    const hermanos = Array.from($("iniTablero").children);
+    const i = hermanos.indexOf(w), j = i + paso;
+    if (j < 0 || j >= hermanos.length) return;
+    if (paso < 0) $("iniTablero").insertBefore(w, hermanos[j]);
+    else $("iniTablero").insertBefore(w, hermanos[j].nextSibling);
+    guardarDisenoInicio();
+    const foco = w.querySelector(paso < 0 ? ".ini-w-arriba" : ".ini-w-abajo");
+    if (foco) foco.focus();
+  };
+  const arriba = boton("↑", "Subir", () => mover(-1));
+  arriba.classList.add("ini-w-arriba");
+  const abajo = boton("↓", "Bajar", () => mover(1));
+  abajo.classList.add("ini-w-abajo");
+  const tam = boton(ancho ? "Mitad" : "Ancho", ancho ? "Achicar a media columna" : "Agrandar a todo el ancho", () => {
+    const q = prefInicio();
+    q.tam[def.id] = ancho ? "mitad" : "ancho";
+    if (q.tam[def.id] === def.tam) delete q.tam[def.id];
+    preferencias.inicio = q;
+    guardarDisenoInicio();
+    aplicarDisenoInicio();
+  });
+  const ver = boton(oculto ? "Mostrar" : "Ocultar", oculto ? "Volver a mostrar" : "Ocultar de Inicio", () => {
+    const q = prefInicio();
+    q.ocultos = oculto ? q.ocultos.filter(x => x !== def.id) : q.ocultos.concat([def.id]);
+    preferencias.inicio = q;
+    guardarDisenoInicio();
+    aplicarDisenoInicio();
+  });
+  barra.append(agarre, el("span", "ini-w-tit", def.titulo + (oculto ? " · oculta" : "")), arriba, abajo, tam, ver);
+  w.prepend(barra);
+}
+
+// Arrastrar: la tarjeta se va acomodando en vivo mientras se mueve, como en el celular.
+let iniArrastrada = null;
+$("iniTablero").addEventListener("dragstart", e => {
+  const w = e.target.closest && e.target.closest(".ini-widget");
+  if (!inicioEditando || !w || !w.draggable) { e.preventDefault(); return; }
+  iniArrastrada = w;
+  w.classList.add("arrastrando");
+  e.dataTransfer.effectAllowed = "move";
+  try { e.dataTransfer.setData("text/plain", w.dataset.widget); } catch (err) {}
+});
+$("iniTablero").addEventListener("dragover", e => {
+  if (!iniArrastrada) return;
+  e.preventDefault();
+  const sobre = e.target.closest && e.target.closest(".ini-widget");
+  if (!sobre || sobre === iniArrastrada) return;
+  const r = sobre.getBoundingClientRect();
+  // En una misma fila (media columna) decide la posición horizontal; si no, la vertical.
+  const mismaFila = !sobre.classList.contains("ancho") && !iniArrastrada.classList.contains("ancho") && window.innerWidth > 900;
+  const despues = mismaFila ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+  const ref = despues ? sobre.nextSibling : sobre;
+  if (ref === iniArrastrada || iniArrastrada.nextSibling === ref) return;
+  $("iniTablero").insertBefore(iniArrastrada, ref);
+});
+document.addEventListener("mouseup", () => {
+  if (!iniArrastrada) document.querySelectorAll("#iniTablero > .ini-widget[draggable=true]").forEach(w => { w.draggable = false; });
+});
+$("iniTablero").addEventListener("drop", e => { if (iniArrastrada) e.preventDefault(); });
+$("iniTablero").addEventListener("dragend", () => {
+  if (!iniArrastrada) return;
+  iniArrastrada.classList.remove("arrastrando");
+  iniArrastrada.draggable = false;
+  iniArrastrada = null;
+  guardarDisenoInicio();
+});
+
+$("inicioPersonalizar").addEventListener("click", () => editarInicio(!inicioEditando));
+$("iniListo").addEventListener("click", () => editarInicio(false));
+$("iniRestablecer").addEventListener("click", () => {
+  delete preferencias.inicio;
+  guardarPreferencias();
+  aplicarDisenoInicio();
+  toast("Inicio volvió al orden original.");
+});
+
 // ---------------- Buscador global (Ctrl+K) ----------------
 const SECCIONES = [
   ["inicio", "Inicio"], ["cargar", "Carga de comprobantes"], ["transferencias", "Movimientos"], ["cheques", "Cheques"],
@@ -10028,6 +10466,86 @@ document.addEventListener("keydown", e => {
     if ($("detalle").classList.contains("is-open")) cerrarDetalle();
   }
 }, true);
+
+// ---------------- Atajos de teclado ----------------
+// G y una letra: ir a una sección (G M = Movimientos). N: entrada manual. R: actualizar.
+// ?: ver todos. No actúan mientras se escribe en un campo ni con una ventana abierta.
+const ATAJOS_IR = [
+  ["i", "inicio"], ["c", "cargar"], ["m", "transferencias"], ["h", "cheques"], ["p", "compromisos"], ["t", "facturas"],
+  ["s", "flujo"], ["b", "cuentas"], ["o", "conciliacion"], ["a", "alertas"], ["r", "reportes"], ["d", "auditoria"], ["u", "usuarios"]
+];
+const ATAJOS_OTROS = [
+  [["Ctrl", "K"], "Buscar movimientos, cheques, cuentas o secciones"], [["/"], "Buscar"],
+  [["N"], "Entrada manual (en Inicio, Carga, Movimientos y Cheques)"], [["R"], "Actualizar la sección"],
+  [["E"], "Personalizar Inicio"], [["Ctrl", "B"], "Mostrar u ocultar el panel lateral"],
+  [["Esc"], "Cerrar ventanas y el detalle"], [["?"], "Ver estos atajos"]
+];
+let atajoG = 0;
+
+function seccionHabilitada(vista) {
+  const n = document.querySelector('.nav-item[data-vista="' + vista + '"]');
+  return !!n && !n.hidden;
+}
+
+function armarAtajos() {
+  const box = $("atajosLista");
+  box.replaceChildren();
+  // sep: " + " para teclas juntas (Ctrl + K), " luego " para una después de otra (G luego M).
+  const fila = (teclas, texto, sep) => {
+    const t = el("div", "atajo-teclas");
+    teclas.forEach((k, i) => { if (i) t.append(el("span", "atajo-sep", sep)); t.append(el("kbd", null, k)); });
+    box.append(t, el("div", "atajo-txt", texto));
+  };
+  box.append(el("div", "atajo-grupo", "Ir a una sección"));
+  ATAJOS_IR.filter(a => seccionHabilitada(a[1])).forEach(a => fila(["G", a[0].toUpperCase()], TITULOS_VISTA[a[1]], "luego"));
+  box.append(el("div", "atajo-grupo", "Acciones"));
+  ATAJOS_OTROS.forEach(a => fila(a[0], a[1], "+"));
+}
+
+function vistaActiva() {
+  const v = document.querySelector("main > .view.active");
+  return v ? v.id.replace("vista-", "") : "";
+}
+
+function esperarSeccion(activar) {
+  clearTimeout(atajoG);
+  atajoG = activar ? setTimeout(() => esperarSeccion(false), 1500) : 0;
+  $("atajoEspera").hidden = !activar;
+}
+
+ATAJOS_IR.forEach(a => {
+  const n = document.querySelector('.nav-item[data-vista="' + a[1] + '"]');
+  if (n) n.title = n.textContent.trim() + " (G " + a[0].toUpperCase() + ")";
+});
+
+document.addEventListener("keydown", e => {
+  if (!usuarioActual || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+  const t = e.target;
+  if (t && t.closest && t.closest("input, textarea, select, [contenteditable]")) return;
+  if (document.querySelector(".modal-overlay.is-open") || $("detalle").classList.contains("is-open")) return;
+  const k = String(e.key || "").toLowerCase();
+  if (atajoG) {
+    const destino = ATAJOS_IR.find(a => a[0] === k);
+    esperarSeccion(false);
+    if (destino && seccionHabilitada(destino[1])) { e.preventDefault(); mostrarVista(destino[1]); }
+    return;
+  }
+  if (e.key === "?") { e.preventDefault(); armarAtajos(); abrirModal("modalAtajos"); return; }
+  if (k === "g" && !e.shiftKey) { e.preventDefault(); esperarSeccion(true); return; }
+  const vista = $("vista-" + vistaActiva());
+  if (!vista || vistaActiva() === "inversiones") return;
+  if (k === "n" && !e.shiftKey) {
+    const b = vista.querySelector(".btn-entrada-manual");
+    if (b) { e.preventDefault(); b.click(); }
+    return;
+  }
+  if (k === "r" && !e.shiftKey) {
+    const b = Array.from(vista.querySelectorAll(".page-head .actions button")).find(x => x.textContent.trim() === "Actualizar" && !x.disabled);
+    if (b) { e.preventDefault(); b.click(); toast("Actualizando " + (TITULOS_VISTA[vistaActiva()] || "") + "…"); }
+    return;
+  }
+  if (k === "e" && !e.shiftKey && vistaActiva() === "inicio") { e.preventDefault(); editarInicio(!inicioEditando); }
+});
 
 // ---------------- Pegar capturas, archivos o texto (Ctrl+V) ----------------
 // En la pantalla de Carga se puede pegar con Ctrl+V:
@@ -15501,17 +16019,17 @@ function graficoIngresosEgresos(t) {
   tablaViz(t.tabla, ["Mes", "Ingresos", "Egresos", "Resultado"], cats.map(c => [mesLargo(c.mes), fmtImp(c.ing), fmtImp(c.egr), fmtImp(c.neto)]));
 }
 
+// Cada gráfico va en su propia tarjeta del tablero de Inicio (se ordena y agranda desde Personalizar).
 function renderGraficosInicio(saldoHoy) {
-  const box = $("inicioGraficos");
-  if (!box) return;
-  box.replaceChildren();
+  if (!$("iniG-semana")) return;
   const t1 = tarjetaViz("Semana corta: ¿me alcanza la caja?", "Disponible de hoy contra los cheques pendientes hasta el viernes y los depositados por acreditar.", "semana");
   const t2 = tarjetaViz("¿Cuándo vence la deuda en bolsa?", "Cheques emitidos negociados en bolsa todavía sin pagar, por mes de pago y ALYC.", "bolsa");
   const t3 = tarjetaViz("¿Cuánto hay en fondos y cómo se mueve?", "Saldo de FCI por banco en los últimos 12 meses y lo que entró y salió cada mes.", "fci");
   const t4 = tarjetaViz("¿Cómo vengo mes a mes?", "Ingresos y egresos de los últimos 12 meses.", "ingresos");
-  t1.card.classList.add("viz-ancho");
-  t4.card.classList.add("viz-ancho");
-  box.append(t1.card, t2.card, t3.card, t4.card);
+  $("iniG-semana").replaceChildren(t1.card);
+  $("iniG-bolsa").replaceChildren(t2.card);
+  $("iniG-fci").replaceChildren(t3.card);
+  $("iniG-ingresos").replaceChildren(t4.card);
   const seguro = (t, fn) => { try { fn(); } catch (err) { datoViz(t, ["No se pudo armar el gráfico: " + msgErr(err)], true); vacioViz(t, "No se pudo armar el gráfico."); } };
   seguro(t1, () => graficoSemanaCorta(t1, saldoHoy));
   seguro(t2, () => graficoBolsa(t2));

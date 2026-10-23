@@ -243,6 +243,8 @@ const ACCIONES = {
   actualizarOrdenPago: actualizarOrdenPago_,
   obtenerPropiedades: obtenerPropiedades_,
   guardarPropiedades: guardarPropiedades_,
+  obtenerPreferencias: obtenerPreferencias_,
+  guardarPreferencias: guardarPreferencias_,
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
 };
@@ -3635,6 +3637,32 @@ function actualizarOrdenPago_(d, u) {
     delete x.__fila;
     return { ok: true, orden: x };
   });
+}
+
+// ======================= Preferencias de cada usuario =======================
+// Cómo arma cada uno su Inicio (orden, tamaño y tarjetas ocultas) y el banco y la
+// cuenta que eligió la última vez en Carga. Se guarda en las propiedades del script,
+// una por usuario, para que lo vea igual en cualquier compu o celular.
+const MAX_PREFERENCIAS = 8000;
+
+function clavePreferencias_(u) {
+  return 'PREF_' + u['ID'];
+}
+
+function obtenerPreferencias_(d, u) {
+  let pref = {};
+  try { pref = JSON.parse(propiedades_().getProperty(clavePreferencias_(u)) || '{}') || {}; } catch (e) {}
+  return { ok: true, preferencias: pref };
+}
+
+/** d.preferencias: objeto completo (reemplaza al anterior). No pasa por la auditoría: no son datos de la tesorería. */
+function guardarPreferencias_(d, u) {
+  const pref = d && d.preferencias;
+  if (!pref || typeof pref !== 'object' || Array.isArray(pref)) return { ok: false, error: 'Preferencias inválidas.' };
+  const texto = JSON.stringify(pref);
+  if (texto.length > MAX_PREFERENCIAS) return { ok: false, error: 'Las preferencias son demasiado grandes.' };
+  propiedades_().setProperty(clavePreferencias_(u), texto);
+  return { ok: true };
 }
 
 // ======================= Propiedades =======================

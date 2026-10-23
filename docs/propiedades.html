@@ -162,6 +162,59 @@
     .recibo .firma-campo { margin-top: 12px; max-width: 320px; font-weight: 700; }
     .campos .valor { font-family: var(--datos); font-size: 15px; color: var(--verde); padding: 8px 0; }
     .meta { font-size: 12px; color: var(--tenue); margin-top: 18px; text-align: right; }
+
+    /* ---------- Tablero ---------- */
+    .kpi.alerta b { color: var(--rojo); }
+    .kpi.alerta { border-color: rgba(163, 50, 42, 0.3); }
+    .kpi.aviso b { color: var(--oro); }
+    .kpi.baja span { color: var(--rojo); }
+    .kpi.ok span { color: var(--verde-claro); }
+    .link { font: inherit; font-weight: 700; color: var(--verde); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(28, 74, 44, 0.3); text-underline-offset: 3px; }
+    .link:hover { color: var(--oro); }
+    .link.rojo { color: var(--rojo); }
+    .link:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; border-radius: 3px; }
+    .lugar { padding: 12px 0; border-bottom: 1px solid rgba(28, 74, 44, 0.08); }
+    .lugar:first-of-type { padding-top: 0; }
+    .lugar-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; font-size: 14.5px; }
+    .lugar-monto { font-family: var(--datos); font-size: 13.5px; color: var(--verde); }
+    .barra-lugar { display: flex; gap: 2px; height: 12px; border-radius: 99px; overflow: hidden; background: rgba(28, 74, 44, 0.06); }
+    .seg { display: inline-block; min-width: 6px; }
+    .seg.transfiere { background: #5f9b6f; }
+    .seg.efectivo { background: #d4b06a; }
+    .seg.no-abono { background: var(--rojo); }
+    .seg.desocupado { background: #c3c6bd; }
+    .seg.atraso { background: #e08a3c; }
+    .lugar-det { margin-top: 6px; font-size: 12.5px; color: var(--tenue); }
+    .leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: 12px; color: var(--tenue); }
+    .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+    .leyenda i.seg { width: 12px; height: 12px; min-width: 0; border-radius: 3px; }
+    .ok-linea { color: var(--verde-claro); font-weight: 600; font-size: 14px; }
+    .revisar { list-style: none; margin: 0; padding: 0; }
+    .revisar li { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 0 10px; padding: 9px 0 9px 12px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); border-left: 3px solid transparent; font-size: 13.5px; }
+    .revisar li .quien { color: var(--tenue); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .revisar li .que { grid-column: 2; }
+    .revisar li.rojo { border-left-color: var(--rojo); }
+    .revisar li.rojo .que { color: var(--rojo); font-weight: 600; }
+    .revisar li.oro { border-left-color: var(--oro); }
+    .revisar li.azul { border-left-color: #6b86b8; }
+    .revisar li.verde { border-left-color: var(--verde-claro); }
+
+    /* ---------- Historial ---------- */
+    table.historial { font-size: 12.5px; }
+    table.historial th.mes { text-align: center; font-size: 10.5px; letter-spacing: 0.02em; }
+    table.historial td { padding: 6px 4px; vertical-align: middle; }
+    table.historial td.unidad { min-width: 150px; padding-left: 10px; }
+    table.historial tr.abierta td.unidad { box-shadow: inset 3px 0 0 var(--oro); }
+    .celda-mes { text-align: center; font-family: var(--datos); font-size: 11.5px; white-space: nowrap; border-radius: 6px; border: 2px solid var(--crema-clara); }
+    .celda-mes.transfiere { background: rgba(95, 155, 111, 0.22); color: #24533a; }
+    .celda-mes.efectivo { background: rgba(212, 176, 106, 0.3); color: #6b4e18; }
+    .celda-mes.atraso { background: rgba(224, 138, 60, 0.3); color: #7a3f0c; }
+    .celda-mes.no-abono { background: rgba(163, 50, 42, 0.16); color: var(--rojo); font-weight: 700; }
+    .celda-mes.desocupado { background: rgba(109, 116, 105, 0.12); color: var(--tenue); }
+    .celda-mes.vacia { background: transparent; }
+    td.rojo { color: var(--rojo); font-weight: 700; }
+    tr.fila-atraso td { background: rgba(224, 138, 60, 0.08); }
+    .historial-ley { margin-bottom: 0; }
   </style>
 </head>
 <body class="verificando">
@@ -189,6 +242,6 @@
 
   <script src="sesion.js?v=7"></script>
   <script src="propiedades-lector.js?v=7"></script>
-  <script src="propiedades-vista.js?v=9"></script>
+  <script src="propiedades-vista.js?v=10"></script>
 </body>
 </html>

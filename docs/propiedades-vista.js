@@ -19,12 +19,13 @@
   var $ = function (id) { return document.getElementById(id); };
   var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   var ADM = 0.06;
-  var PESTANAS = [["resumen", "Resumen"], ["unidades", "Unidades"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"]];
+  var PESTANAS = [["tablero", "Tablero"], ["resumen", "Resumen"], ["unidades", "Unidades"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"], ["historial", "Historial"]];
   var lista = [];
   var actual = null;      // registro guardado {edificio, periodo, datos, ...}
   var borrador = null;    // copia de actual.datos mientras se edita
-  var pestana = "resumen";
+  var pestana = "tablero";
   var filtro = { texto: "", forma: "", lugar: "" };
+  var hist = { texto: "", unidad: "" };  // Historial: búsqueda y unidad abierta
   // Lugares (pestañas dentro de Unidades). Las unidades sin lugar son del primero (Saavedra).
   var LUGARES = ["Saavedra", "Polo 52", "Dario", "Esteban Porucini", "Casa Morón"];
   function lugaresDe(d) { return d.lugares && d.lugares.length ? d.lugares : LUGARES; }
@@ -284,7 +285,9 @@
     var previos = Array.prototype.slice.call(cuerpo.querySelectorAll("input, select, textarea, button"));
     var foco = previos.indexOf(document.activeElement);
     cuerpo.replaceChildren();
-    if (pestana === "unidades") cuerpo.append(panelUnidades(d));
+    if (pestana === "tablero") cuerpo.append(vistaTablero(d));
+    else if (pestana === "historial") cuerpo.append(vistaHistorial(d));
+    else if (pestana === "unidades") cuerpo.append(panelUnidades(d));
     else if (pestana === "expensas") cuerpo.append(panelExpensas(d));
     else if (pestana === "cocheras") { var g = el("div", "grilla mitad"); g.append(panelCocheras(d), panelNovedades(d)); cuerpo.append(g); }
     else if (pestana === "transferencias") cuerpo.append(panelPlanillaTransferencias(d));
@@ -437,6 +440,265 @@
       p.append(x);
     });
     return p;
+  }
+
+  // ----- Tablero -----
+  // De un vistazo: cuánto se cobró, quién no pagó y qué cambió contra el mes anterior,
+  // por lugar. Usa la liquidación que se está viendo (o el borrador si se edita).
+  var fmtCorto = new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 });
+  function corto(n) { return typeof n !== "number" ? "—" : "$ " + fmtCorto.format(n); }
+  function pct1(n) { return (n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " %"; }
+  /** Lo que pagó la unidad en el mes: la transferencia o el efectivo (sin descuentos). */
+  function montoUnidad(u) {
+    if (typeof u.transferencia === "number" && u.transferencia) return u.transferencia;
+    if (typeof u.efectivo === "number" && u.efectivo) return u.efectivo;
+    return typeof u.total === "number" && u.total ? u.total : null;
+  }
+  /** "no-abono", "desocupado" o "pago". */
+  function situacion(u) {
+    if (u.estado === "no-abono") return "no-abono";
+    if (u.estado === "desocupado") return "desocupado";
+    return montoUnidad(u) === null ? "no-abono" : "pago";
+  }
+  /** Pagó en efectivo un mes anterior al de la liquidación (viene atrasado). */
+  function atrasada(u, d) {
+    return u.forma === "Efectivo" && !!u.mes && !!d.orden && String(u.mes).slice(0, 7) < String(d.orden).slice(0, 7);
+  }
+  function delEdificio(d) {
+    return lista.filter(function (x) { return x.edificio === d.edificio; })
+      .sort(function (a, b) { return String(a.orden).localeCompare(String(b.orden)); });
+  }
+  function anteriorDe(d) {
+    var previas = delEdificio(d).filter(function (x) { return String(x.orden) < String(d.orden); });
+    return previas.length ? previas[previas.length - 1].datos : null;
+  }
+  function porClave(d) {
+    var m = {};
+    (d && d.unidades || []).forEach(function (u) { m[u.clave || u.unidad] = u; });
+    return m;
+  }
+  function verHistorial(u) {
+    hist.unidad = u.clave || u.unidad;
+    hist.texto = "";
+    pestana = "historial";
+    try { sessionStorage.setItem("prop-pestana", pestana); } catch (e) {}
+    mostrar();
+  }
+
+  function vistaTablero(d) {
+    var box = el("div", "tablero");
+    var us = d.unidades || [];
+    var ocupadas = us.filter(function (u) { return situacion(u) !== "desocupado"; });
+    var pagas = us.filter(function (u) { return situacion(u) === "pago"; });
+    var morosas = us.filter(function (u) { return situacion(u) === "no-abono"; });
+    var atrasos = us.filter(function (u) { return atrasada(u, d); });
+    var cobrado = pagas.reduce(function (a, u) { return a + montoUnidad(u); }, 0);
+    var ant = anteriorDe(d), antU = porClave(ant);
+    var cobradoAnt = ant ? (ant.unidades || []).reduce(function (a, u) { return a + (situacion(u) === "pago" ? montoUnidad(u) : 0); }, 0) : null;
+
+    // Indicadores
+    var k = el("section", "kpis");
+    var delta = cobradoAnt ? (cobrado - cobradoAnt) / cobradoAnt : null;
+    [
+      ["Cobrado del mes", pesos(cobrado), delta === null ? pagas.length + " unidad(es) pagaron" : (delta >= 0 ? "▲ " : "▼ ") + pct1(Math.abs(delta)) + " contra " + ant.periodo, delta !== null && delta < -0.005 ? "baja" : ""],
+      ["Al día", pagas.length + " de " + ocupadas.length, ocupadas.length ? pct1(pagas.length / ocupadas.length) + " de las ocupadas" : "Sin unidades ocupadas", ""],
+      ["No abonaron", String(morosas.length), morosas.length ? morosas.map(function (u) { return u.unidad; }).slice(0, 6).join(", ") + (morosas.length > 6 ? "…" : "") : "Nadie debe este mes", morosas.length ? "alerta" : "ok"],
+      ["Pagos atrasados", String(atrasos.length), atrasos.length ? "Pagaron en efectivo un mes anterior" : "Ninguno", atrasos.length ? "aviso" : ""],
+      ["Desocupadas", String(us.length - ocupadas.length), us.length + " unidades en total", ""]
+    ].forEach(function (x) {
+      var c = el("div", "kpi" + (x[3] ? " " + x[3] : ""));
+      c.append(el("small", null, x[0]), el("b", null, x[1]), el("span", null, x[2]));
+      k.append(c);
+    });
+    box.append(k);
+
+    var g = el("div", "grilla mitad");
+    // Por lugar: barra con cómo pagó cada unidad.
+    var pl = panel("Por lugar", "Cómo se cobró cada lugar este mes. Tocá una unidad en rojo para ver su historial.");
+    lugaresDe(d).forEach(function (l) {
+      var del = us.filter(function (u) { return lugarDe(d, u) === l; });
+      if (!del.length) return;
+      var n = { transfiere: 0, efectivo: 0, "no-abono": 0, desocupado: 0 };
+      var total = 0;
+      del.forEach(function (u) {
+        var s = situacion(u);
+        if (s === "pago") { n[u.forma === "Efectivo" ? "efectivo" : "transfiere"]++; total += montoUnidad(u); }
+        else n[s]++;
+      });
+      var fila = el("div", "lugar");
+      var cab = el("div", "lugar-cab");
+      cab.append(el("b", null, l), el("span", "lugar-monto", pesos(total)));
+      var barra = el("div", "barra-lugar");
+      barra.setAttribute("role", "img");
+      barra.setAttribute("aria-label", l + ": " + n.transfiere + " transfieren, " + n.efectivo + " en efectivo, " + n["no-abono"] + " no abonaron, " + n.desocupado + " desocupadas");
+      [["transfiere", "Transfieren"], ["efectivo", "Efectivo"], ["no-abono", "No abonó"], ["desocupado", "Desocupadas"]].forEach(function (s) {
+        if (!n[s[0]]) return;
+        var seg = el("span", "seg " + s[0]);
+        seg.style.flexGrow = String(n[s[0]]);
+        seg.title = s[1] + ": " + n[s[0]];
+        barra.append(seg);
+      });
+      var det = el("div", "lugar-det");
+      det.textContent = del.length + " unidad(es) · " + (n.transfiere + n.efectivo) + " pagaron" + (n["no-abono"] ? " · " : "");
+      if (n["no-abono"]) {
+        del.filter(function (u) { return situacion(u) === "no-abono"; }).forEach(function (u, i) {
+          if (i) det.append(document.createTextNode(", "));
+          var b = el("button", "link rojo", u.unidad);
+          b.type = "button";
+          b.title = "Ver el historial de " + u.unidad + (u.inquilino ? " (" + u.inquilino + ")" : "");
+          b.addEventListener("click", function () { verHistorial(u); });
+          det.append(b);
+        });
+        det.append(document.createTextNode(" no abonaron"));
+      }
+      fila.append(cab, barra, det);
+      pl.append(fila);
+    });
+    var ley = el("div", "leyenda");
+    [["transfiere", "Transfieren"], ["efectivo", "Efectivo"], ["no-abono", "No abonó"], ["desocupado", "Desocupada"]].forEach(function (s) {
+      var i = el("span"); i.append(el("i", "seg " + s[0]), document.createTextNode(s[1])); ley.append(i);
+    });
+    pl.append(ley);
+
+    // Para revisar: morosos, atrasos y cambios contra el mes anterior.
+    var pr = panel("Para revisar", ant ? "Comparado con " + ant.periodo + "." : "Es la primera liquidación de este edificio: todavía no hay mes anterior para comparar.");
+    var items = [];
+    us.forEach(function (u) {
+      var a = antU[u.clave || u.unidad], s = situacion(u), m = montoUnidad(u);
+      if (s === "no-abono") items.push({ u: u, tono: "rojo", txt: "No abonó" + (a && situacion(a) === "pago" ? " · el mes pasado pagó " + pesos(montoUnidad(a)) : a && situacion(a) === "no-abono" ? " · segundo mes seguido" : "") });
+      if (atrasada(u, d)) items.push({ u: u, tono: "oro", txt: "Pagó en efectivo el mes de " + (u.mesTexto || u.mes) });
+      if (typeof u.punitorios === "number" && u.punitorios > 0) items.push({ u: u, tono: "oro", txt: "Punitorios por " + pesos(u.punitorios) });
+      if (!a) return;
+      if (a.inquilino && u.inquilino && normalizarTxt(a.inquilino) !== normalizarTxt(u.inquilino)) items.push({ u: u, tono: "azul", txt: "Cambió el inquilino: antes " + a.inquilino });
+      var ma = situacion(a) === "pago" ? montoUnidad(a) : null;
+      if (s === "pago" && ma && m && Math.abs(m - ma) / ma >= 0.15) items.push({ u: u, tono: "azul", txt: "Pagó " + pesos(m) + " (antes " + pesos(ma) + ", " + (m > ma ? "+" : "−") + pct1(Math.abs(m - ma) / ma) + ")" });
+      if (situacion(a) === "desocupado" && s === "pago") items.push({ u: u, tono: "verde", txt: "Se ocupó: antes estaba desocupada" });
+    });
+    if (!items.length) pr.append(el("p", "ok-linea", "Todo en orden: nadie debe y no hay cambios raros."));
+    var ul = el("ul", "revisar");
+    var orden = { rojo: 0, oro: 1, azul: 2, verde: 3 };
+    items.sort(function (a, b) { return orden[a.tono] - orden[b.tono]; }).forEach(function (it) {
+      var li = el("li", it.tono);
+      var b = el("button", "link", it.u.unidad);
+      b.type = "button";
+      b.title = "Ver el historial";
+      b.addEventListener("click", function () { verHistorial(it.u); });
+      li.append(b, el("span", "quien", it.u.inquilino || ""), el("span", "que", it.txt));
+      ul.append(li);
+    });
+    pr.append(ul);
+    g.append(pl, pr);
+    box.append(g);
+    return box;
+  }
+
+  // ----- Historial -----
+  // Una fila por unidad y una columna por mes (los últimos 12 del edificio): de un
+  // vistazo se ve quién paga siempre, quién se atrasa y quién dejó de pagar.
+  function normalizarTxt(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim(); }
+
+  function vistaHistorial(d) {
+    var box = el("div");
+    // Si se está editando, la columna del mes que se ve muestra el borrador.
+    var meses = delEdificio(d).slice(-12).map(function (x) { return x === actual ? d : x.datos; });
+    var p = panel("Historial de pagos", "Últimos " + meses.length + " mes(es) cargados de este edificio. Tocá una unidad para ver el detalle.");
+    var herr = el("div", "herramientas");
+    var buscar = el("input"); buscar.type = "search"; buscar.placeholder = "Buscar por unidad o inquilino (también inquilinos anteriores)"; buscar.setAttribute("aria-label", "Buscar"); buscar.value = hist.texto;
+    buscar.addEventListener("input", function () { hist.texto = buscar.value; pintarGrilla(); });
+    herr.append(buscar);
+    p.append(herr);
+
+    // Unidades: las del mes que se ve, más las que estaban antes y ya no.
+    var unidades = [], vistas = {};
+    meses.slice().reverse().forEach(function (m) {
+      (m.unidades || []).forEach(function (u) {
+        var c = u.clave || u.unidad;
+        if (vistas[c]) { if (u.inquilino && vistas[c].inquilinos.indexOf(u.inquilino) < 0) vistas[c].inquilinos.push(u.inquilino); return; }
+        vistas[c] = { clave: c, unidad: u.unidad, inquilino: u.inquilino || "", inquilinos: u.inquilino ? [u.inquilino] : [], lugar: lugarDe(m, u) };
+        unidades.push(vistas[c]);
+      });
+    });
+    var caja = el("div", "tabla-scroll");
+    var detalle = el("div");
+    p.append(caja, el("div", "leyenda historial-ley"));
+    var ley = p.lastChild;
+    [["transfiere", "Transfirió"], ["efectivo", "Efectivo"], ["atraso", "Pagó atrasado"], ["no-abono", "No abonó"], ["desocupado", "Desocupada"]].forEach(function (s) {
+      var i = el("span"); i.append(el("i", "seg " + s[0]), document.createTextNode(s[1])); ley.append(i);
+    });
+    box.append(p, detalle);
+
+    function celdaDe(m, c) {
+      var u = porClave(m)[c];
+      if (!u) return { cls: "vacia", txt: "", tit: "No figura" };
+      var s = situacion(u);
+      if (s === "desocupado") return { cls: "desocupado", txt: "—", tit: "Desocupada" };
+      if (s === "no-abono") return { cls: "no-abono", txt: "No", tit: "No abonó" + (u.inquilino ? " · " + u.inquilino : "") };
+      var at = atrasada(u, m);
+      return { cls: at ? "atraso" : (u.forma === "Efectivo" ? "efectivo" : "transfiere"), txt: corto(montoUnidad(u)) + (u.punitorios > 0 ? " •" : ""),
+        tit: (u.forma || "") + " " + pesos(montoUnidad(u)) + (at ? " · pagó el mes de " + (u.mesTexto || u.mes) : "") + (u.punitorios > 0 ? " · punitorios " + pesos(u.punitorios) : "") + (u.inquilino ? " · " + u.inquilino : "") };
+    }
+
+    function pintarGrilla() {
+      var q = normalizarTxt(hist.texto);
+      var filas = unidades.filter(function (x) { return !q || normalizarTxt(x.unidad + " " + x.inquilinos.join(" ")).indexOf(q) >= 0; });
+      var t = el("table", "historial");
+      var thead = el("thead"), tr = el("tr");
+      tr.append(el("th", null, "Unidad"));
+      meses.forEach(function (m) { tr.append(el("th", "mes", m.periodo || m.orden)); });
+      tr.append(el("th", "num", "Pagó"));
+      thead.append(tr);
+      var tbody = el("tbody");
+      filas.forEach(function (x) {
+        var r = el("tr", hist.unidad === x.clave ? "abierta" : "");
+        var cu = el("td", "unidad");
+        var b = el("button", "link", x.unidad);
+        b.type = "button";
+        b.addEventListener("click", function () { hist.unidad = hist.unidad === x.clave ? "" : x.clave; pintarGrilla(); pintarDetalle(); });
+        cu.append(b, el("span", "sub", x.inquilino || "—"));
+        r.append(cu);
+        var pagos = 0, ocup = 0;
+        meses.forEach(function (m) {
+          var c = celdaDe(m, x.clave);
+          if (c.cls !== "vacia" && c.cls !== "desocupado") ocup++;
+          if (c.cls === "transfiere" || c.cls === "efectivo" || c.cls === "atraso") pagos++;
+          var td = el("td", "celda-mes " + c.cls, c.txt);
+          td.title = (m.periodo || "") + ": " + c.tit;
+          r.append(td);
+        });
+        r.append(el("td", "num" + (ocup && pagos < ocup ? " rojo" : ""), ocup ? pagos + "/" + ocup : "—"));
+        tbody.append(r);
+      });
+      if (!filas.length) { var v = el("tr"); var td = el("td", "vacio", "Ninguna unidad coincide con la búsqueda."); td.colSpan = meses.length + 2; v.append(td); tbody.append(v); }
+      t.append(thead, tbody);
+      caja.replaceChildren(t);
+    }
+
+    function pintarDetalle() {
+      detalle.replaceChildren();
+      var x = vistas[hist.unidad];
+      if (!x) return;
+      var pd = panel("Unidad " + x.unidad, x.inquilinos.length > 1 ? "Inquilinos: " + x.inquilinos.join(" · ") : (x.inquilino || ""));
+      var w = el("div", "tabla-scroll"), t = el("table");
+      var tr = el("tr");
+      ["Período", "Inquilino", "Pago", "Mes pagado", "Monto", "Punitorios", "Arreglos"].forEach(function (h, i) { tr.append(el("th", i >= 4 ? "num" : "", h)); });
+      var thead = el("thead"); thead.append(tr);
+      var tbody = el("tbody");
+      meses.slice().reverse().forEach(function (m) {
+        var u = porClave(m)[x.clave];
+        if (!u) return;
+        var r = el("tr", atrasada(u, m) ? "fila-atraso" : "");
+        var cp = el("td"); cp.append(pillEstado(u));
+        r.append(el("td", null, m.periodo || m.orden), el("td", null, u.inquilino || "—"), cp, el("td", null, u.mesTexto || (u.forma === "Transfiere" ? "—" : "")),
+          el("td", "num", pesos(montoUnidad(u))), el("td", "num" + (u.punitorios > 0 ? " rojo" : " cero"), pesos(u.punitorios || 0)), el("td", "num cero", typeof u.arreglos === "number" ? pesos(u.arreglos) : "—"));
+        tbody.append(r);
+      });
+      t.append(thead, tbody); w.append(t); pd.append(w);
+      detalle.append(pd);
+    }
+
+    pintarGrilla();
+    pintarDetalle();
+    return box;
   }
 
   // ----- Unidades -----
