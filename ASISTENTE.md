@@ -32,7 +32,7 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
 
 | Propiedad | Para qué | Por defecto |
 |---|---|---|
-| `ASISTENTE_NOMBRE` | Cómo se llama el asistente (por ejemplo `Jarvis`) | `Asistente` |
+| `ASISTENTE_NOMBRE` | Cómo se llama el asistente | `Amaroki` (el ícono es una Amarok V6) |
 | `GEMINI_MODELO` | Forzar un modelo (por ejemplo `gemini-3.8-flash`) | Lo elige solo |
 | `ASISTENTE_LIMITE_HORA` | Preguntas por usuario por hora | `40` |
 | `ASISTENTE_REVISAR` | `no` apaga los avisos de cosas que no cuadran | Prendido |
