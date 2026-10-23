@@ -14,7 +14,7 @@
   var ROTACION_MS = 20000;
   var MESES = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
-  function irAlIngreso() { location.replace("index.html?v=7#elegir"); }
+  function irAlIngreso() { location.replace("index.html?v=8#elegir"); }
   if (!BGPSesion.usuario()) { irAlIngreso(); return; }
   document.body.classList.remove("verificando");
 

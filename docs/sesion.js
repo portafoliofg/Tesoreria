@@ -12,6 +12,10 @@
  *                              Si el servidor no responde (red, demora), la promesa falla:
  *                              eso NO significa que la sesión venció.
  * BGPSesion.ingresar(u, clave) Promise → usuario (o error con el motivo)
+ * BGPSesion.ingresarGoogle(c)  Promise → usuario, con la credencial (ID token) del botón de Google.
+ *                              La credencial queda en sessionStorage ("bgp-gid") para pasársela
+ *                              a la plataforma de Inversiones sin pedir otro ingreso.
+ * BGPSesion.credencialGoogle(maxMs) credencial de Google guardada si tiene menos de maxMs, o "".
  * BGPSesion.salir()            Promise → cierra la sesión
  * BGPSesion.pedir(accion, d)   Promise → respuesta del servidor para una acción con sesión
  *                              (por ejemplo los datos de Propiedades). Falla con el motivo;
@@ -22,10 +26,18 @@
   var URL_APP = "https://script.google.com/macros/s/AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ/exec";
   var CLAVE = "bgp-sesion";
   var CLAVE_USUARIO = "bgp-usuario";
+  var CLAVE_GOOGLE = "bgp-gid";
   var ESPERA_MS = 15000;
 
   function leer(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function escribir(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
+  // La credencial de Google vive solo en esta pestaña (sessionStorage), con la hora en que llegó.
+  function guardarGoogle(credencial) {
+    try {
+      if (credencial) sessionStorage.setItem(CLAVE_GOOGLE, JSON.stringify({ c: credencial, t: Date.now() }));
+      else sessionStorage.removeItem(CLAVE_GOOGLE);
+    } catch (e) {}
+  }
   function guardar(token, usuario) {
     escribir(CLAVE, token);
     escribir(CLAVE_USUARIO, token && usuario ? JSON.stringify(usuario) : "");
@@ -72,6 +84,21 @@
         return r.usuario;
       });
     },
+    ingresarGoogle: function (credencial) {
+      return pedir("loginGoogle", { credential: credencial }, "").then(function (r) {
+        if (!r.ok) throw new Error(r.error || "No se pudo ingresar con Google.");
+        guardar(r.token, r.usuario);
+        guardarGoogle(credencial);
+        return r.usuario;
+      });
+    },
+    credencialGoogle: function (maxMs) {
+      try {
+        var g = JSON.parse(sessionStorage.getItem(CLAVE_GOOGLE) || "null");
+        if (g && g.c && typeof g.t === "number" && Date.now() - g.t < maxMs) return g.c;
+      } catch (e) {}
+      return "";
+    },
     pedir: function (accion, datos) {
       return pedir(accion, datos).then(function (r) {
         if (r && r.ok !== false) return r;
@@ -83,6 +110,7 @@
     salir: function () {
       var t = leer(CLAVE);
       guardar("", null);
+      guardarGoogle("");
       if (!t) return Promise.resolve();
       return pedir("logout", { token: t }, t).then(function () {}, function () {});
     }
