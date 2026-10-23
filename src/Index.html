@@ -11790,6 +11790,18 @@ function seccionElegida(id) {
   return !!chk && chk.checked;
 }
 
+/**
+ * Después de importar FCI o compromisos: quita las filas de la planilla que, desde la
+ * fecha más vieja del archivo, ya no están (se corrigieron en el Excel y cambió su ID).
+ */
+async function depurarImportacion(destino, filas, campoFecha) {
+  const fechas = filas.map(f => fechaAOrden(f[campoFecha])).filter(Boolean).sort();
+  if (!fechas.length) return 0;
+  const res = await runJson("importarPlanilla", { destino: destino, archivo: planillaFlujo.archivo,
+    depurar: { ids: filas.map(f => f["ID Planilla"]), desde: fechas[0] } });
+  return res.quitados || 0;
+}
+
 async function enviarPorLotes(destino, filas, tam, avance) {
   const total = { nuevos: 0, actualizados: 0, conciliados: 0, sinCambios: 0 };
   const lotes = Math.max(1, Math.ceil(filas.length / tam));
@@ -11858,13 +11870,15 @@ $("impImportar").addEventListener("click", async () => {
     if (pasos.indexOf("inversiones") >= 0) {
       const rf = await enviarPorLotes("fci", p.fci, 600, (i, n) => avisar("Guardando FCI: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * 0.7 * i / n));
       const rb = await enviarPorLotes("bolsa", p.bolsa, 600, (i, n) => avisar("Guardando Bolsa: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * (0.7 + 0.3 * i / n)));
-      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s) · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)"]);
+      const qf = await depurarImportacion("fci", p.fci, "Fecha");
+      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s)" + (qf ? ", " + qf + " reemplazado(s) por su versión corregida" : "") + " · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)"]);
       base += pesoPaso;
     }
     // 6. Compromisos.
     if (pasos.indexOf("compromisos") >= 0) {
       const r = await enviarPorLotes("compromisos", p.compromisos, 500, (i, n) => avisar("Guardando compromisos " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      resumen.push(["Compromisos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)"]);
+      const qc = await depurarImportacion("compromisos", p.compromisos, "Fecha de Vencimiento");
+      resumen.push(["Compromisos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (qc ? ", " + qc + " reemplazado(s) por su versión corregida" : "")]);
     }
     avisar("", 1);
     $("impRevision").hidden = true;
