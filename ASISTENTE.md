@@ -94,7 +94,13 @@ Cómo avisa:
 - Cada aviso se muestra una sola vez por usuario. Si los datos cambian (otro saldo, otro importe),
   es un aviso nuevo. También se puede preguntar en cualquier momento *"¿hay algo que no cuadre?"*.
 
-La revisión no usa Gemini (no gasta cuota). Para apagarla: propiedad `ASISTENTE_REVISAR` = `no`.
+**Pausarla** (por ejemplo mientras se migran operaciones): botón *Ignorar lo anterior a hoy* debajo
+del aviso, o decirle a Jarvis *"ignoralo, tomá desde el próximo cambio"*. Desde ese día solo compara
+los saldos que se carguen de ahí en adelante (el primero queda como punto de partida) y solo mira
+cheques, movimientos y compromisos con fecha desde ese día. Queda en la propiedad
+`ASISTENTE_REVISAR_DESDE`; para volver a revisar todo: *"volvé a revisar todo"*.
+
+La revisión no usa Gemini (no gasta cuota). Para apagarla del todo: propiedad `ASISTENTE_REVISAR` = `no`.
 Los avisos ya vistos quedan en las propiedades `ASIS_VISTOS_<id de usuario>` (no tocan las hojas).
 
 Navegadores con dictado: Chrome, Edge y Safari (compu y celular). En Firefox graba el
@@ -113,7 +119,18 @@ el chat ofrece abrir su página, donde funciona.
   necesita para responderla (saldos, movimientos, etc.). Si eso no es aceptable para la
   empresa, basta con activar la facturación en ese proyecto de Google AI Studio: con el
   nivel pago los datos no se usan para entrenar (y para este uso el costo es bajo).
+- **Más cuota**: desde el código no se puede aumentar. Si alguna vez no alcanza, en
+  [aistudio.google.com](https://aistudio.google.com) → *Billing* se activa la facturación del proyecto
+  (nivel pago 1): los límites suben mucho y, con pocas consultas por día, el costo es de centavos.
 - Las respuestas las genera una IA: pueden tener errores. Para decisiones, verificá en la app.
+
+## Si no responde
+
+- El chat espera hasta 3 minutos y, si no hay respuesta, avisa (antes podía quedar esperando
+  para siempre). El servidor le pide a Gemini que "piense" poco, para que conteste más rápido.
+- Para ver qué pasa: en el editor de Apps Script elegí la función `probarAsistente` y tocá
+  **Ejecutar**. En el registro aparece la respuesta, el modelo que usó y cuánto tardó cada paso.
+  También en **Ejecuciones** (menú de la izquierda) se ve el detalle de cada pregunta.
 
 ## Qué archivos son del asistente
 

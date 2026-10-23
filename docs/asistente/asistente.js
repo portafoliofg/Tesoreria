@@ -29,7 +29,7 @@
   // Misma URL /exec que docs/sesion.js: si cambia, actualizarla en los dos.
   var URL_APP = "https://script.google.com/macros/s/AKfycbzHN2YsUy94lXMT0RcSLfnuXQzx9j9ov4MleXNQhyPAKr7-tEwLIGEmnYcKaeA7pmh2IQ/exec";
   var PAGINA = "https://bgpsammar.com/asistente/";
-  var ESPERA_MS = 120000;
+  var ESPERA_MS = 180000;  // el servidor corta antes (ASIS_SEG_MAX en Asistente.gs)
   var MAX_GUARDADOS = 40;
   var MAX_HISTORIAL = 12;
   var GRABACION_MAX_MS = 25000;
@@ -294,7 +294,15 @@
   }
 
   function pedir(datos) {
-    if (enApp()) return runJson("asistente", datos);
+    if (enApp()) {
+      // google.script.run no tiene tiempo máximo: sin esto, si el servidor no contesta, el chat queda esperando para siempre.
+      return new Promise(function (resolve, reject) {
+        var reloj = setTimeout(function () {
+          reject(new Error("El asistente tardó demasiado en responder. Probá de nuevo; si se repite, preguntalo más corto."));
+        }, ESPERA_MS);
+        runJson("asistente", datos).then(function (r) { clearTimeout(reloj); resolve(r); }, function (err) { clearTimeout(reloj); reject(err); });
+      });
+    }
     var token = window.BGPSesion ? window.BGPSesion.token() : "";
     var control = typeof AbortController !== "undefined" ? new AbortController() : null;
     var reloj = setTimeout(function () { if (control) control.abort(); }, ESPERA_MS);
@@ -508,6 +516,12 @@
       m.consultas.forEach(function (c) { var t = NOMBRES_CONSULTA[c] || c; if (vistas.indexOf(t) < 0) vistas.push(t); });
       meta.appendChild(el("span", "", { texto: "Usó: " + vistas.join(" · ") }));
     }
+    if (m.alerta && m.etiqueta !== "Pendientes") {
+      var ignorar = el("button", "", { type: "button", texto: "Ignorar lo anterior a hoy" });
+      ignorar.title = "Por ejemplo, mientras están migrando: desde ahora solo revisa los cambios nuevos";
+      ignorar.addEventListener("click", function () { yo.pausarRevision(ignorar); });
+      meta.appendChild(ignorar);
+    }
     if ("speechSynthesis" in window) {
       var escuchar = el("button", "", { type: "button", texto: "Escuchar" });
       escuchar.addEventListener("click", function () { prepararVoz(); yo.leerEnVoz(m.texto, false); });
@@ -561,6 +575,21 @@
     this.agregar({ rol: "asistente", texto: r.mensaje, alerta: true, etiqueta: r.etiqueta || "" });
     if (hablar) { prepararVoz(); this.leerEnVoz(r.voz || r.mensaje, false); }
     pedir({ op: "visto", ids: r.nuevos || [] }).then(null, function () {});
+  };
+
+  /** Botón "Ignorar lo anterior a hoy" de un aviso: la revisión arranca desde hoy. */
+  Chat.prototype.pausarRevision = function (boton) {
+    var yo = this;
+    if (!window.confirm("¿Ignorar todos los avisos de antes de hoy? Desde ahora solo reviso los saldos y movimientos que se carguen de acá en adelante.")) return;
+    boton.textContent = "Un momento…";
+    pedir({ op: "pausarRevision" }).then(function (r) {
+      boton.remove();
+      yo.agregar({ rol: "asistente", texto: r.resultado || "Listo." });
+      if (flotante && flotante.aviso) { flotante.aviso = null; pintarAviso(); }
+    }, function (err) {
+      boton.textContent = "Ignorar lo anterior a hoy";
+      yo.agregar({ rol: "asistente", error: true, texto: (err && err.message) || "No se pudo." });
+    });
   };
 
   /** texto: la pregunta; canal: 'texto' | 'voz'; audio: {mime, base64} si se grabó. */
