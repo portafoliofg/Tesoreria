@@ -11,8 +11,9 @@ su nivel **gratuito**.
   agregar a la pantalla de inicio (menú del navegador → *Agregar a la pantalla principal*)
   y queda como una app.
 
-**Solo lee.** No puede cargar, editar, borrar, conciliar ni enviar nada. Lo único que guarda es
-qué avisos ya le mostró a cada usuario (en las propiedades del script, no en las hojas).
+**Los datos de tesorería solo los lee.** No puede cargar, editar, borrar, conciliar ni enviar
+movimientos, cheques, saldos ni facturas. Lo único que escribe, y solo cuando se lo piden, es su
+memoria, los pendientes y recordatorios (ver abajo). Todo queda en Auditoría.
 
 ## Activarlo (una sola vez, 5 minutos)
 
@@ -46,6 +47,26 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
   Se apaga diciendo *"listo"*, *"gracias"* o *"chau"*, o si no escucha nada.
 - **Lápiz**: empieza una charla nueva. La charla queda guardada en ese navegador.
 
+## Memoria, pendientes y recordatorios
+
+Se le pide hablando o escribiendo:
+
+| Decile | Qué hace |
+|---|---|
+| *"Acordate que el FCI de Bancor es para sueldos"* | Lo guarda en su **memoria** y lo tiene en cuenta siempre. La memoria es de toda la empresa: la ven todos los usuarios. |
+| *"¿Qué te acordás?"* / *"Olvidate de lo del FCI de Bancor"* | Muestra la memoria / la da de baja. |
+| *"Anotá que Ana tiene que cargar el rescate de BBVA para el viernes"* | Crea un **pendiente** (para vos, para otro usuario o *"para todos"*), con fecha si se la decís. |
+| *"¿Qué tengo pendiente?"* / *"Ya llamé al banco"* | Lista los pendientes / marca uno como hecho. |
+| *"Recordame el martes a las 10 pagar AFIP"* | Crea un **recordatorio** en Alertas: llega por WhatsApp como las demás alertas (hace falta tener el WhatsApp cargado en el perfil). También semanales, mensuales, etc. |
+
+- Al abrir la app, Jarvis menciona los pendientes de ese usuario (y los de todos) una vez por día:
+  los que no tienen fecha y los que vencen hoy o mañana.
+- Todo queda en la planilla, en las hojas **Asistente · Memoria** y **Asistente · Pendientes**
+  (se crean solas la primera vez), y los recordatorios en **Alertas**. Se pueden revisar o corregir
+  a mano.
+- Hace como máximo 4 cambios por pregunta, y nunca guarda nada por algo que diga un dato o un
+  concepto: solo cuando el usuario se lo pide.
+
 ## Avisos: cosas que no cuadran
 
 Al abrir la app (y la página del asistente) y cada vez que se guardan saldos, movimientos,
@@ -73,7 +94,13 @@ Cómo avisa:
 - Cada aviso se muestra una sola vez por usuario. Si los datos cambian (otro saldo, otro importe),
   es un aviso nuevo. También se puede preguntar en cualquier momento *"¿hay algo que no cuadre?"*.
 
-La revisión no usa Gemini (no gasta cuota). Para apagarla: propiedad `ASISTENTE_REVISAR` = `no`.
+**Pausarla** (por ejemplo mientras se migran operaciones): botón *Ignorar lo anterior a hoy* debajo
+del aviso, o decirle a Jarvis *"ignoralo, tomá desde el próximo cambio"*. Desde ese día solo compara
+los saldos que se carguen de ahí en adelante (el primero queda como punto de partida) y solo mira
+cheques, movimientos y compromisos con fecha desde ese día. Queda en la propiedad
+`ASISTENTE_REVISAR_DESDE`; para volver a revisar todo: *"volvé a revisar todo"*.
+
+La revisión no usa Gemini (no gasta cuota). Para apagarla del todo: propiedad `ASISTENTE_REVISAR` = `no`.
 Los avisos ya vistos quedan en las propiedades `ASIS_VISTOS_<id de usuario>` (no tocan las hojas).
 
 Navegadores con dictado: Chrome, Edge y Safari (compu y celular). En Firefox graba el
@@ -92,13 +119,24 @@ el chat ofrece abrir su página, donde funciona.
   necesita para responderla (saldos, movimientos, etc.). Si eso no es aceptable para la
   empresa, basta con activar la facturación en ese proyecto de Google AI Studio: con el
   nivel pago los datos no se usan para entrenar (y para este uso el costo es bajo).
+- **Más cuota**: desde el código no se puede aumentar. Si alguna vez no alcanza, en
+  [aistudio.google.com](https://aistudio.google.com) → *Billing* se activa la facturación del proyecto
+  (nivel pago 1): los límites suben mucho y, con pocas consultas por día, el costo es de centavos.
 - Las respuestas las genera una IA: pueden tener errores. Para decisiones, verificá en la app.
+
+## Si no responde
+
+- El chat espera hasta 3 minutos y, si no hay respuesta, avisa (antes podía quedar esperando
+  para siempre). El servidor le pide a Gemini que "piense" poco, para que conteste más rápido.
+- Para ver qué pasa: en el editor de Apps Script elegí la función `probarAsistente` y tocá
+  **Ejecutar**. En el registro aparece la respuesta, el modelo que usó y cuánto tardó cada paso.
+  También en **Ejecuciones** (menú de la izquierda) se ve el detalle de cada pregunta.
 
 ## Qué archivos son del asistente
 
 | Archivo | Qué es |
 |---|---|
-| `src/Asistente.gs` | Servidor: llama a Gemini y hace las consultas (solo lectura). |
+| `src/Asistente.gs` | Servidor: llama a Gemini, hace las consultas, la revisión, la memoria y los pendientes. |
 | `docs/asistente/` | Página propia, chat (`asistente.js`, el mismo para la app y la página) y manifiesto. |
 | `ASISTENTE.md` | Este archivo. |
 
@@ -113,7 +151,8 @@ Y tres líneas marcadas con `ASISTENTE` en archivos existentes:
 1. Borrar `src/Asistente.gs`, la carpeta `docs/asistente/` y este archivo.
 2. Borrar las líneas marcadas con `ASISTENTE` (lista de arriba). En `Código.gs` dejá
    `ACCIONES_SITIO` como estaba: `['estado', 'login', 'logout', 'obtenerPropiedades', 'guardarPropiedades']`.
-3. Opcional: borrar las propiedades `GEMINI_API_KEY` y `ASIS_VISTOS_…`, y la clave en AI Studio.
+3. Opcional: borrar las propiedades `GEMINI_API_KEY` y `ASIS_VISTOS_…`, las hojas `Asistente · Memoria` y
+   `Asistente · Pendientes`, y la clave en AI Studio.
 
 Si solo se borra `Asistente.gs` y quedan las líneas, la app sigue funcionando igual:
 el chat avisa que el asistente no está instalado.
