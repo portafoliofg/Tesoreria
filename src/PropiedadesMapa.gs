@@ -16,7 +16,9 @@
  */
 
 const SHEET_UBICACIONES = 'Ubicaciones de propiedades';
-const HEADERS_UBICACIONES = ['Clave', 'Edificio', 'Lugar', 'Dirección', 'Lat', 'Lon', 'Precisión', 'Fuente', 'Actualizado por', 'Fecha'];
+// Rumbo / Inclinación / Panorama: la vista de Street View de la entrada (el panorama sale del enlace que se pega).
+const HEADERS_UBICACIONES = ['Clave', 'Edificio', 'Lugar', 'Dirección', 'Lat', 'Lon', 'Precisión', 'Fuente', 'Actualizado por', 'Fecha', 'Rumbo', 'Inclinación', 'Panorama'];
+const UBIC_MAX_PERIODOS = 12;   // liquidaciones por lugar que se mandan al mapa
 const UBIC_MAX_BUSQUEDAS = 5;   // búsquedas automáticas por pedido (para no demorar)
 
 function claveUbicacion_(edificio, lugar) {
@@ -29,11 +31,20 @@ function direccionDeEdificio_(edificio) {
   return t.toLowerCase().replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase());
 }
 
-/** Lugares de cada edificio (de su última liquidación), con las unidades de cada uno. */
+/** Unidades de un lugar en una liquidación (las sin lugar son del primero, igual que en Propiedades). */
+function unidadesDelLugar_(d, lugar, primero) {
+  return (d.unidades || []).filter(un => (un.lugar || primero) === lugar);
+}
+
+/**
+ * Lugares de cada edificio (de su última liquidación), con las unidades de cada uno y
+ * el historial resumido de sus liquidaciones (para el análisis desde el mapa).
+ */
 function lugaresPropiedades_() {
-  const ult = {};
+  const ult = {}, todas = {};
   (obtenerPropiedades_().liquidaciones || []).forEach(x => {
     const k = claveTexto(x.edificio);
+    (todas[k] = todas[k] || []).push(x);
     if (!ult[k] || String(x.orden) > String(ult[k].orden)) ult[k] = x;
   });
   const lugares = [];
@@ -50,9 +61,21 @@ function lugaresPropiedades_() {
       const estados = {};
       suyas.forEach(un => { const e = un.estado || 'sin marca'; estados[e] = (estados[e] || 0) + 1; });
       const total = suyas.reduce((a, un) => a + (typeof un.total === 'number' ? un.total : 0), 0);
+      const historial = todas[k].slice().sort((a, b) => String(b.orden).localeCompare(String(a.orden))).slice(0, UBIC_MAX_PERIODOS).map(liq => {
+        const dl = liq.datos || {};
+        const primero = ((dl.lugares || []).filter(Boolean)[0]) || nombres[0];
+        return {
+          periodo: liq.periodo, orden: liq.orden,
+          unidades: unidadesDelLugar_(dl, lugar, primero).map(un => ({
+            unidad: un.unidad, inquilino: un.inquilino, estado: un.estado || '', forma: un.forma || '',
+            transferencia: un.transferencia, efectivo: un.efectivo, total: un.total
+          })),
+          liquidacion: (dl.liquidacion || []).map(l => ({ concepto: l.concepto, monto: l.monto, tipo: l.tipo }))
+        };
+      });
       lugares.push({
-        clave: claveUbicacion_(x.edificio, lugar), edificio: x.edificio, lugar: lugar, primero: i === 0,
-        periodo: x.periodo, unidades: suyas.length, estados: estados, total: Math.round(total * 100) / 100
+        clave: claveUbicacion_(x.edificio, lugar), edificio: x.edificio, lugar: lugar, primero: i === 0, varios: nombres.length > 1,
+        periodo: x.periodo, unidades: suyas.length, estados: estados, total: Math.round(total * 100) / 100, historial: historial
       });
     });
   });
@@ -94,7 +117,10 @@ function ubicacionesPropiedades_(d, u) {
       const lat = parseFloat(f['Lat']), lon = parseFloat(f['Lon']);
       return Object.assign(l, {
         direccion: f['Dirección'] || '', lat: isNaN(lat) ? null : lat, lon: isNaN(lon) ? null : lon,
-        precision: f['Precisión'] || 'sin ubicar', fuente: f['Fuente'] || '', actualizado: f['Fecha'] || ''
+        precision: f['Precisión'] || 'sin ubicar', fuente: f['Fuente'] || '', actualizado: f['Fecha'] || '',
+        rumbo: f['Rumbo'] === '' || f['Rumbo'] === undefined ? null : parseFloat(f['Rumbo']),
+        inclinacion: f['Inclinación'] === '' || f['Inclinación'] === undefined ? null : parseFloat(f['Inclinación']),
+        panorama: f['Panorama'] || ''
       });
     })
   };
@@ -122,15 +148,77 @@ function guardarUbicacionPropiedad_(d, u) {
     const filas = leerFilas_(SHEET_UBICACIONES, HEADERS_UBICACIONES);
     const i = filas.findIndex(f => f['Clave'] === clave);
     const antes = i >= 0 ? filas[i] : '';
+    // Si la casa cambia de lugar, la vista de Street View guardada ya no sirve.
     const f = {
       'Clave': clave, 'Edificio': String(d.edificio || (antes && antes['Edificio']) || ''), 'Lugar': String(d.lugar || (antes && antes['Lugar']) || ''),
       'Dirección': direccion, 'Lat': lat.toFixed(6), 'Lon': lon.toFixed(6), 'Precisión': precision, 'Fuente': fuente,
-      'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
+      'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(), 'Rumbo': '', 'Inclinación': '', 'Panorama': ''
     };
     hoja.getRange(i >= 0 ? i + 2 : hoja.getLastRow() + 1, 1, 1, HEADERS_UBICACIONES.length).setNumberFormat('@').setValues([HEADERS_UBICACIONES.map(h => f[h])]);
     registrar_(u, 'Propiedades: ubicación', (f['Lugar'] || f['Edificio']) + ' → ' + direccion + ' (' + fuente + ')', clave, antes, f);
     return { ok: true, direccion: direccion, lat: lat, lon: lon, precision: precision, fuente: fuente };
   });
+}
+
+/**
+ * Guarda la vista de Street View de la entrada de un lugar.
+ * d: {clave, enlace} (enlace de Google Maps en Street View, también los cortos maps.app.goo.gl)
+ *  o {clave, rumbo, inclinacion} (girada desde el mapa).
+ */
+function guardarVistaCalle_(d, u) {
+  const clave = String(d.clave || '');
+  if (!clave) return { ok: false, error: 'Falta el lugar.' };
+  let vista;
+  if (d.enlace) {
+    vista = vistaDeEnlace_(String(d.enlace).trim());
+    if (!vista) return { ok: false, error: 'No reconocí ese enlace. Abrí Street View en Google Maps, poné la vista de la entrada, tocá Compartir → Copiar vínculo y pegalo acá.' };
+  } else {
+    const rumbo = parseFloat(d.rumbo), incl = parseFloat(d.inclinacion);
+    if (isNaN(rumbo)) return { ok: false, error: 'Falta hacia dónde mirar.' };
+    vista = { rumbo: ((rumbo % 360) + 360) % 360, inclinacion: isNaN(incl) ? 0 : Math.max(-60, Math.min(60, incl)), panorama: String(d.panorama || '') };
+  }
+  return conLock_(() => {
+    const hoja = obtenerHoja_(SHEET_UBICACIONES, HEADERS_UBICACIONES);
+    const filas = leerFilas_(SHEET_UBICACIONES, HEADERS_UBICACIONES);
+    const i = filas.findIndex(f => f['Clave'] === clave);
+    if (i < 0) return { ok: false, error: 'Primero ubicá el lugar en el mapa.' };
+    const antes = filas[i];
+    const f = Object.assign({}, antes, {
+      'Rumbo': vista.rumbo.toFixed(1), 'Inclinación': vista.inclinacion.toFixed(1), 'Panorama': vista.panorama || '',
+      'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
+    });
+    // Un enlace trae la posición exacta desde donde se mira: si no había ubicación, sirve.
+    if (vista.lat !== undefined && !String(antes['Lat'] || '').trim()) { f['Lat'] = vista.lat.toFixed(6); f['Lon'] = vista.lon.toFixed(6); f['Precisión'] = 'aproximada'; }
+    hoja.getRange(i + 2, 1, 1, HEADERS_UBICACIONES.length).setNumberFormat('@').setValues([HEADERS_UBICACIONES.map(h => f[h] == null ? '' : String(f[h]))]);
+    registrar_(u, 'Propiedades: vista de la entrada', (f['Lugar'] || f['Edificio']) + ' · rumbo ' + f['Rumbo'] + '°' + (vista.panorama ? ' (panorama de Street View)' : ''), clave, antes, f);
+    return { ok: true, rumbo: vista.rumbo, inclinacion: vista.inclinacion, panorama: vista.panorama || '' };
+  });
+}
+
+/**
+ * Enlace de Street View → {rumbo, inclinacion, panorama, lat, lon}.
+ * "https://www.google.com/maps/@-31.41,-64.18,3a,75y,210.5h,95t/data=!3m6!1e1!3m4!1s<panorama>!2e0…"
+ * Los cortos (maps.app.goo.gl) se siguen hasta el largo.
+ */
+function vistaDeEnlace_(enlace) {
+  let url = enlace;
+  for (let i = 0; i < 4 && /goo\.gl|g\.co\//.test(url); i++) {
+    try {
+      const r = UrlFetchApp.fetch(url, { followRedirects: false, muteHttpExceptions: true });
+      const h = r.getAllHeaders();
+      const sig = h.Location || h.location;
+      if (!sig) break;
+      url = Array.isArray(sig) ? sig[0] : sig;
+    } catch (e) { break; }
+  }
+  try { url = decodeURIComponent(url); } catch (e) {}
+  const m = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,[^,\/]*?a)?(?:,[^,\/]*?y)?,(\d+(?:\.\d+)?)h(?:,(\d+(?:\.\d+)?)t)?/);
+  if (!m) return null;
+  const pano = url.match(/!1s([^!]+)!2e0/);
+  return {
+    lat: parseFloat(m[1]), lon: parseFloat(m[2]), rumbo: parseFloat(m[3]),
+    inclinacion: m[4] ? Math.max(-60, Math.min(60, parseFloat(m[4]) - 90)) : 0, panorama: pano ? pano[1] : ''
+  };
 }
 
 /** {lat, lon, direccion, precision: 'exacta'|'aproximada', fuente} o null. */
