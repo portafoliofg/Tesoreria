@@ -288,6 +288,8 @@ function respuesta(obj) {
 function conLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  olvidarPropiedades_();
+  USUARIOS_MEMO_ = null;
   try {
     const res = fn();
     marcarCambioDatos_();
@@ -312,33 +314,31 @@ function marcarCambioDatos_() {
   try { propiedades_().setProperty(PROP_VERSION_DATOS, String(new Date().getTime())); } catch (e) {}
 }
 
-/** Filas de una hoja como {gz: base64 de gzip(JSON {h: títulos, v: valores})}. */
-function filasComprimidas_(nombreHoja, headers, forzar) {
+function versionDatos_() {
+  return propiedades_().getProperty(PROP_VERSION_DATOS) || '0';
+}
+
+/**
+ * JSON comprimido ({gz: base64 de gzip}) guardado en la caché del script con la clave dada;
+ * armar() arma el objeto solo si no está en la caché. claveCliente es la clave de lo que la
+ * página ya tiene guardado: si es la misma y sigue en la caché, responde {igual: true} sin
+ * volver a mandar los datos.
+ */
+function comprimidoEnCache_(clave, armar, forzar, claveCliente) {
   const cache = CacheService.getScriptCache();
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
-  const ultima = sheet ? sheet.getLastRow() : 0;
-  const clave = 'gz_' + nombreHoja + '_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0') + '_' + ultima;
   if (!forzar) {
     const n = parseInt(cache.get(clave + '_n') || '0', 10);
     if (n > 0) {
+      if (claveCliente && claveCliente === clave) return { ok: true, igual: true, clave: clave };
       const claves = [];
       for (let i = 0; i < n; i++) claves.push(clave + '_' + i);
       const partes = cache.getAll(claves);
       if (claves.every(k => partes[k] !== undefined && partes[k] !== null)) {
-        return { ok: true, gz: claves.map(k => partes[k]).join(''), cache: true };
+        return { ok: true, gz: claves.map(k => partes[k]).join(''), clave: clave, cache: true };
       }
     }
   }
-  let valores = [];
-  if (sheet && ultima > 1) {
-    const cols = Math.min(headers.length, sheet.getMaxColumns());
-    valores = sheet.getRange(2, 1, ultima - 1, cols).getDisplayValues().map(f => {
-      let fin = f.length;
-      while (fin > 0 && f[fin - 1] === '') fin--;
-      return fin === f.length ? f : f.slice(0, fin);
-    });
-  }
-  const json = JSON.stringify({ h: headers, v: valores });
+  const json = JSON.stringify(armar());
   const gz = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(json, 'application/json')).getBytes());
   try {
     const trozos = {};
@@ -347,22 +347,69 @@ function filasComprimidas_(nombreHoja, headers, forzar) {
     trozos[clave + '_n'] = String(n);
     if (n <= 80) cache.putAll(trozos, CACHE_SEGUNDOS);
   } catch (e) {}
-  return { ok: true, gz: gz };
+  return { ok: true, gz: gz, clave: clave };
+}
+
+/** Filas de una hoja como {gz: base64 de gzip(JSON {h: títulos, v: valores}), clave}. */
+function filasComprimidas_(nombreHoja, headers, forzar, claveCliente) {
+  const sheet = hoja_(nombreHoja);
+  const ultima = sheet ? sheet.getLastRow() : 0;
+  const clave = 'gz_' + nombreHoja + '_' + versionDatos_() + '_' + ultima;
+  return comprimidoEnCache_(clave, () => {
+    let valores = [];
+    if (sheet && ultima > 1) {
+      const cols = Math.min(headers.length, sheet.getMaxColumns());
+      valores = sheet.getRange(2, 1, ultima - 1, cols).getDisplayValues().map(f => {
+        let fin = f.length;
+        while (fin > 0 && f[fin - 1] === '') fin--;
+        return fin === f.length ? f : f.slice(0, fin);
+      });
+    }
+    return { h: headers, v: valores };
+  }, forzar, claveCliente);
 }
 
 // ======================= Usuarios y sesiones =======================
 
 // Los usuarios se leen en cada pedido (para validar la sesión): se guardan en la caché
-// del script hasta que cambie cualquier dato (la versión de datos la cambia conLock_).
+// del script con su propia versión, que cambia cuando cambia un dato que importa para
+// entrar (alta, activo, contraseña). Los datos de contacto y el último ingreso se
+// actualizan en la caché misma (actualizarCampoUsuario_), sin volver a leer la hoja.
+// A los 5 minutos se vuelve a leer igual, por si alguien editó la hoja a mano.
+const PROP_VERSION_USUARIOS = 'VERSION_USUARIOS';
+const CAMPOS_USUARIO_SEGURIDAD = ['ID', 'Usuario', 'Clave', 'Sal', 'Activo'];
+const CACHE_USUARIOS_SEG = 300;
+let USUARIOS_MEMO_ = null;   // {t: cuándo se leyó la hoja, l: lista}
+
+function claveCacheUsuarios_() {
+  return 'usr2_' + (propiedades_().getProperty(PROP_VERSION_USUARIOS) || '0');
+}
+
+function guardarUsuariosEnCache_(memo) {
+  const quedan = CACHE_USUARIOS_SEG - Math.floor((Date.now() - memo.t) / 1000);
+  if (quedan < 5) return;
+  try { CacheService.getScriptCache().put(claveCacheUsuarios_(), JSON.stringify(memo), quedan); } catch (e) {}
+}
+
 function leerUsuarios_() {
-  const cache = CacheService.getScriptCache();
-  const clave = 'usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0');
-  const guardado = cache.get(clave);
-  if (guardado) { try { return JSON.parse(guardado); } catch (e) {} }
+  if (USUARIOS_MEMO_) return USUARIOS_MEMO_.l;
+  const guardado = CacheService.getScriptCache().get(claveCacheUsuarios_());
+  if (guardado) {
+    try {
+      const m = JSON.parse(guardado);
+      if (m && Array.isArray(m.l)) { USUARIOS_MEMO_ = m; return m.l; }
+    } catch (e) {}
+  }
   obtenerHoja_(SHEET_USUARIOS, HEADERS_USUARIOS);
-  const lista = leerFilas_(SHEET_USUARIOS, HEADERS_USUARIOS).filter(u => u['ID']);
-  try { cache.put(clave, JSON.stringify(lista), 300); } catch (e) {}
-  return lista;
+  USUARIOS_MEMO_ = { t: Date.now(), l: leerFilas_(SHEET_USUARIOS, HEADERS_USUARIOS).filter(u => u['ID']) };
+  guardarUsuariosEnCache_(USUARIOS_MEMO_);
+  return USUARIOS_MEMO_.l;
+}
+
+/** Algo que importa para entrar cambió: la próxima lectura vuelve a la hoja. */
+function cambioUsuarios_() {
+  USUARIOS_MEMO_ = null;
+  try { propiedades_().setProperty(PROP_VERSION_USUARIOS, String(new Date().getTime())); } catch (e) {}
 }
 
 function usuarioPublico_(u) {
@@ -406,9 +453,13 @@ function ahoraTexto_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
 }
 
+// La sesión se guarda como "ID|momento en que se renovó". Renovarla en cada pedido es una
+// escritura más: se renueva solo si pasó más de RENOVAR_SESION_MS desde la última vez.
+const RENOVAR_SESION_MS = 20 * 60 * 1000;
+
 function crearSesion_(u) {
   const token = Utilities.getUuid() + Utilities.getUuid();
-  CacheService.getScriptCache().put('ses_' + token, u['ID'], DURACION_SESION);
+  CacheService.getScriptCache().put('ses_' + token, u['ID'] + '|' + Date.now(), DURACION_SESION);
   return token;
 }
 
@@ -416,19 +467,32 @@ function crearSesion_(u) {
 function usuarioDeSesion_(token) {
   if (!token) return null;
   const cache = CacheService.getScriptCache();
-  const id = cache.get('ses_' + token);
-  if (!id) return null;
+  const valor = cache.get('ses_' + token);
+  if (!valor) return null;
+  const partes = String(valor).split('|');
+  const id = partes[0];
   const u = leerUsuarios_().find(x => x['ID'] === id && x['Activo'] === 'Sí');
   if (!u) { cache.remove('ses_' + token); return null; }
-  cache.put('ses_' + token, id, DURACION_SESION);
+  const renovada = Number(partes[1]) || 0;
+  if (Date.now() - renovada > RENOVAR_SESION_MS) cache.put('ses_' + token, id + '|' + Date.now(), DURACION_SESION);
   return u;
 }
 
-/** Al abrir la página: ¿hay usuarios? ¿la sesión guardada sigue vigente? */
+/**
+ * Al abrir la página: ¿hay usuarios? ¿la sesión guardada sigue vigente?
+ * d.completo (la app de Tesorería): con sesión, trae también lo que la app necesita para
+ * arrancar (preferencias, configuración, bancos y cuentas), así se ahorra tres pedidos.
+ */
 function estado_(d, token) {
-  const usuarios = leerUsuarios_();
   const u = usuarioDeSesion_(token);
-  return { ok: true, inicializado: usuarios.length > 0, usuario: u ? usuarioPublico_(u) : null, empresa: empresa_() };
+  const r = { ok: true, inicializado: !!u || leerUsuarios_().length > 0, usuario: u ? usuarioPublico_(u) : null, empresa: empresa_() };
+  if (u && d && d.completo) {
+    r.preferencias = obtenerPreferencias_(d, u).preferencias;
+    r.config = obtenerConfig_(d, u).config;
+    const cat = obtenerCatalogo_();
+    r.catalogo = { bancos: cat.bancos, cuentas: cat.cuentas };
+  }
+  return r;
 }
 
 function login_(d) {
@@ -448,7 +512,6 @@ function login_(d) {
   }
   cache.remove(claveIntentos);
   actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
-  try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
   registrar_(u, 'Ingreso', 'Inició sesión', '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
 }
@@ -526,7 +589,6 @@ function loginGoogle_(d) {
 
   cache.remove(claveIntentos);
   actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
-  try { cache.remove('usr_' + (propiedades_().getProperty(PROP_VERSION_DATOS) || '0')); } catch (e) {}
   registrar_(u, 'Ingreso con Google', 'Inició sesión con ' + mail, '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
 }
@@ -590,6 +652,7 @@ function altaUsuario_(d, autor) {
   const hoja = obtenerHoja_(SHEET_USUARIOS, HEADERS_USUARIOS);
   hoja.getRange(hoja.getLastRow() + 1, 1, 1, HEADERS_USUARIOS.length).setNumberFormat('@')
     .setValues([HEADERS_USUARIOS.map(h => fila[h])]);
+  cambioUsuarios_();
   if (autor) registrar_(autor, 'Alta de usuario', 'Creó el usuario ' + nombreUsuario + ' (' + nombre + ')', fila['ID'], '', '');
   return fila;
 }
@@ -599,6 +662,11 @@ function actualizarCampoUsuario_(id, campo, valor) {
   const fila = buscarFila_(hoja, 0, v => v === id);
   if (!fila) throw new Error('No se encontró el usuario.');
   hoja.getRange(fila, HEADERS_USUARIOS.indexOf(campo) + 1).setNumberFormat('@').setValue(valor);
+  if (CAMPOS_USUARIO_SEGURIDAD.indexOf(campo) >= 0) { cambioUsuarios_(); return; }
+  // Un dato de contacto o el último ingreso: se corrige en la caché sin volver a leer la hoja.
+  const u = leerUsuarios_().find(x => x['ID'] === id);
+  if (u) u[campo] = String(valor);
+  guardarUsuariosEnCache_(USUARIOS_MEMO_);
 }
 
 function obtenerUsuarios_(d, u) {
@@ -739,7 +807,7 @@ function obtenerAuditoria_(d) {
 // ======================= Transferencias =======================
 
 function obtenerTransferencias_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS, !!d.forzar, d.clave);
   return { ok: true, filas: leerFilas_(SHEET_TRANSFERENCIAS, HEADERS_TRANSFERENCIAS) };
 }
 
@@ -959,7 +1027,7 @@ function montoConSigno(monto, condicion) {
 // ======================= Cheques =======================
 
 function obtenerCheques_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_CHEQUES, HEADERS_CHEQUES, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_CHEQUES, HEADERS_CHEQUES, !!d.forzar, d.clave);
   return { ok: true, filas: leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES) };
 }
 
@@ -1544,11 +1612,18 @@ function asegurarCatalogo_(items, u) {
   return { bancos: nuevosBancos, cuentas: nuevasCuentas };
 }
 
+// Bancos y cuentas se piden al abrir la app: quedan en la caché hasta que cambie algún dato.
 function obtenerCatalogo_() {
+  const cache = CacheService.getScriptCache();
+  const clave = 'cat_' + versionDatos_();
+  const guardado = cache.get(clave);
+  if (guardado) { try { return JSON.parse(guardado); } catch (e) {} }
   sembrarBancosSiHaceFalta_();
   const bancos = leerFilas_(SHEET_BANCOS, HEADERS_BANCOS).filter(b => b['Banco']);
   const cuentas = leerFilas_(SHEET_CUENTAS, HEADERS_CUENTAS).filter(c => c['ID']);
-  return { ok: true, bancos: bancos, cuentas: cuentas };
+  const r = { ok: true, bancos: bancos, cuentas: cuentas };
+  try { cache.put(clave, JSON.stringify(r), CACHE_SEGUNDOS); } catch (e) {}
+  return r;
 }
 
 /** La primera vez, carga BBVA y Bancor para que la app siga andando como antes. */
@@ -1644,17 +1719,43 @@ function eliminarCuenta_(d, u) {
 
 // ======================= Configuración =======================
 
+// Cada pedido lee varias veces las mismas propiedades (versión de datos, empresa, accesos…)
+// y cada lectura es una llamada al servicio: se recuerdan durante la ejecución. conLock_ olvida
+// lo recordado al tomar el lock, así lee lo último que escribió otra ejecución.
+let PROPS_MEMO_ = null;
+
 function propiedades_() {
-  return PropertiesService.getScriptProperties();
+  if (PROPS_MEMO_) return PROPS_MEMO_;
+  const real = PropertiesService.getScriptProperties();
+  const vistas = {};
+  const memo = {
+    getProperty: k => (Object.prototype.hasOwnProperty.call(vistas, k) ? vistas[k] : (vistas[k] = real.getProperty(k))),
+    setProperty: (k, v) => { real.setProperty(k, v); vistas[k] = String(v); return memo; },
+    deleteProperty: k => { real.deleteProperty(k); vistas[k] = null; return memo; }
+  };
+  PROPS_MEMO_ = memo;
+  return memo;
+}
+
+function olvidarPropiedades_() {
+  PROPS_MEMO_ = null;
 }
 
 function empresa_() {
   return propiedades_().getProperty('EMPRESA') || EMPRESA_DEFAULT;
 }
 
+// Leer los activadores tarda: se guarda una hora (activarAvisos_ lo borra al cambiarlos).
+const CACHE_AVISOS = 'avisos_activos';
+
 function avisosActivos() {
   try {
-    return ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === FUNCION_AVISOS);
+    const cache = CacheService.getScriptCache();
+    const guardado = cache.get(CACHE_AVISOS);
+    if (guardado) return guardado === 'si';
+    const activos = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === FUNCION_AVISOS);
+    cache.put(CACHE_AVISOS, activos ? 'si' : 'no', 3600);
+    return activos;
   } catch (e) {
     return false;
   }
@@ -1719,6 +1820,7 @@ function activarAvisos_(d, u) {
     if (t.getHandlerFunction() === FUNCION_AVISOS) ScriptApp.deleteTrigger(t);
   });
   if (activar) ScriptApp.newTrigger(FUNCION_AVISOS).timeBased().everyHours(1).create();
+  try { CacheService.getScriptCache().remove(CACHE_AVISOS); } catch (e) {}
   registrar_(u, activar ? 'Activación de envío automático' : 'Desactivación de envío automático', 'Alertas por WhatsApp', '', '', '');
   return { ok: true, automatico: activar };
 }
@@ -2099,16 +2201,49 @@ function claveDe_(fila, keyCols) {
 // Hojas ya revisadas en esta ejecución: evita volver a leer los encabezados en cada llamada.
 const HOJAS_LISTAS_ = {};
 
+// Las ya revisadas en otras ejecuciones quedan anotadas en la caché (6 horas): para esas
+// solo se busca la hoja, sin leer encabezados ni tamaño.
+const CACHE_HOJAS_REVISADAS = 'hojas_revisadas';
+let HOJAS_REVISADAS_ = null;
+
+function hojasRevisadas_() {
+  if (HOJAS_REVISADAS_) return HOJAS_REVISADAS_;
+  try { HOJAS_REVISADAS_ = JSON.parse(CacheService.getScriptCache().get(CACHE_HOJAS_REVISADAS) || '{}') || {}; } catch (e) { HOJAS_REVISADAS_ = {}; }
+  return HOJAS_REVISADAS_;
+}
+
 function obtenerHoja_(nombre, headers) {
   const memo = nombre + '|' + headers.length;
   if (HOJAS_LISTAS_[memo]) return HOJAS_LISTAS_[memo];
-  const sheet = obtenerHojaSinMemo_(nombre, headers);
+  let sheet = hojasRevisadas_()[memo] ? hoja_(nombre) : null;
+  if (!sheet) {
+    sheet = obtenerHojaSinMemo_(nombre, headers);
+    HOJAS_REVISADAS_[memo] = 1;
+    try { CacheService.getScriptCache().put(CACHE_HOJAS_REVISADAS, JSON.stringify(HOJAS_REVISADAS_), 21600); } catch (e) {}
+  }
   HOJAS_LISTAS_[memo] = sheet;
   return sheet;
 }
 
+// El libro y sus hojas se buscan una sola vez por ejecución.
+let LIBRO_ = null;
+const HOJAS_ = {};
+
+function libro_() {
+  if (!LIBRO_) LIBRO_ = SpreadsheetApp.getActiveSpreadsheet();
+  return LIBRO_;
+}
+
+/** La hoja con ese nombre, o null si no existe. */
+function hoja_(nombre) {
+  if (HOJAS_[nombre]) return HOJAS_[nombre];
+  const sheet = libro_().getSheetByName(nombre);
+  if (sheet) HOJAS_[nombre] = sheet;
+  return sheet;
+}
+
 function obtenerHojaSinMemo_(nombre, headers) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = libro_();
   const sheet = ss.getSheetByName(nombre) || ss.insertSheet(nombre);
   if (sheet.getMaxColumns() < headers.length) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
@@ -2129,10 +2264,12 @@ function obtenerHojaSinMemo_(nombre, headers) {
 
 /** Lee todas las filas de datos de una hoja como objetos {Campo: valor}. */
 function leerFilas_(nombreHoja, headers) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombreHoja);
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  const cols = Math.min(headers.length, sheet.getMaxColumns());
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, cols).getDisplayValues().map(fila => {
+  const sheet = hoja_(nombreHoja);
+  const ultima = sheet ? sheet.getLastRow() : 0;
+  if (ultima < 2) return [];
+  // Si obtenerHoja_ ya la revisó, tiene al menos tantas columnas como títulos.
+  const cols = HOJAS_LISTAS_[nombreHoja + '|' + headers.length] ? headers.length : Math.min(headers.length, sheet.getMaxColumns());
+  return sheet.getRange(2, 1, ultima - 1, cols).getDisplayValues().map(fila => {
     const obj = {};
     headers.forEach((h, i) => { obj[h] = i < cols ? fila[i] : ''; });
     return obj;
@@ -2977,12 +3114,12 @@ function unificarCuentasDuplicadas() {
 // ======================= FCI y Bolsa =======================
 
 function obtenerFci_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_FCI, HEADERS_FCI, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_FCI, HEADERS_FCI, !!d.forzar, d.clave);
   return { ok: true, filas: leerFilas_(SHEET_FCI, HEADERS_FCI) };
 }
 
 function obtenerBolsa_(d) {
-  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_BOLSA, HEADERS_BOLSA, !!d.forzar);
+  if (d && d.formato === 'gz') return filasComprimidas_(SHEET_BOLSA, HEADERS_BOLSA, !!d.forzar, d.clave);
   return { ok: true, filas: leerFilas_(SHEET_BOLSA, HEADERS_BOLSA) };
 }
 
@@ -3842,14 +3979,24 @@ const SHEET_PROPIEDADES = 'Propiedades';
 const HEADERS_PROPIEDADES = ['Edificio', 'Período', 'Orden', 'Datos', 'Archivo', 'Cargado por', 'Fecha de Carga'];
 const MAX_DATOS_PROPIEDAD = 48000;
 
-function obtenerPropiedades_() {
-  obtenerHoja_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES);
-  const lista = leerFilas_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES).filter(f => f['Edificio'] && f['Datos']).map(f => {
+/**
+ * Todas las liquidaciones. d.formato = 'gz' (la página de Propiedades): comprimidas y guardadas
+ * en la caché hasta que cambie algún dato; con d.clave (lo que la página ya tiene guardado)
+ * responde {igual: true} si no cambió nada. Trae también el usuario, así la página no tiene
+ * que consultar la sesión aparte.
+ */
+function obtenerPropiedades_(d, u) {
+  const hoja = obtenerHoja_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES);
+  const armar = () => leerFilas_(SHEET_PROPIEDADES, HEADERS_PROPIEDADES).filter(f => f['Edificio'] && f['Datos']).map(f => {
     let datos = null;
     try { datos = JSON.parse(f['Datos']); } catch (e) {}
     return { edificio: f['Edificio'], periodo: f['Período'], orden: f['Orden'], datos: datos, archivo: f['Archivo'], cargadoPor: f['Cargado por'], fechaCarga: f['Fecha de Carga'] };
   }).filter(x => x.datos);
-  return { ok: true, liquidaciones: lista };
+  if (!d || d.formato !== 'gz') return { ok: true, liquidaciones: armar() };
+  const clave = 'gzprop_' + versionDatos_() + '_' + hoja.getLastRow();
+  const r = comprimidoEnCache_(clave, () => ({ liquidaciones: armar() }), !!d.forzar, d.clave);
+  if (u) r.usuario = usuarioPublico_(u);
+  return r;
 }
 
 /** d.datos: la liquidación leída del Excel {edificio, periodo, orden, ...}; d.archivo: nombre del archivo. */

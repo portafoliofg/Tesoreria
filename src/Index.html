@@ -3868,9 +3868,16 @@ async function filasDesdeGz(res) {
   });
 }
 
-function traerFilas(accion, forzar) {
+// Lo último que llegó comprimido queda en la memoria de este navegador con su clave: el
+// servidor responde {igual: true} si no cambió nada y no vuelve a mandar las filas.
+async function traerFilas(accion, forzar) {
   if (typeof DecompressionStream === "undefined") return runAsync(accion);
-  return runJson(accion, { formato: "gz", forzar: !!forzar }).then(res => res.gz !== undefined ? filasDesdeGz(res) : (res.filas || []));
+  const guardado = forzar ? null : await memoria.leer(accion);
+  const res = await runJson(accion, { formato: "gz", forzar: !!forzar, clave: guardado && guardado.clave || "" });
+  if (res.igual && guardado) return filasDesdeGz(guardado);
+  if (res.gz === undefined) return res.filas || [];
+  if (res.clave) memoria.guardar(accion, { clave: res.clave, gz: res.gz });
+  return filasDesdeGz(res);
 }
 
 function runAsync(accion, filas) {
@@ -3878,19 +3885,59 @@ function runAsync(accion, filas) {
     .then(res => res.filas !== undefined ? res.filas : res);
 }
 
+// ---------------- Memoria de este navegador ----------------
+// Lo último que trajo el servidor (movimientos, cheques, FCI, bolsa, compromisos, flujo y
+// conciliaciones) queda guardado en este navegador (IndexedDB), por usuario. Al abrir la app,
+// Inicio se dibuja al instante con eso y se vuelve a dibujar cuando llega lo del servidor.
+// Se borra al salir o cuando vence la sesión. Si el navegador no deja guardar, no pasa nada:
+// todo funciona como siempre, solo que sin el arranque instantáneo.
+const memoria = (() => {
+  let base = null;
+  function abrir() {
+    if (!base) base = new Promise(resolve => {
+      try {
+        const req = indexedDB.open("lc-memoria", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("datos");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return base;
+  }
+  function operar(modo, fn) {
+    return abrir().then(db => db && new Promise(resolve => {
+      try {
+        const t = db.transaction("datos", modo);
+        const pedido = fn(t.objectStore("datos"));
+        t.oncomplete = () => resolve(pedido && pedido.result !== undefined ? pedido.result : null);
+        t.onerror = t.onabort = () => resolve(null);
+      } catch (e) { resolve(null); }
+    })).catch(() => null);
+  }
+  const clave = k => (usuarioActual ? usuarioActual.id : "") + "|" + k;
+  return {
+    leer: k => usuarioActual ? operar("readonly", s => s.get(clave(k))) : Promise.resolve(null),
+    guardar: (k, v) => usuarioActual ? operar("readwrite", s => s.put(v, clave(k))) : Promise.resolve(null),
+    borrar: () => operar("readwrite", s => s.clear())
+  };
+})();
+
 // ---------------- Catálogo: bancos y cuentas ----------------
+function aplicarCatalogo(res) {
+  catalogo.bancos = res.bancos || [];
+  catalogo.cuentas = res.cuentas || [];
+  catalogoCargado = true;
+  poblarSelects();
+  restaurarCarga();
+  if ($("vista-cuentas").classList.contains("active")) renderCuentas();
+  if (transferenciasCargadas) aplicarFiltrosTransferencias();
+  if (chequesCargados) aplicarFiltrosCheques();
+}
+
 function cargarCatalogo() {
   return runJson("obtenerCatalogo")
-    .then(res => {
-      catalogo.bancos = res.bancos || [];
-      catalogo.cuentas = res.cuentas || [];
-      catalogoCargado = true;
-      poblarSelects();
-      restaurarCarga();
-      if ($("vista-cuentas").classList.contains("active")) renderCuentas();
-      if (transferenciasCargadas) aplicarFiltrosTransferencias();
-      if (chequesCargados) aplicarFiltrosCheques();
-    })
+    .then(aplicarCatalogo)
     .catch(err => {
       catalogoCargado = true;
       toast("No se pudieron traer bancos y cuentas: " + msgErr(err), "error");
@@ -5849,8 +5896,8 @@ function escapeHtml(s) {
 // Se trae del servidor al arrancar (pestaña Alertas → Configuración).
 let config = { empresa: "SAMMARTINO", telefono: "", tieneApikey: false, chequesDias: "0", chequesHora: "9", automatico: false, zonaHoraria: "" };
 
-function cargarConfig() {
-  return runJson("obtenerConfig")
+function cargarConfig(delEstado) {
+  return (delEstado ? Promise.resolve({ config: delEstado }) : runJson("obtenerConfig"))
     .then(res => { config = Object.assign(config, res.config || {}); pintarConfig(); })
     .catch(err => toast("No se pudo leer la configuración: " + msgErr(err), "error"));
 }
@@ -7077,7 +7124,10 @@ function mostrarAcceso(modo, mensaje) {
   setTimeout(() => { const f = modo === "login" ? document.querySelector(".btn-ingreso-sitio") : $("inicialNombre"); if (f) f.focus(); }, 50);
 }
 
-function iniciarApp(usuario) {
+// arranque: lo que trae "estado" con completo (preferencias, config y catálogo); si no
+// vino (servidor viejo, o después de crear el primer usuario), se pide aparte.
+function iniciarApp(usuario, arranque) {
+  arranque = arranque || {};
   usuarioActual = usuario;
   $("usuarioActual").textContent = usuario.nombre || usuario.usuario;
   $("usuarioActual").title = (usuario.nombre || usuario.usuario) + " · " + usuario.usuario;
@@ -7089,11 +7139,15 @@ function iniciarApp(usuario) {
   facturasDatos = [];
   ordenesCargadas = false;
   ordenesDatos = [];
+  flujoInicio = null;
+  conciliacionesInicio = null;
+  inicioDesdeMemoria = true;
   aplicarPermisos();
   poblarSelects();
-  cargarPreferencias();
-  promesaCatalogo = cargarCatalogo();
-  cargarConfig();
+  cargarPreferencias(arranque.preferencias);
+  if (arranque.catalogo) { aplicarCatalogo(arranque.catalogo); promesaCatalogo = Promise.resolve(); }
+  else promesaCatalogo = cargarCatalogo();
+  cargarConfig(arranque.config);
   mostrarVista("inicio");
 }
 
@@ -7116,14 +7170,16 @@ function limpiarDatosEnPantalla() {
   ["kpisInicio", "inicioFondos", "inicioPlanilla", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-mes", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
   preferencias = {};
   editarInicio(false);
+  flujoInicio = null;
+  conciliacionesInicio = null;
 }
 
 function arrancar() {
   try { sesionToken = localStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
-  runJson("estado", {})
+  runJson("estado", { completo: true })
     .then(res => {
       if (res.empresa) { config.empresa = res.empresa; $("accesoEmpresa").textContent = res.empresa; $("marcaEmpresa").textContent = res.empresa; $("sideEmpresa").textContent = res.empresa; }
-      if (res.usuario) iniciarApp(res.usuario);
+      if (res.usuario) iniciarApp(res.usuario, res);
       else { guardarToken(""); mostrarAcceso(res.inicializado ? "login" : "inicial"); }
     })
     .catch(err => mostrarAcceso("login", "No se pudo conectar con el servidor: " + msgErr(err)));
@@ -7151,10 +7207,12 @@ $("formInicial").addEventListener("submit", async e => {
   }
 });
 
-$("btnSalir").addEventListener("click", async () => {
-  try { await runJson("logout", { token: sesionToken }); } catch (e) {}
+$("btnSalir").addEventListener("click", () => {
+  // El pedido sale con la sesión actual; la pantalla se limpia sin esperar la respuesta.
+  runJson("logout", { token: sesionToken }).catch(() => {});
   guardarToken("");
   limpiarDatosEnPantalla();
+  memoria.borrar();
   mostrarAcceso("login", "");
   avisarSitio({ tipo: "bgp-salir" });
 });
@@ -7178,6 +7236,7 @@ window.addEventListener("message", e => {
   } else if (e.data.tipo === "bgp-salir" && usuarioActual) {
     guardarToken("");
     limpiarDatosEnPantalla();
+    memoria.borrar();
     mostrarAcceso("login", "");
   }
 });
@@ -7476,9 +7535,16 @@ $("btnCambiarClave").addEventListener("click", async () => {
 let conc = null;
 let conciliacionesGuardadas = [];
 
+// Si ya hay un pedido en camino (Inicio y Flujo piden lo mismo al abrir), se espera ese.
+let chequesPromesa = null;
 function asegurarCheques() {
   if (chequesCargados) return Promise.resolve();
-  return traerFilas("obtenerCheques").then(filas => { chequesDatos = filas || []; chequesCargados = true; });
+  if (!chequesPromesa) {
+    chequesPromesa = traerFilas("obtenerCheques")
+      .then(filas => { chequesDatos = filas || []; chequesCargados = true; })
+      .finally(() => { chequesPromesa = null; });
+  }
+  return chequesPromesa;
 }
 
 function isoHoyMas(meses, dia) {
@@ -9959,20 +10025,74 @@ function saludo() {
   return h < 6 ? "Buenas noches" : h < 13 ? "Buen día" : h < 20 ? "Buenas tardes" : "Buenas noches";
 }
 
+// Inicio se dibuja al instante y se vuelve a dibujar cuando llega lo del servidor:
+// - al volver a Inicio, con los datos que ya están en la app;
+// - al abrir la app, con la memoria de este navegador (una sola vez por ingreso).
+let flujoInicio = null;           // flujo (84 días) y conciliaciones de la última vez que se armó Inicio
+let conciliacionesInicio = null;
+let inicioDesdeMemoria = true;
+let vecesInicio = 0;
+
+async function pintarInicioGuardado(vigente) {
+  try {
+    const g = await Promise.all(["obtenerTransferencias", "obtenerCheques", "obtenerFci", "obtenerBolsa", "flujo", "conciliaciones", "compromisos"].map(k => memoria.leer(k)));
+    if (g.some(x => !x) || !vigente()) return false;
+    const filas = await Promise.all(g.slice(0, 4).map(filasDesdeGz));
+    if (!vigente()) return false;
+    // Solo se usa lo guardado para lo que todavía no llegó del servidor.
+    if (!transferenciasCargadas) transferenciasDatos = filas[0].map(f => Object.assign(f, { __fecha: fechaMov(f) }));
+    if (!chequesCargados) chequesDatos = filas[1];
+    if (!inversionesCargadas) {
+      fciDatos = filas[2].map((f, i) => Object.assign(f, { __i: i }));
+      bolsaDatos = filas[3].map((f, i) => Object.assign(f, { __i: i }));
+    }
+    if (!compromisosCargados) compromisosDatos = g[6];
+    flujo = g[4];
+    saldosGuardados = flujo.saldos || [];
+    renderInicio(g[5]);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function cargarInicio() {
+  const vez = ++vecesInicio;
+  let llegoServidor = false;
+  const vigente = () => !llegoServidor && vez === vecesInicio && !!usuarioActual;
   const nombre = usuarioActual ? String(usuarioActual.nombre || usuarioActual.usuario).split(" ")[0] : "";
   $("inicioSaludo").textContent = saludo() + (nombre ? ", " + nombre : "");
-  ["inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren(nodoCargando()));
+  let pintado = false;
+  if (flujoInicio && conciliacionesInicio && catalogoCargado && transferenciasCargadas && chequesCargados && compromisosCargados && inversionesCargadas) {
+    flujo = flujoInicio;
+    saldosGuardados = flujo.saldos || [];
+    try { renderInicio(conciliacionesInicio); pintado = true; } catch (e) {}
+  }
+  if (!pintado) {
+    ["inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren(nodoCargando()));
+    if (inicioDesdeMemoria && catalogoCargado) {
+      inicioDesdeMemoria = false;
+      pintarInicioGuardado(vigente).then(ok => { if (ok) pintado = true; });
+    }
+  }
   try {
     const res = await Promise.all([
       runJson("obtenerFlujo", { dias: 84 }), asegurarTransferencias(), asegurarCheques(), promesaCatalogo, asegurarCompromisos(),
       runJson("obtenerConciliaciones", {}).catch(() => ({ conciliaciones: [] })), asegurarInversiones().catch(() => {})
     ]);
+    if (vez !== vecesInicio) return;
+    llegoServidor = true;
     flujo = res[0];
     saldosGuardados = flujo.saldos || [];
-    renderInicio(res[5].conciliaciones || []);
+    flujoInicio = flujo;
+    conciliacionesInicio = res[5].conciliaciones || [];
+    renderInicio(conciliacionesInicio);
+    memoria.guardar("flujo", flujo);
+    memoria.guardar("conciliaciones", conciliacionesInicio);
   } catch (err) {
-    $("inicioSaldos").replaceChildren(nodoError("No se pudo armar el resumen: " + msgErr(err)));
+    llegoServidor = true;
+    if (pintado) toast("No se pudo actualizar el resumen: " + msgErr(err), "error");
+    else $("inicioSaldos").replaceChildren(nodoError("No se pudo armar el resumen: " + msgErr(err)));
   }
 }
 
@@ -10203,11 +10323,11 @@ function clavePrefLocal() {
   return "lc-pref-" + (usuarioActual ? usuarioActual.id : "");
 }
 
-function cargarPreferencias() {
+function cargarPreferencias(delEstado) {
   try { preferencias = JSON.parse(localStorage.getItem(clavePrefLocal()) || "{}") || {}; } catch (e) { preferencias = {}; }
   aplicarPreferencias();
   const id = usuarioActual && usuarioActual.id;
-  runJson("obtenerPreferencias", {}).then(res => {
+  (delEstado ? Promise.resolve({ preferencias: delEstado }) : runJson("obtenerPreferencias", {})).then(res => {
     if (!usuarioActual || usuarioActual.id !== id) return;
     const delServidor = res.preferencias || {};
     if (!Object.keys(delServidor).length) {
@@ -11407,11 +11527,16 @@ let compromisosCargados = false;
 let compromisoEditando = null;
 rapida.compromisos = "pendientes";
 
+let compromisosPromesa = null;
 function asegurarCompromisos() {
   if (compromisosCargados) return Promise.resolve();
-  return runJson("obtenerCompromisos", {})
-    .then(r => { compromisosDatos = r.filas || []; compromisosCargados = true; })
-    .catch(() => { compromisosDatos = []; });
+  if (!compromisosPromesa) {
+    compromisosPromesa = runJson("obtenerCompromisos", {})
+      .then(r => { compromisosDatos = r.filas || []; compromisosCargados = true; memoria.guardar("compromisos", compromisosDatos); })
+      .catch(() => { compromisosDatos = []; })
+      .then(() => { compromisosPromesa = null; });
+  }
+  return compromisosPromesa;
 }
 
 function cargarCompromisos(forzar) {
