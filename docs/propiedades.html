@@ -348,6 +348,17 @@
     .ficha-calc .kpi.baja b { color: var(--rojo); }
     .ficha-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
     .ficha .alerta { margin-top: 8px; }
+    /* Contratos en dólares y cuadro de cuotas (propiedades-contratos.js) */
+    .pill.contrato { color: #3b5b99; background: rgba(142, 170, 219, 0.22); }
+    :root[data-modo="oscuro"] .pill.contrato { color: #9db8ea; background: rgba(142, 170, 219, 0.16); }
+    .nota.dolar-blue { margin: 0 0 12px; }
+    tr.fila-cuotas > td { background: var(--crema-clara); padding: 10px 12px 14px; }
+    table.cuotas { font-size: 12.5px; }
+    table.cuotas th, table.cuotas td { padding: 5px 8px; }
+    table.cuotas td.num, table.cuotas th.num { font-family: var(--texto); font-variant-numeric: tabular-nums; }
+    table.cuotas tr.actual td { font-weight: 700; color: var(--verde); background: rgba(47, 107, 66, 0.08); }
+    table.cuotas tr.sube td { box-shadow: inset 0 2px 0 var(--oro); }
+    .cuotas-box .contr-sub { margin-top: 8px; }
     /* Rentabilidad */
     .rent-param { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; margin-bottom: 0; }
     .rent-param input { width: 100%; min-width: 0; }
@@ -394,8 +405,8 @@
 
   <script src="sesion.js?v=9"></script>
   <script src="propiedades-lector.js?v=7"></script>
-  <script src="propiedades-contratos.js?v=3"></script>
+  <script src="propiedades-contratos.js?v=4"></script>
   <script src="propiedades-valores.js?v=2"></script>
-  <script src="propiedades-vista.js?v=19"></script>
+  <script src="propiedades-vista.js?v=20"></script>
 </body>
 </html>

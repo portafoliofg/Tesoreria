@@ -239,7 +239,7 @@
   // ----- Vista general -----
   function mostrar() {
     // Los contratos del edificio (teléfonos para "Recordarle"); al llegar se redibuja la pestaña.
-    if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); });
+    if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana(); });
     // Valores y detalle de cada unidad (planilla aparte, propiedades-valores.js).
     if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () { if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana(); }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
     var caja = $("contenido");
@@ -692,8 +692,19 @@
   }
 
   // ----- Unidades -----
+  /**
+   * Las unidades de la liquidación más las que tienen contrato pero todavía no figuran en ella
+   * (por ejemplo un galpón nuevo de Polo 52): esas se ven en Unidades y en Rentabilidad, sin montos del mes.
+   */
+  function unidadesConContratos(d) {
+    var extra = window.PropContratos && PropContratos.sinUnidad && actual ? PropContratos.sinUnidad(actual.edificio, d.unidades) : [];
+    return d.unidades.concat(extra.map(function (x) {
+      return { unidad: x.unidad, clave: LectorPropiedades.claveUnidad(x.unidad), inquilino: x.inquilino, lugar: x.lugar || lugaresDe(d)[0], soloContrato: true };
+    }));
+  }
   function pillEstado(u) {
     var f = el("div");
+    if (u.soloContrato) { f.append(el("span", "pill contrato", "Contrato"), el("span", "sub", "Todavía no está en la liquidación")); return f; }
     f.append(el("span", "pill " + (u.estado || ""), u.estado === "no-abono" ? "No abonó" : u.estado === "desocupado" ? "Desocupado" : u.estado === "amoblado" ? "Amoblado" : (u.forma || "—")));
     if (u.amoblado && u.estado !== "amoblado") { f.append(document.createTextNode(" ")); f.append(el("span", "pill amoblado", "Amoblado")); }
     if (u.mesTexto) f.append(el("span", "sub", u.mesTexto));
@@ -708,7 +719,7 @@
   /** Alquiler mensual de la unidad: el del contrato o, si no hay, lo que pagó en la liquidación. */
   function alquilerDe(u) {
     var c = window.PropContratos && actual ? PropContratos.montoDe(actual.edificio, u.unidad) : null;
-    if (c) return { monto: c, fuente: "Según el contrato" };
+    if (c) return { monto: c, fuente: PropContratos.fuenteDe ? PropContratos.fuenteDe(actual.edificio, u.unidad) : "Según el contrato" };
     var m = montoUnidad(u);
     return { monto: m, fuente: m ? "Lo que pagó en " + (datos().periodo || "la liquidación") : "" };
   }
@@ -736,13 +747,14 @@
     var ed = editando();
     var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó, la liquidación de los que pagan en efectivo y sus valores (importes en pesos). Tocá la “i” para ver y cargar el detalle y los valores.");
     var conValores = !ed && !!window.PropValores;
+    var todas = ed ? d.unidades : unidadesConContratos(d);
     if (conValores && PropValores.error()) p.append(el("div", "alerta error", PropValores.error()));
     // Pestañas por lugar, con la cantidad de unidades de cada uno.
     var subs = el("div", "pestanas sub");
     subs.setAttribute("role", "tablist");
     subs.setAttribute("aria-label", "Lugares");
-    [["", "Todas", d.unidades.length]].concat(lugaresDe(d).map(function (l) {
-      return [l, l, d.unidades.filter(function (u) { return lugarDe(d, u) === l; }).length];
+    [["", "Todas", todas.length]].concat(lugaresDe(d).map(function (l) {
+      return [l, l, todas.filter(function (u) { return lugarDe(d, u) === l; }).length];
     })).forEach(function (x) {
       var b = el("button", "pestana" + (filtro.lugar === x[0] ? " activa" : ""));
       b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", filtro.lugar === x[0] ? "true" : "false");
@@ -863,7 +875,7 @@
       var q = filtro.texto.trim().toLowerCase();
       tbody.replaceChildren();
       var filas = [];
-      d.unidades.forEach(function (u, i) {
+      todas.forEach(function (u, i) {
         if (filtro.lugar && lugarDe(d, u) !== filtro.lugar) return;
         if (filtro.forma && u.forma !== filtro.forma) return;
         if (q && (u.unidad + " " + u.inquilino).toLowerCase().indexOf(q) < 0) return;
@@ -871,7 +883,7 @@
         tbody.append(ed ? filaEdicion(u, i) : filaVista(u));
       });
       if (!filas.length) {
-        var vacioLugar = filtro.lugar && !d.unidades.some(function (u) { return lugarDe(d, u) === filtro.lugar; });
+        var vacioLugar = filtro.lugar && !todas.some(function (u) { return lugarDe(d, u) === filtro.lugar; });
         var r0 = el("tr"), c0 = el("td", "vacio", vacioLugar ? "Todavía no hay unidades en " + filtro.lugar + "." + (ed ? " Agregalas con “+ Unidad”." : " Tocá Editar y “+ Unidad” para cargarlas.") : "Ninguna unidad coincide con la búsqueda.");
         c0.colSpan = cols.length + 4 + (conValores ? COLS_VALOR.length : 0); r0.append(c0); tbody.append(r0);
       }
@@ -924,8 +936,8 @@
     var aCargo = ((d.expensas || {}).aCargo || {}).valores || {};
     var impEdificio = (aCargo.rentas || 0) + (aCargo.municipalidad || 0);
 
-    // Una fila por unidad con todo calculado.
-    var filas = d.unidades.map(function (u) {
+    // Una fila por unidad con todo calculado (también las que solo tienen contrato).
+    var filas = unidadesConContratos(d).map(function (u) {
       var ctx = ctxUnidad(u, d), v = PropValores.de(u) || {}, c = PropValores.calculo(v, ctx);
       var ventaNeta = v.ventaEstimada > 0 ? v.ventaEstimada * (1 - costos / 100) : null;
       var netoAnual = c.neto === null ? null : c.neto * 12;

@@ -10,6 +10,12 @@
  *  - ICL (Índice para Contratos de Locación, BCRA): monto × ICL(hoy) / ICL(última actualización).
  *  - IPC (INDEC): monto × IPC(último mes publicado) / IPC(mes anterior a la última actualización).
  *  - Porcentaje fijo: monto × (1 + %).
+ *  - Suma fija por m²: el precio por m² sube un monto fijo (en la moneda del contrato). Monto =
+ *    metros × precio por m²; el nuevo es monto + metros × aumento por m². Ej.: galpón en dólares
+ *    a USD 3,80 por m² que sube USD 0,50 por m² una vez al año.
+ *
+ * Los contratos en dólares se muestran también en pesos con el Dólar Blue de El Cronista (venta),
+ * y con el IVA si el contrato lo tiene (columna "IVA %").
  * Los índices se leen de las APIs públicas del BCRA y de datos.gob.ar; si no responden,
  * el contrato muestra la fecha igual y se puede cargar el monto nuevo a mano.
  *
@@ -21,9 +27,15 @@
 const SHEET_CONTRATOS = 'Contratos';
 const HEADERS_CONTRATOS = [
   'ID', 'Edificio', 'Lugar', 'Unidad', 'Inquilino', 'Teléfono', 'Inicio', 'Fin', 'Monto', 'Moneda',
-  'Índice', 'Cada (meses)', 'Porcentaje', 'Última actualización', 'Notas', 'Actualizado por', 'Fecha'
+  'Índice', 'Cada (meses)', 'Porcentaje', 'Última actualización', 'Notas', 'Actualizado por', 'Fecha',
+  // Contratos por m² (índice "Suma fija por m²") e IVA del alquiler, si lo tiene.
+  'Metros', 'Aumento por m²', 'IVA %'
 ];
-const INDICES_CONTRATO = ['ICL', 'IPC', 'Porcentaje fijo', 'Sin actualización'];
+const INDICE_M2 = 'Suma fija por m²';
+const INDICES_CONTRATO = ['ICL', 'IPC', 'Porcentaje fijo', INDICE_M2, 'Sin actualización'];
+// Dólar Blue: El Cronista (la fuente pedida) y, si no responde, dolarapi.com.
+const URL_BLUE_CRONISTA = 'https://www.cronista.com/MercadosOnline/moneda.html?id=ARSB';
+const URL_BLUE_RESPALDO = 'https://dolarapi.com/v1/dolares/blue';
 const CONTRATO_AVISOS_VENCE = [60, 30, 7];
 const CONTRATO_AVISO_ACTUALIZA = 15;
 const URL_ICL = 'https://api.bcra.gob.ar/estadisticas/v3.0/monetarias/40';
@@ -56,7 +68,13 @@ function estadoContrato_(c, hoy, indices) {
   const cada = parseInt(c['Cada (meses)'], 10);
   const monto = importeANumero(c['Monto']);
   const indice = c['Índice'] || 'Sin actualización';
-  const e = { id: c['ID'], indice: indice, monto: monto, inicio: inicio, fin: fin, ultima: ultima };
+  const e = { id: c['ID'], indice: indice, monto: monto, inicio: inicio, fin: fin, ultima: ultima, moneda: c['Moneda'] === 'USD' ? 'USD' : 'Pesos' };
+  // Cuota del mes (1 = el del inicio) y total de cuotas, como el cuadro del contrato.
+  if (inicio) {
+    const meses = iso => (parseInt(iso.substring(0, 4), 10) * 12 + parseInt(iso.substring(5, 7), 10));
+    e.cuota = meses(hoy) - meses(inicio) + 1;
+    if (fin) e.totalCuotas = meses(fin) - meses(inicio) + (parseInt(fin.substring(8, 10), 10) >= parseInt(inicio.substring(8, 10), 10) ? 1 : 0);
+  }
   if (fin) { e.diasParaVencer = diasEntre_(hoy, fin); e.vencido = fin < hoy; }
   if (indice !== 'Sin actualización' && ultima && cada > 0) {
     e.proxima = sumarMeses_(ultima, cada);
@@ -64,7 +82,7 @@ function estadoContrato_(c, hoy, indices) {
   }
   if (e.proxima) {
     e.diasParaActualizar = diasEntre_(hoy, e.proxima);
-    const est = montoActualizado_(monto, indice, ultima, parseFloat(String(c['Porcentaje'] || '').replace(',', '.')), indices);
+    const est = montoActualizado_(monto, indice, ultima, parseFloat(String(c['Porcentaje'] || '').replace(',', '.')), indices, c);
     if (est) { e.nuevo = Math.round(est.monto * 100) / 100; e.variacion = monto ? est.monto / monto - 1 : null; e.datosHasta = est.hasta; }
     else e.sinIndice = true;
   }
@@ -72,8 +90,12 @@ function estadoContrato_(c, hoy, indices) {
 }
 
 /** Monto actualizado según el índice. null si falta el dato. */
-function montoActualizado_(monto, indice, ultima, pct, indices) {
+function montoActualizado_(monto, indice, ultima, pct, indices, c) {
   if (!monto) return null;
+  if (indice === INDICE_M2) {
+    const metros = montoContrato_((c || {})['Metros']), aumento = numeroContrato_((c || {})['Aumento por m²']);
+    return metros > 0 && aumento > 0 ? { monto: monto + metros * aumento, hasta: '' } : null;
+  }
   if (indice === 'Porcentaje fijo') return isNaN(pct) ? null : { monto: monto * (1 + pct / 100), hasta: '' };
   if (indice === 'ICL') {
     const serie = indices.icl || [];
@@ -124,13 +146,77 @@ function indicesContratos_() {
   return r;
 }
 
+/** Número con coma o punto decimal ("0,5", "0.50", "21"). */
+function numeroContrato_(v) {
+  const n = parseFloat(String(v == null ? '' : v).trim().replace(/\./g, (m, i, t) => (t.indexOf(',') >= 0 ? '' : '.')).replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+/** "USD 6.235,80" o "$ 300.000,00" según la moneda del contrato. */
+function montoTexto_(n, moneda) {
+  return (moneda === 'USD' ? 'USD ' : '$ ') + formatoPesos(n).replace('$ ', '');
+}
+
+/**
+ * Dólar Blue de El Cronista: {compra, venta, fecha, fuente, url}. Se guarda 30 minutos. Si El
+ * Cronista no responde o cambió la página, se usa dolarapi.com (y lo dice en "fuente").
+ */
+function dolarBlue_() {
+  const cache = CacheService.getScriptCache();
+  const guardado = cache.get('dolar_blue');
+  if (guardado) { try { return JSON.parse(guardado); } catch (e) {} }
+  const ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  let r = null;
+  try {
+    const res = UrlFetchApp.fetch(URL_BLUE_CRONISTA, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (res.getResponseCode() === 200) {
+      const v = blueDeHtmlCronista_(res.getContentText());
+      if (v) r = { compra: v.compra, venta: v.venta, fecha: v.fecha || ahora, fuente: 'El Cronista', url: URL_BLUE_CRONISTA };
+    }
+  } catch (e) { console.log('Blue El Cronista: ' + e.message); }
+  if (!r) {
+    try {
+      const res = UrlFetchApp.fetch(URL_BLUE_RESPALDO, { muteHttpExceptions: true });
+      if (res.getResponseCode() === 200) {
+        const j = JSON.parse(res.getContentText() || '{}');
+        if (Number(j.venta) > 0) r = { compra: Number(j.compra), venta: Number(j.venta), fuente: 'dolarapi.com (El Cronista no respondió)', url: 'https://dolarapi.com',
+          fecha: j.fechaActualizacion ? Utilities.formatDate(new Date(j.fechaActualizacion), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') : ahora };
+      }
+    } catch (e) { console.log('Blue dolarapi: ' + e.message); }
+  }
+  if (r) { try { cache.put('dolar_blue', JSON.stringify(r), 1800); } catch (e) {} }
+  return r;
+}
+
+/**
+ * Compra y venta de la página del Dólar Blue de El Cronista. Busca primero los valores marcados
+ * como compra y venta (buy-value / sell-value) y, si la página cambió, "Compra … $ 1.405,00" y
+ * "Venta … $ 1.425,00" en el texto. Valores fuera de 100 a 100.000 se descartan.
+ */
+function blueDeHtmlCronista_(html) {
+  const num = t => { const n = montoContrato_(String(t || '').replace(/[^\d.,]/g, '')); return n >= 100 && n <= 100000 ? n : null; };
+  const porClase = cls => { const m = html.match(new RegExp('class="[^"]*' + cls + '[^"]*"[^>]*>([\\s\\S]{0,160}?)</', 'i')); return m ? num(m[1].replace(/<[^>]+>/g, ' ')) : null; };
+  let compra = porClase('buy-value'), venta = porClase('sell-value');
+  if (!(compra && venta)) {
+    const texto = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+    const tras = palabra => { const m = texto.match(new RegExp(palabra + '\\s*\\$?\\s*([\\d.]+,\\d{2}|[\\d.]+)', 'i')); return m ? num(m[1]) : null; };
+    compra = compra || tras('Compra');
+    venta = venta || tras('Venta');
+  }
+  if (!(compra && venta) || venta < compra * 0.8 || venta > compra * 1.3) return null;
+  const f = html.match(/Actualizado[^<]{0,40}?(\d{1,2}\/\d{1,2}\/\d{2,4}[^<]{0,20})/i);
+  return { compra: compra, venta: venta, fecha: f ? f[1].trim() : '' };
+}
+
 /** Contratos con su estado. d: {edificio} (opcional) */
 function obtenerContratos_(d) {
   const hoy = ahoraLocal().hoy;
   const indices = indicesContratos_();
   const lista = leerContratos_().filter(c => !d || !d.edificio || claveTexto(c['Edificio']) === claveTexto(d.edificio));
+  let dolar = null;
+  if (lista.some(c => c['Moneda'] === 'USD')) { try { dolar = dolarBlue_(); } catch (e) { console.log('Dólar blue: ' + e.message); } }
   return {
-    ok: true, hoy: hoy,
+    ok: true, hoy: hoy, dolar: dolar,
     indices: { icl: indices.icl.length ? indices.icl[indices.icl.length - 1] : null, ipc: indices.ipc.length ? indices.ipc[indices.ipc.length - 1] : null },
     contratos: lista.map(c => ({ datos: c, estado: estadoContrato_(c, hoy, indices) }))
   };
@@ -145,9 +231,17 @@ function guardarContrato_(d, u) {
   const inicio = asisIsoContrato_(d.inicio), fin = asisIsoContrato_(d.fin);
   if (!inicio) return { ok: false, error: 'Falta la fecha de inicio.' };
   if (fin && fin <= inicio) return { ok: false, error: 'La fecha de fin tiene que ser posterior al inicio.' };
-  const monto = montoContrato_(d.monto);
-  if (!(monto > 0)) return { ok: false, error: 'Falta el monto del alquiler.' };
   const indice = INDICES_CONTRATO.indexOf(d.indice) >= 0 ? d.indice : 'Sin actualización';
+  const metros = montoContrato_(d.metros), aumento = numeroContrato_(d.aumento), precioM2 = numeroContrato_(d.precioM2);
+  const iva = String(d.iva == null ? '' : d.iva).trim() === '' ? null : numeroContrato_(d.iva);
+  if (indice === INDICE_M2) {
+    if (!(metros > 0)) return { ok: false, error: 'Faltan los metros del contrato.' };
+    if (!(aumento > 0)) return { ok: false, error: 'Falta cuánto sube el precio por m² en cada actualización.' };
+  }
+  if (iva !== null && !(iva >= 0 && iva <= 50)) return { ok: false, error: 'El IVA tiene que ser un porcentaje de 0 a 50.' };
+  // Por m²: el monto es metros × precio por m² (si se cargó el precio).
+  const monto = indice === INDICE_M2 && precioM2 > 0 ? Math.round(metros * precioM2 * 100) / 100 : montoContrato_(d.monto);
+  if (!(monto > 0)) return { ok: false, error: indice === INDICE_M2 ? 'Falta el precio por m².' : 'Falta el monto del alquiler.' };
   const cada = parseInt(d.cada, 10);
   if (indice !== 'Sin actualización' && !(cada >= 1 && cada <= 24)) return { ok: false, error: 'Indicá cada cuántos meses se actualiza (1 a 24).' };
   if (indice === 'Porcentaje fijo' && isNaN(parseFloat(String(d.porcentaje || '').replace(',', '.')))) return { ok: false, error: 'Falta el porcentaje de actualización.' };
@@ -164,10 +258,12 @@ function guardarContrato_(d, u) {
       'Inicio': isoAMostrar(inicio), 'Fin': fin ? isoAMostrar(fin) : '', 'Monto': formatoPesos(monto).replace('$ ', ''),
       'Moneda': d.moneda === 'USD' ? 'USD' : 'Pesos', 'Índice': indice, 'Cada (meses)': indice === 'Sin actualización' ? '' : String(cada),
       'Porcentaje': indice === 'Porcentaje fijo' ? String(d.porcentaje).trim() : '', 'Última actualización': isoAMostrar(ultima),
-      'Notas': String(d.notas || '').trim().substring(0, 500), 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
+      'Notas': String(d.notas || '').trim().substring(0, 500), 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(),
+      'Metros': indice === INDICE_M2 || metros > 0 ? String(metros || '').replace('.', ',') : '', 'Aumento por m²': indice === INDICE_M2 ? String(aumento).replace('.', ',') : '',
+      'IVA %': iva === null ? '' : String(iva).replace('.', ',')
     };
     hoja.getRange(i >= 0 ? i + 2 : hoja.getLastRow() + 1, 1, 1, HEADERS_CONTRATOS.length).setNumberFormat('@').setValues([HEADERS_CONTRATOS.map(h => v[h])]);
-    registrar_(u, antes ? 'Contrato modificado' : 'Contrato cargado', edificio + ' · ' + unidad + (v['Inquilino'] ? ' · ' + v['Inquilino'] : '') + ' · $ ' + v['Monto'] + ' · ' + indice, v['ID'], antes, v);
+    registrar_(u, antes ? 'Contrato modificado' : 'Contrato cargado', edificio + ' · ' + unidad + (v['Inquilino'] ? ' · ' + v['Inquilino'] : '') + ' · ' + montoTexto_(monto, v['Moneda']) + ' · ' + indice, v['ID'], antes, v);
     return { ok: true, id: v['ID'] };
   });
 }
@@ -189,7 +285,8 @@ function aplicarActualizacionContrato_(d, u) {
       'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
     });
     hoja.getRange(i + 2, 1, 1, HEADERS_CONTRATOS.length).setNumberFormat('@').setValues([HEADERS_CONTRATOS.map(h => v[h] == null ? '' : String(v[h]))]);
-    registrar_(u, 'Contrato actualizado', c['Edificio'] + ' · ' + c['Unidad'] + ': $ ' + c['Monto'] + ' → $ ' + v['Monto'] + ' desde el ' + v['Última actualización'] + ' (' + c['Índice'] + ')', c['ID'], c, v);
+    const pre = c['Moneda'] === 'USD' ? 'USD ' : '$ ';
+    registrar_(u, 'Contrato actualizado', c['Edificio'] + ' · ' + c['Unidad'] + ': ' + pre + c['Monto'] + ' → ' + pre + v['Monto'] + ' desde el ' + v['Última actualización'] + ' (' + c['Índice'] + ')', c['ID'], c, v);
     return { ok: true, monto: nuevo, desde: e.proxima };
   });
 }
@@ -242,10 +339,10 @@ function avisosContratos_(hoy) {
       }
     }
     if (e.proxima && e.diasParaActualizar <= CONTRATO_AVISO_ACTUALIZA) {
-      const monto = e.nuevo ? ' Con ' + e.indice + ' quedaría en ' + formatoPesos(e.nuevo) + ' (' + (e.variacion >= 0 ? '+' : '') + (e.variacion * 100).toFixed(1).replace('.', ',') + ' %).' : ' No pude leer el índice: cargá el monto nuevo a mano.';
+      const monto = e.nuevo ? ' Con ' + e.indice + ' quedaría en ' + montoTexto_(e.nuevo, e.moneda) + ' (' + (e.variacion >= 0 ? '+' : '') + (e.variacion * 100).toFixed(1).replace('.', ',') + ' %).' : ' No pude leer el índice: cargá el monto nuevo a mano.';
       out.push({
         clave: 'actualiza|' + c['ID'] + '|' + e.proxima, grave: e.diasParaActualizar <= 0,
-        texto: (e.diasParaActualizar <= 0 ? 'Ya le tocó actualizar' : 'Le toca actualizar el ' + isoAMostrar(e.proxima)) + ' al alquiler de ' + quien + ': hoy paga ' + formatoPesos(e.monto) + '.' + monto,
+        texto: (e.diasParaActualizar <= 0 ? 'Ya le tocó actualizar' : 'Le toca actualizar el ' + isoAMostrar(e.proxima)) + ' al alquiler de ' + quien + ': hoy paga ' + montoTexto_(e.monto, e.moneda) + '.' + monto,
         voz: (e.diasParaActualizar <= 0 ? 'Ya le tocó actualizar el alquiler' : 'En ' + e.diasParaActualizar + ' días toca actualizar el alquiler') + ' de ' + c['Unidad'] + ' de ' + c['Edificio'] + '.'
       });
     }
