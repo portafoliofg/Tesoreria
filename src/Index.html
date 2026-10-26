@@ -3770,6 +3770,45 @@ function parseImporteBase(str) {
   return isNaN(n) ? 0 : n;
 }
 
+// Importe escrito a mano en un campo, como se escribe en Argentina: "150.000" y "1.500"
+// son miles (no 150 y 1,5), "1.500.000,50" lleva coma decimal y "(1.000)" o "1.000-" es
+// negativo. Devuelve null si no hay un número. Lo guardado no se lee con esto (ver parseImporte).
+function importeEscrito(txt) {
+  const t = String(txt == null ? "" : txt).trim();
+  let s = t.replace(/[^0-9.,]/g, "");
+  if (!/[0-9]/.test(s)) return null;
+  const negativo = t.charAt(0) === "-" || t.charAt(t.length - 1) === "-" || (t.charAt(0) === "(" && t.charAt(t.length - 1) === ")");
+  const comas = s.split(",").length - 1, puntos = s.split(".").length - 1;
+  if (comas && puntos) {
+    // La que aparece última es la decimal: 1.234,56 (Argentina) o 1,234.56.
+    s = s.lastIndexOf(",") > s.lastIndexOf(".") ? s.split(".").join("").replace(",", ".") : s.split(",").join("");
+  } else if (comas) {
+    s = comas > 1 ? s.split(",").join("") : s.replace(",", ".");
+  } else if (puntos) {
+    const partes = s.split(".");
+    // Varios puntos, o uno seguido de tres cifras ("150.000"): son de miles. "0.5" o "12.75", decimal.
+    const miles = puntos > 1 || (partes[1].length === 3 && partes[0] !== "0" && partes[0] !== "");
+    if (miles) s = partes.join("");
+  }
+  const n = parseFloat(s);
+  if (!isFinite(n)) return null;
+  return negativo ? -Math.abs(n) : n;
+}
+
+// Al salir de un campo de importe (o al enviar el formulario) lo escrito se pasa al formato
+// de la app ("150.000" → "150.000,00"), así se ve lo que se va a guardar.
+function normalizarCampoImporte(input) {
+  const v = input.value.trim();
+  if (!v) return;
+  const n = importeEscrito(v);
+  if (n === null) return;
+  const nuevo = (n < 0 ? "-" : "") + formatMonto(Math.abs(n));
+  if (nuevo !== v) { input.value = nuevo; input.dispatchEvent(new Event("input", { bubbles: true })); }
+}
+const CAMPOS_IMPORTE = "input.monto, #recImporte";
+document.addEventListener("change", e => { if (e.target.matches && e.target.matches(CAMPOS_IMPORTE)) normalizarCampoImporte(e.target); }, true);
+document.addEventListener("submit", e => { if (e.target.querySelectorAll) e.target.querySelectorAll(CAMPOS_IMPORTE).forEach(normalizarCampoImporte); }, true);
+
 function formatImporte(n) {
   return "$ " + new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
@@ -5446,6 +5485,16 @@ function fechaMov(f) {
 
 function esPropia(f) {
   return f["Entre Cuentas Propias"] === "Sí";
+}
+
+// Plata que va o vuelve de un broker o ALYC (Cocos Capital, Rosario Valores, Petrini…): es
+// inversión o financiamiento propio, no un ingreso ni un gasto. Los resultados del mes la
+// muestran aparte.
+const CONTRAPARTES_FINANCIERAS = ["COCOS CAPITAL", "VALORES", "ALYC", "BALANZ", "INVERTIR ONLINE", "BULL MARKET", "ALLARIA", "ADCAP", "PORTFOLIO PERSONAL"];
+
+function esMovimientoFinanciero(f) {
+  const t = normalizar((f["Ordenante"] || "") + " | " + (f["Destinatario"] || "") + " | " + (f["Contraparte"] || ""));
+  return CONTRAPARTES_FINANCIERAS.some(k => t.indexOf(k) >= 0);
 }
 
 function diasEntre(a, b) {
@@ -8374,8 +8423,22 @@ function fciQueSuma(lista) {
   return lista.filter(f => !f.viejo);
 }
 
-// Saldo de una cuenta a una fecha: último saldo informado + movimientos
-// propios posteriores (sin contar los del resumen, que ya están en el saldo).
+// Cheques que nunca mueven la cuenta: anulados, caducados, rechazados, devueltos y, los de
+// terceros, endosados a otro.
+const ESTADOS_CHEQUE_SIN_EFECTO = ["ANULADO", "CADUCADO", "RECHAZADO", "DEVOLUCION", "ENDOSADO"];
+
+// Lo que un cheque ya cerrado movió en su cuenta: {iso, importe} con la fecha de débito
+// (emitido pagado) o de acreditación (de terceros depositado), o null si no la movió.
+function debitoDeCheque(c) {
+  if (chequeAbierto(c) || ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return null;
+  const iso = fechaAOrden(c["Fecha de Débito"] || "");
+  if (!iso) return null;
+  return { iso: iso, importe: importeCheque(c) };
+}
+
+// Saldo de una cuenta a una fecha: último saldo informado + movimientos propios posteriores
+// (sin contar los del resumen, que ya están en el saldo) + cheques debitados o acreditados
+// después de ese saldo.
 function saldoEstimado(cuenta, alIso) {
   const base = ultimoSaldo(cuenta, alIso);
   if (!base) return null;
@@ -8384,8 +8447,9 @@ function saldoEstimado(cuenta, alIso) {
     const iso = fechaAOrden(fechaMov(f));
     return iso > desde && iso <= alIso;
   });
-  const extra = posteriores.reduce((a, f) => a + parseImporte(f["Monto"]), 0);
-  return { base: base, saldoBase: parseImporte(base["Saldo"]), posteriores: posteriores.length, extra: extra, estimado: parseImporte(base["Saldo"]) + extra };
+  const cheques = chequesDatos.filter(c => mismaCuenta(c, cuenta)).map(debitoDeCheque).filter(d => d && d.iso > desde && d.iso <= alIso);
+  const extra = posteriores.reduce((a, f) => a + parseImporte(f["Monto"]), 0) + cheques.reduce((a, d) => a + d.importe, 0);
+  return { base: base, saldoBase: parseImporte(base["Saldo"]), posteriores: posteriores.length + cheques.length, extra: extra, estimado: parseImporte(base["Saldo"]) + extra };
 }
 
 async function cargarFlujo() {
@@ -8402,6 +8466,9 @@ async function cargarFlujo() {
   }
 }
 
+// Plazo para presentar un cheque al cobro desde su fecha de pago (Ley de Cheques 24.452).
+const DIAS_PRESENTAR_CHEQUE = 30;
+
 function eventosFlujo(hoy, limite) {
   const ev = [];
   chequesDatos.forEach(c => {
@@ -8416,6 +8483,10 @@ function eventosFlujo(hoy, limite) {
         importe: -imp, cuenta: cuenta, tipo: "Cheque" });
     } else if (iso >= hoy) {
       ev.push({ iso: iso, concepto: "Cheque de terceros N° " + c["N° de Cheque"] + (c["Titular"] ? " · " + c["Titular"] : ""), importe: imp, cuenta: cuenta, tipo: "Cheque" });
+    } else if (iso >= sumarDiasIso(hoy, -DIAS_PRESENTAR_CHEQUE)) {
+      // Vencido pero todavía se puede depositar (30 días desde la fecha de pago): entra hoy.
+      ev.push({ iso: hoy, concepto: "Cheque de terceros N° " + c["N° de Cheque"] + (c["Titular"] ? " · " + c["Titular"] : "") + " (venció el " + fecha + ": depositar antes del " + isoADma(sumarDiasIso(iso, DIAS_PRESENTAR_CHEQUE)) + ")",
+        importe: imp, cuenta: cuenta, tipo: "Cheque" });
     }
   });
   transferenciasDatos.forEach(f => {
@@ -8740,8 +8811,22 @@ async function descargarExcel(nombre, hojas) {
   if (!(await hayLibreria("xlsx"))) { toast("No se pudo cargar el generador de Excel. Revisá la conexión y probá de nuevo.", "error"); return; }
   try {
     const wb = XLSX.utils.book_new();
+    // Las fechas dd/mm/aaaa van como fechas de verdad (Excel las ordena y filtra). Se escribe el
+    // número de día de Excel directo: pasar un Date corre la fecha un día por la zona horaria.
+    const serialExcel = v => {
+      if (typeof v !== "string" || !/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return null;
+      const p = v.split("/").map(Number);
+      const ms = Date.UTC(p[2], p[1] - 1, p[0]);
+      const d = new Date(ms);
+      if (d.getUTCDate() !== p[0] || d.getUTCMonth() !== p[1] - 1) return null;
+      return (ms - Date.UTC(1899, 11, 30)) / 86400000;
+    };
     hojas.forEach(h => {
       const ws = XLSX.utils.aoa_to_sheet(h.filas);
+      h.filas.forEach((fila, r) => fila.forEach((v, c) => {
+        const n = serialExcel(v);
+        if (n !== null) ws[XLSX.utils.encode_cell({ r: r, c: c })] = { t: "n", v: n, z: "dd/mm/yyyy" };
+      }));
       if (h.anchos) ws["!cols"] = h.anchos.map(w => ({ wch: w }));
       XLSX.utils.book_append_sheet(wb, ws, h.nombre.substring(0, 31));
     });
@@ -8870,8 +8955,13 @@ function partidasLibroBanco(cuenta, fuente) {
       importe: parseImporte(f["Monto"]), conciliado: f["Conciliación"] || "", comprobante: f["Comprobante"] || ""
     }));
   if (fuente !== "banco") {
-    chequesDatos.filter(c => mismaCuenta(c, cuenta) && (c["Tipo"] === "Emitido" || c["Tipo"] === "De terceros")).forEach(c => {
-      const fecha = c["Fecha de Pago"] || c["Fecha de Emisión"];
+    // Solo los cheques que pasan por la cuenta: no los anulados, caducados, rechazados ni
+    // endosados, ni los de terceros que siguen en cartera. Van con la fecha de débito o de
+    // acreditación si se conoce; si no, con la de pago.
+    chequesDatos.filter(c => mismaCuenta(c, cuenta) && (c["Tipo"] === "Emitido" || (c["Tipo"] === "De terceros" && !chequeAbierto(c))) &&
+      ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) < 0).forEach(c => {
+      const deb = debitoDeCheque(c);
+      const fecha = deb ? isoADma(deb.iso) : (c["Fecha de Pago"] || c["Fecha de Emisión"]);
       const imp = Math.abs(parseImporte(c["Importe"]));
       movs.push({ iso: fechaAOrden(fecha), fecha: fecha, interno: "", concepto: "Cheque " + (c["Tipo"] === "Emitido" ? "emitido" : "de terceros") + " N° " + c["N° de Cheque"],
         contraparte: c["Titular"] || "", referencia: c["N° de Cheque"], importe: c["Tipo"] === "Emitido" ? -imp : imp, conciliado: c["Conciliación"] || "", comprobante: c["Comprobante"] || "" });
@@ -9039,10 +9129,10 @@ function filasExcelMovimientos(lista) {
 }
 
 function filasExcelCheques(lista) {
-  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Concepto", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
+  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Estado", "Fecha de Débito / Acreditación", "Concepto", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
   const filas = [H];
   lista.forEach(c => filas.push([c["Banco"], c["Tipo"], c["N° de Cheque"], c["Titular"], c["CUIT"], c["Fecha de Emisión"], c["Fecha de Pago"], Math.abs(parseImporte(c["Importe"])),
-    c["Concepto"], c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
+    estadoCheque(c).texto, c["Fecha de Débito"] || "", c["Concepto"], c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
   return filas;
 }
 
@@ -9057,7 +9147,7 @@ $("repMovTodos").addEventListener("click", async () => {
 });
 $("repChequesTodos").addEventListener("click", async () => {
   await asegurarCheques();
-  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 36, 16, 16, 24, 18, 40] }]);
+  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 36, 16, 16, 24, 18, 40] }]);
 });
 $("repLibroExcel").addEventListener("click", () => exportarLibroBanco("excel"));
 $("repLibroPdf").addEventListener("click", () => exportarLibroBanco("pdf"));
@@ -9465,6 +9555,7 @@ function estadoCheque(c) {
   }
   const d = diasHasta(fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]));
   if (d === null) return { texto: "Sin fecha", clase: "pill-neutro", orden: 5 };
+  if (d < -DIAS_PRESENTAR_CHEQUE && c["Tipo"] !== "Emitido") return { texto: "Caducado: más de " + DIAS_PRESENTAR_CHEQUE + " días sin depositar", clase: "pill-egr", orden: 0 };
   if (d < 0) return { texto: (c["Tipo"] === "Emitido" ? "Vencido, sin debitar" : "Vencido, sin acreditar"), clase: "pill-egr", orden: 0 };
   if (d === 0) return { texto: "Vence hoy", clase: "pill-alerta", orden: 1 };
   if (d <= 7) return { texto: "Vence en " + d + (d === 1 ? " día" : " días"), clase: "pill-alerta", orden: 2 };
@@ -10114,10 +10205,15 @@ function tarjetaInicio(id, titulo, accionTexto, accion) {
 function renderInicio(conciliaciones) {
   const hoy = hoyIso();
   const mes = hoy.substring(0, 7);
-  // Ingresos y egresos del mes: sin propias y sin duplicar lo ya conciliado contra el banco.
-  const delMes = transferenciasDatos.filter(f => fechaAOrden(fechaMov(f)).substring(0, 7) === mes && !esPropia(f) && f["Moneda"] !== "USD" && !(f["Origen"] === "Resumen" && f["Conciliación"]));
+  // Ingresos y egresos del mes: sin propias, sin duplicar lo ya conciliado contra el banco y
+  // sin lo que va o vuelve de brokers (se muestra aparte).
+  const movMes = transferenciasDatos.filter(f => fechaAOrden(fechaMov(f)).substring(0, 7) === mes && !esPropia(f) && f["Moneda"] !== "USD" && !(f["Origen"] === "Resumen" && f["Conciliación"]));
+  const delMes = movMes.filter(f => !esMovimientoFinanciero(f));
+  const finMes = movMes.filter(esMovimientoFinanciero);
   const ingMes = delMes.filter(f => parseImporte(f["Monto"]) > 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
   const egrMes = delMes.filter(f => parseImporte(f["Monto"]) < 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
+  const finIng = finMes.filter(f => parseImporte(f["Monto"]) > 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
+  const finEgr = finMes.filter(f => parseImporte(f["Monto"]) < 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
   let totalHoy = 0, totalUsd = 0, sinSaldo = 0;
   const cuentas = catalogo.cuentas.slice().sort((a, b) => (a["Banco"] + a["N° de Cuenta"]).localeCompare(b["Banco"] + b["N° de Cuenta"]));
   const saldos = cuentas.map(c => {
@@ -10136,8 +10232,8 @@ function renderInicio(conciliaciones) {
 
   renderKpis($("kpisInicio"), [
     { label: "Saldo estimado hoy", valor: totalHoy + fciPesos, formato: formatImporte, sub: (fciPesos ? "Cuentas " + formatImporte(totalHoy) + " · FCI " + formatImporte(fciPesos) : "Cuentas en pesos") + (sinSaldo ? " · " + sinSaldo + " sin saldo" : ""), tono: "var(--primary)" },
-    { label: "Ingresos de " + nombreMes, valor: ingMes, formato: formatImporte, sub: delMes.filter(f => parseImporte(f["Monto"]) > 0).length + " movimiento(s)", tono: "var(--ok)" },
-    { label: "Egresos de " + nombreMes, valor: egrMes, formato: formatImporte, sub: delMes.filter(f => parseImporte(f["Monto"]) < 0).length + " movimiento(s)", tono: "var(--bad)" },
+    { label: "Ingresos de " + nombreMes, valor: ingMes, formato: formatImporte, sub: delMes.filter(f => parseImporte(f["Monto"]) > 0).length + " movimiento(s)" + (finIng ? " · aparte, de brokers " + formatImporte(finIng) : ""), tono: "var(--ok)" },
+    { label: "Egresos de " + nombreMes, valor: egrMes, formato: formatImporte, sub: delMes.filter(f => parseImporte(f["Monto"]) < 0).length + " movimiento(s)" + (finEgr ? " · aparte, a brokers " + formatImporte(finEgr) : ""), tono: "var(--bad)" },
     { label: "Cheques a 7 días", valor: chq7.reduce((a, c) => a + importeCheque(c), 0), formato: formatImporte, sub: chq7.length + " cheque(s) por vencer", tono: "var(--warn)" },
     { label: "Sin conciliar", valor: sinConc.length, formato: formatEntero, sub: "Movimientos del banco pendientes", tono: "var(--accent)" }
   ]);
@@ -16342,7 +16438,7 @@ function graficoIngresosEgresos(t) {
   const meses = [];
   for (let i = 11; i >= 0; i--) meses.push(sumarMesesIso(hoy.substring(0, 7) + "-01", -i));
   const SERIES = [{ k: "ing", label: "Ingresos", color: "var(--vz-pos)" }, { k: "egr", label: "Egresos", color: "var(--vz-neg)" }];
-  const validos = transferenciasDatos.filter(f => !esPropia(f) && f["Moneda"] !== "USD" && !(f["Origen"] === "Resumen" && f["Conciliación"]));
+  const validos = transferenciasDatos.filter(f => !esPropia(f) && !esMovimientoFinanciero(f) && f["Moneda"] !== "USD" && !(f["Origen"] === "Resumen" && f["Conciliación"]));
   const cats = meses.map((m, i) => {
     const del = validos.filter(f => fechaAOrden(fechaMov(f)).substring(0, 7) === m.substring(0, 7));
     const ing = del.filter(f => parseImporte(f["Monto"]) > 0).reduce((a, f) => a + parseImporte(f["Monto"]), 0);
@@ -16355,7 +16451,7 @@ function graficoIngresosEgresos(t) {
   const conDatos = cats.filter(c => c.n);
   const mejor = conDatos.slice().sort((a, b) => b.neto - a.neto)[0], peor = conDatos.slice().sort((a, b) => a.neto - b.neto)[0];
   datoViz(t, ["Resultado de los últimos 12 meses: ", el("b", null, fmtImp(neto)), ". Mejor mes " + mesLargo(mejor.mes).toLowerCase() + " (" + montoCorto(mejor.neto) + "), peor " + mesLargo(peor.mes).toLowerCase() + " (" + montoCorto(peor.neto) + ")."], neto < 0);
-  t.ayuda.textContent = "Movimientos en pesos, sin transferencias entre cuentas propias. El punto marca el resultado del mes.";
+  t.ayuda.textContent = "Movimientos en pesos, sin transferencias entre cuentas propias ni lo que va o vuelve de brokers. El punto marca el resultado del mes.";
   leyendaViz(t.leyenda, SERIES.concat([{ label: "Resultado neto", color: "var(--text)", punto: true }]));
   t.detalle.replaceChildren();
   dibujarCombo(t, {

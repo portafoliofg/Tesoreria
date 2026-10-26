@@ -2108,9 +2108,20 @@ function importeANumero(s) {
   const coma = t.lastIndexOf(',');
   const punto = t.lastIndexOf('.');
   if (coma > punto) t = t.split('.').join('').replace(',', '.');
+  // Varios puntos y ninguna coma ("1.500.000"): son de miles, igual que en la página.
+  else if (punto > coma && coma < 0 && t.indexOf('.') !== punto) t = t.split('.').join('');
   else if (punto > coma) t = t.split(',').join('');
   const n = parseFloat(t);
   return isNaN(n) ? 0 : n;
+}
+
+// Plata que va o vuelve de un broker o ALYC: inversión o financiamiento propio, no un
+// ingreso ni un gasto. Misma lista que CONTRAPARTES_FINANCIERAS en Index.html.
+const CONTRAPARTES_FINANCIERAS_ = ['cocos capital', 'valores', 'alyc', 'balanz', 'invertir online', 'bull market', 'allaria', 'adcap', 'portfolio personal'];
+
+function esMovimientoFinanciero_(f) {
+  const t = claveTexto((f['Ordenante'] || '') + ' | ' + (f['Destinatario'] || '') + ' | ' + (f['Contraparte'] || ''));
+  return CONTRAPARTES_FINANCIERAS_.some(k => t.indexOf(k) >= 0);
 }
 
 function formatoPesos(n) {
@@ -3381,6 +3392,8 @@ function datosReporte_(hoy) {
     const iso = dmaAIso_(f['Fecha del Movimiento'] || f['Fecha de Carga']);
     if (iso < iniMes || iso > finMes || f['Entre Cuentas Propias'] === 'Sí' || f['Moneda'] === 'USD') return;
     if (f['Origen'] === 'Resumen' && f['Conciliación']) return;
+    // Lo que va o vuelve de brokers es inversión propia, no un ingreso ni un gasto (igual que en Inicio).
+    if (esMovimientoFinanciero_(f)) return;
     const m = importeANumero(f['Monto']);
     nMes++;
     if (m >= 0) ingresos += m;
