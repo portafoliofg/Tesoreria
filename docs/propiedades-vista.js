@@ -20,6 +20,17 @@
   var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   var ADM = 0.06;
   var PESTANAS = [["tablero", "Tablero"], ["resumen", "Resumen"], ["unidades", "Unidades"], ["contratos", "Contratos"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"], ["historial", "Historial"]];
+  // Ícono de cada sección en el menú lateral (trazos de un SVG de 24 × 24).
+  var ICONOS = {
+    tablero: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="5" rx="1.5"/><rect x="13" y="11" width="7" height="9" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/>',
+    resumen: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    unidades: '<path d="M4 20V6l8-3v17M12 9l8 3v8"/><path d="M3 20h18M7.5 8.5v.01M7.5 12v.01M7.5 15.5v.01M15.5 14v.01M15.5 17v.01"/>',
+    contratos: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5"/><path d="M8.5 16.5c1-1.5 2-1.5 2.5 0s1.5 1.5 2.5 0 1.5-1 2 0"/>',
+    expensas: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+    cocheras: '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M4 16h16v2.5H4z"/><path d="M7.5 13.5v.01M16.5 13.5v.01M5 11h14"/>',
+    transferencias: '<path d="M4 8h13M14 4l4 4-4 4"/><path d="M20 16H7M10 12l-4 4 4 4"/>',
+    historial: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
+  };
   var lista = [];
   var actual = null;      // registro guardado {edificio, periodo, datos, ...}
   var borrador = null;    // copia de actual.datos mientras se edita
@@ -40,6 +51,20 @@
   document.body.classList.remove("verificando");
   // La sesión no se consulta aparte: obtenerPropiedades la valida (si venció, vuelve al ingreso).
   $("salir").addEventListener("click", function () { BGPSesion.salir().then(irAlIngreso); });
+  // Modo oscuro: el botón del menú lo prende o lo apaga y queda recordado en este navegador.
+  function pintarModo() {
+    var oscuro = document.documentElement.getAttribute("data-modo") === "oscuro";
+    $("modo").setAttribute("aria-pressed", oscuro ? "true" : "false");
+    $("modo").querySelector("span").textContent = oscuro ? "Modo claro" : "Modo oscuro";
+  }
+  $("modo").addEventListener("click", function () {
+    var oscuro = document.documentElement.getAttribute("data-modo") !== "oscuro";
+    if (oscuro) document.documentElement.setAttribute("data-modo", "oscuro"); else document.documentElement.removeAttribute("data-modo");
+    try { localStorage.setItem("prop-modo", oscuro ? "oscuro" : "claro"); } catch (e) {}
+    pintarModo();
+  });
+  pintarModo();
+  pintarMenu();
   window.addEventListener("beforeunload", function (e) { if (borrador) { e.preventDefault(); e.returnValue = ""; } });
 
   // ----- Formatos y ayudas -----
@@ -219,6 +244,7 @@
     var caja = $("contenido");
     caja.replaceChildren();
     $("acciones").replaceChildren();
+    pintarMenu();
     if (!actual) {
       $("tituloEdificio").textContent = "Propiedades";
       $("subEdificio").textContent = "";
@@ -252,24 +278,34 @@
       acc.append(e);
     }
 
-    // Pestañas
-    var tabs = el("div", "pestanas");
-    tabs.setAttribute("role", "tablist");
-    PESTANAS.forEach(function (p) {
-      var b = el("button", "pestana" + (pestana === p[0] ? " activa" : ""), p[1]);
-      b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", pestana === p[0] ? "true" : "false");
-      b.addEventListener("click", function () {
-        pestana = p[0];
-        try { sessionStorage.setItem("prop-pestana", pestana); } catch (err) {}
-        mostrar();
-      });
-      tabs.append(b);
-    });
-    caja.append(tabs);
     var cuerpo = el("div", null);
     cuerpo.id = "cuerpoPestana";
     caja.append(cuerpo);
     repintarPestana();
+  }
+
+  // Secciones en el menú lateral (sin liquidación cargada quedan desactivadas).
+  function pintarMenu() {
+    var menu = $("menu");
+    menu.replaceChildren();
+    PESTANAS.forEach(function (p) {
+      var b = el("button", "lat-item" + (actual && pestana === p[0] ? " activa" : ""));
+      b.type = "button";
+      b.title = p[1];
+      b.disabled = !actual;
+      if (actual && pestana === p[0]) b.setAttribute("aria-current", "page");
+      b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONOS[p[0]] + "</svg>";
+      b.append(document.createTextNode(p[1]));
+      b.addEventListener("click", function () {
+        pestana = p[0];
+        try { sessionStorage.setItem("prop-pestana", pestana); } catch (err) {}
+        mostrar();
+        window.scrollTo(0, 0);
+      });
+      menu.append(b);
+      // En el celular el menú se desliza: la sección elegida queda a la vista.
+      if (actual && pestana === p[0]) setTimeout(function () { try { b.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) {} }, 0);
+    });
   }
 
   // Después de un cambio se redibuja cuando el foco ya pasó al campo siguiente (Tab),
@@ -294,7 +330,6 @@
     else if (pestana === "contratos") cuerpo.append(PropContratos.panel(d, actual.edificio, repintarPestana));
     else cuerpo.append(vistaResumen(d));
     if (foco >= 0) { var f = cuerpo.querySelectorAll("input, select, textarea, button")[foco]; if (f) f.focus(); }
-    if (!editando()) cuerpo.append(el("p", "meta", "Cargado de " + (actual.archivo || "la planilla") + (actual.cargadoPor ? " · último cambio de " + actual.cargadoPor : "") + (actual.fechaCarga ? " el " + actual.fechaCarga : "")));
   }
 
   function panel(titulo, sub) {
