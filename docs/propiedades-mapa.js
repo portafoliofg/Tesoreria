@@ -123,12 +123,14 @@
   // ----- Datos -----
   var lugares = [], pines = {}, seleccionado = null, arrastrando = null;
   var unidadesMapa = [], pinesU = {}, unidadSel = null;
+  var todosLugares = [];  // todos los lugares de las liquidaciones, aunque no estén en el mapa
   var ALTO_GALPON = 9;  // metros de los contornos en 3D
 
   function cargar(intento) {
     return BGPSesion.pedir("ubicacionesPropiedades").then(function (r) {
       lugares = r.lugares || [];
       unidadesMapa = r.unidades || [];
+      todosLugares = r.todos || [];
       pintarLista();
       pintarPines();
       pintarUnidades();
@@ -309,14 +311,17 @@
     var carpetas = [];
     items.forEach(function (it) { if (carpetas.indexOf(it.carpeta) < 0) carpetas.push(it.carpeta); });
     var lugarDe = {};
+    // Opciones: los lugares del mapa más los que todavía no tienen unidades (p. ej. Polo 52 antes del primer KML).
+    var opciones = lugares.slice();
+    todosLugares.forEach(function (t) { if (!opciones.some(function (l) { return l.clave === t.clave; })) opciones.push(t); });
     var tl = el("table"), trh = el("tr");
     ["Carpeta del KML", "Lugar"].forEach(function (h) { trh.append(el("th", null, h)); });
     tl.append(trh);
     carpetas.forEach(function (c) {
       var tr = el("tr"), sel = el("select");
       sel.append(new Option("— No importar —", ""));
-      lugares.forEach(function (l) { sel.append(new Option(nombreDe(l) + (l.lugar ? " (" + l.edificio + ")" : ""), l.clave)); });
-      var igual = lugares.find(function (l) { return norm(nombreDe(l)) === norm(c); });
+      opciones.forEach(function (l) { sel.append(new Option(nombreDe(l) + (l.lugar ? " (" + l.edificio + ")" : ""), l.clave)); });
+      var igual = opciones.find(function (l) { return norm(nombreDe(l)) === norm(c); });
       sel.value = igual ? igual.clave : "";
       lugarDe[c] = sel;
       tr.append(el("td", null, c || "(sin carpeta)"), el("td"));
@@ -350,7 +355,7 @@
     dlg.append(t, dl);
     botonesDlg(dlg, function (boton, nota) {
       var envio = campos.map(function (c) {
-        var lugar = lugares.find(function (l) { return l.clave === lugarDe[c.it.carpeta].value; });
+        var lugar = opciones.find(function (l) { return l.clave === lugarDe[c.it.carpeta].value; });
         if (!lugar) return null;
         return { lugar: lugar.lugar || lugar.edificio, nombre: c.it.nombre, unidad: c.inp.value.trim() || c.it.nombre, tipo: c.it.tipo, lat: c.it.lat, lon: c.it.lon, contorno: c.it.contorno };
       }).filter(Boolean);

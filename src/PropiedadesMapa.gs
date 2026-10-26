@@ -30,6 +30,9 @@ const HEADERS_UNIDADES_MAPA = ['Clave', 'Edificio', 'Lugar', 'Nombre', 'Unidad',
 const UBIC_MAX_PERIODOS = 12;   // liquidaciones por lugar que se mandan al mapa
 const UBIC_MAX_BUSQUEDAS = 5;   // búsquedas automáticas por pedido (para no demorar)
 
+// Los mismos que LUGARES de docs/propiedades-vista.js.
+const LUGARES_PREDETERMINADOS_ = ['Saavedra', 'Polo 52', 'Dario', 'Esteban Porucini', 'Casa Morón'];
+
 function claveUbicacion_(edificio, lugar) {
   return claveTexto(edificio) + '|' + claveTexto(lugar);
 }
@@ -67,6 +70,13 @@ function lugaresPropiedades_() {
     let nombres = (d.lugares || []).filter(Boolean);
     if (!nombres.length) unidades.forEach(un => { if (un.lugar && nombres.indexOf(un.lugar) < 0) nombres.push(un.lugar); });
     if (!nombres.length) nombres = [''];
+    // Sin lista propia también valen los lugares de siempre, si tienen unidades en el mapa o contratos
+    // (el primero, Saavedra, es el del edificio cuando no hay nombre).
+    if (!(d.lugares || []).filter(Boolean).length) {
+      LUGARES_PREDETERMINADOS_.forEach((l, j) => {
+        if ((j > 0 || nombres[0]) && nombres.indexOf(l) < 0) nombres.push(l);
+      });
+    }
     nombres.forEach((lugar, i) => {
       // Las unidades sin lugar son del primero (igual que en la página de Propiedades).
       const suyas = unidades.filter(un => (un.lugar || nombres[0]) === lugar);
@@ -132,6 +142,8 @@ function ubicacionesPropiedades_(d, u) {
   });
   return {
     ok: true, unidades: unidades,
+    // Todos los lugares de las liquidaciones, aunque todavía no tengan unidades (para importar un KML).
+    todos: Object.values(lugaresConocidos_()).map(l => ({ clave: claveUbicacion_(l.edificio, l.lugar), edificio: l.edificio, lugar: l.lugar })),
     pendientes: lugares.filter(l => !porClave[l.clave]).length,
     lugares: lugares.map(l => {
       const f = (porClave[l.clave] || {}).f || {};
@@ -291,7 +303,9 @@ function lugaresConocidos_() {
   const out = {};
   Object.keys(ult).forEach(k => {
     const d = ult[k].datos || {};
-    (d.lugares || []).concat((d.unidades || []).map(un => un.lugar)).filter(Boolean).forEach(l => {
+    // Sin lista propia, la liquidación usa los lugares de siempre (igual que la página de Propiedades).
+    const propios = (d.lugares || []).filter(Boolean);
+    (propios.length ? propios : LUGARES_PREDETERMINADOS_).concat((d.unidades || []).map(un => un.lugar)).filter(Boolean).forEach(l => {
       if (!out[claveTexto(l)]) out[claveTexto(l)] = { edificio: ult[k].edificio, lugar: l };
     });
   });
