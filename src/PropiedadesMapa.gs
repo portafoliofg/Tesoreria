@@ -31,7 +31,7 @@ const UBIC_MAX_PERIODOS = 12;   // liquidaciones por lugar que se mandan al mapa
 const UBIC_MAX_BUSQUEDAS = 5;   // búsquedas automáticas por pedido (para no demorar)
 
 // Los mismos que LUGARES de docs/propiedades-vista.js.
-const LUGARES_PREDETERMINADOS_ = ['Saavedra', 'Polo 52', 'Dario', 'Esteban Porucini', 'Casa Morón'];
+const LUGARES_PREDETERMINADOS_ = ['Saavedra', 'Polo 52', 'Dario', 'Esteban Porucini', 'Casa Morón', 'Oficina PEA'];
 
 function claveUbicacion_(edificio, lugar) {
   return claveTexto(edificio) + '|' + claveTexto(lugar);
@@ -70,13 +70,12 @@ function lugaresPropiedades_() {
     let nombres = (d.lugares || []).filter(Boolean);
     if (!nombres.length) unidades.forEach(un => { if (un.lugar && nombres.indexOf(un.lugar) < 0) nombres.push(un.lugar); });
     if (!nombres.length) nombres = [''];
-    // Sin lista propia también valen los lugares de siempre, si tienen unidades en el mapa o contratos
+    // También valen los lugares de siempre que no estén en la lista de la liquidación (sin lista propia,
+    // o agregados después, como Oficina PEA), si tienen unidades en el mapa o contratos
     // (el primero, Saavedra, es el del edificio cuando no hay nombre).
-    if (!(d.lugares || []).filter(Boolean).length) {
-      LUGARES_PREDETERMINADOS_.forEach((l, j) => {
-        if ((j > 0 || nombres[0]) && nombres.indexOf(l) < 0) nombres.push(l);
-      });
-    }
+    LUGARES_PREDETERMINADOS_.forEach((l, j) => {
+      if ((j > 0 || nombres[0]) && nombres.indexOf(l) < 0) nombres.push(l);
+    });
     nombres.forEach((lugar, i) => {
       // Las unidades sin lugar son del primero (igual que en la página de Propiedades).
       const suyas = unidades.filter(un => (un.lugar || nombres[0]) === lugar);
@@ -305,7 +304,9 @@ function lugaresConocidos_() {
     const d = ult[k].datos || {};
     // Sin lista propia, la liquidación usa los lugares de siempre (igual que la página de Propiedades).
     const propios = (d.lugares || []).filter(Boolean);
-    (propios.length ? propios : LUGARES_PREDETERMINADOS_).concat((d.unidades || []).map(un => un.lugar)).filter(Boolean).forEach(l => {
+    // Más los de siempre que falten en su lista (agregados después, como Oficina PEA).
+    (propios.length ? propios.concat(LUGARES_PREDETERMINADOS_.filter(l => propios.indexOf(l) < 0)) : LUGARES_PREDETERMINADOS_)
+      .concat((d.unidades || []).map(un => un.lugar)).filter(Boolean).forEach(l => {
       if (!out[claveTexto(l)]) out[claveTexto(l)] = { edificio: ult[k].edificio, lugar: l };
     });
   });

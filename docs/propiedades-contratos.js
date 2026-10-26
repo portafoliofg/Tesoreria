@@ -24,6 +24,8 @@
   "use strict";
   var INDICE_M2 = "Suma fija por m²";
   var INDICES = ["ICL", "IPC", "Porcentaje fijo", INDICE_M2, "Sin actualización"];
+  // Lugares agregados después de que se guardaron liquidaciones (que tienen su propia lista).
+  var LUGARES_NUEVOS = ["Oficina PEA"];
   var estado = { edificio: null, contratos: [], indices: {}, dolar: null, hoy: "", cargando: null, listo: false, error: "" };
   var cuotasAbiertas = {};  // ID de contrato → cuadro de cuotas a la vista
   var editando = null;  // contrato (o borrador nuevo) en el formulario
@@ -340,7 +342,8 @@
     campo("telefono", "Teléfono (WhatsApp)", "tel", x["Teléfono"]);
     campo("inicio", "Inicio", "date", dmaAIso(x["Inicio"]));
     campo("fin", "Fin", "date", dmaAIso(x["Fin"]));
-    var lugares = d.lugares && d.lugares.length ? d.lugares : [];
+    // Los lugares de la liquidación más los que se agregaron después (mismos que LUGARES en propiedades-vista.js).
+    var lugares = d.lugares && d.lugares.length ? d.lugares.concat(LUGARES_NUEVOS.filter(function (l) { return d.lugares.indexOf(l) < 0; })) : [];
     if (lugares.length) campo("lugar", "Lugar", null, x["Lugar"] || lugares[0], lugares);
     campo("moneda", "Moneda", null, x["Moneda"] === "USD" ? "USD" : "Pesos", ["Pesos", "USD"]);
     var ind = campo("indice", "Se actualiza por", null, x["Índice"] || "ICL", INDICES);
