@@ -218,6 +218,14 @@
     /* Contratos (propiedades-contratos.js) */
     .contr-sub { display: block; font-size: 12px; color: var(--tenue); margin-top: 2px; }
     .lado { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    /* Unidades: toda la pantalla y la tabla más compacta, para que entren todas las columnas */
+    body.ancho .pagina { width: 100%; padding-left: clamp(16px, 2vw, 32px); padding-right: clamp(16px, 2vw, 32px); }
+    .tabla-scroll.fija table { font-size: 13px; }
+    .tabla-scroll.fija th { padding: 8px 5px; font-size: 10.5px; letter-spacing: 0.02em; white-space: normal; vertical-align: bottom; line-height: 1.25; }
+    .tabla-scroll.fija td { padding: 8px 5px; }
+    .tabla-scroll.fija td.num, .tabla-scroll.fija th.num { font-family: var(--texto); font-variant-numeric: tabular-nums; }
+    .tabla-scroll.fija td.unidad { min-width: 120px; max-width: 160px; }
+    .tabla-scroll.fija td .sub { font-size: 11.5px; margin: 2px 0 0; }
     /* Unidades: encabezado y totales fijos al desplazar la tabla */
     .tabla-scroll.fija { max-height: min(70vh, 760px); overflow: auto; overscroll-behavior: contain; border-radius: 10px; }
     .tabla-scroll.fija thead th { position: sticky; top: 0; z-index: 2; background: var(--crema-clara); box-shadow: inset 0 -1px 0 var(--borde); border-bottom: 0; }
@@ -276,6 +284,6 @@
   <script src="propiedades-lector.js?v=7"></script>
   <script src="propiedades-contratos.js?v=3"></script>
   <script src="propiedades-valores.js?v=1"></script>
-  <script src="propiedades-vista.js?v=15"></script>
+  <script src="propiedades-vista.js?v=16"></script>
 </body>
 </html>

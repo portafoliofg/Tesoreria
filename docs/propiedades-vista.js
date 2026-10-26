@@ -45,6 +45,9 @@
   // ----- Formatos y ayudas -----
   var fmtPesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   function pesos(n) { return typeof n !== "number" || isNaN(n) ? "—" : fmtPesos.format(n); }
+  // Unidades: en pesos sin signo ni centavos, para que entren todas las columnas en la pantalla.
+  var fmtPesos0 = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  function pesos0(n) { return typeof n !== "number" || isNaN(n) ? "—" : fmtPesos0.format(n); }
   function pct(n) { return typeof n !== "number" ? "—" : (n * 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + " %"; }
   function numTxt(n, dec) { return typeof n !== "number" ? "" : n.toLocaleString("es-AR", { minimumFractionDigits: dec === undefined ? 2 : dec, maximumFractionDigits: dec === undefined ? 2 : dec }); }
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
@@ -277,6 +280,8 @@
     if (!cuerpo) return;
     var d = datos();
     if (editando()) recalcularTotales(d);
+    // Unidades usa todo el ancho de la pantalla: así entran todas las columnas sin deslizar.
+    document.body.classList.toggle("ancho", pestana === "unidades");
     var previos = Array.prototype.slice.call(cuerpo.querySelectorAll("input, select, textarea, button"));
     var foco = previos.indexOf(document.activeElement);
     cuerpo.replaceChildren();
@@ -675,7 +680,7 @@
 
   function panelUnidades(d) {
     var ed = editando();
-    var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó, la liquidación de los que pagan en efectivo y sus valores. Tocá la “i” para ver y cargar el detalle y los valores.");
+    var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó, la liquidación de los que pagan en efectivo y sus valores (importes en pesos). Tocá la “i” para ver y cargar el detalle y los valores.");
     var conValores = !ed && !!window.PropValores;
     if (conValores && PropValores.error()) p.append(el("div", "alerta error", PropValores.error()));
     // Pestañas por lugar, con la cantidad de unidades de cada uno.
@@ -730,16 +735,16 @@
       // Unidad que no abonó: mensaje de WhatsApp listo para el inquilino (propiedades-contratos.js).
       if (u.estado === "no-abono" && window.PropContratos) cp.append(PropContratos.botonRecordar(u, d, actual.edificio));
       r.append(cu, cp);
-      cols.forEach(function (c) { var v = u[c[0]]; r.append(el("td", "num" + (v === 0 ? " cero" : ""), typeof v === "number" ? pesos(v) : "—")); });
+      cols.forEach(function (c) { var v = u[c[0]]; r.append(el("td", "num" + (v === 0 ? " cero" : ""), typeof v === "number" ? pesos0(v) : "—")); });
       r.append(el("td", "num", pct(u.coeficiente)));
       if (conValores) {
         var v = PropValores.de(u) || {};
         var rd = PropValores.rendimiento(v, alq.monto);
-        r.append(el("td", "num valor-ini", pesos(v.valorReal)), el("td", "num", pesos(v.precioCompra)));
+        r.append(el("td", "num valor-ini", pesos0(v.valorReal)), el("td", "num", pesos0(v.precioCompra)));
         var tdr = el("td", "num");
-        tdr.append(el("b", "rend", rd === null ? "—" : pct1(rd)), el("span", "sub", alq.monto ? pesos(alq.monto) + " / mes" : "Sin alquiler"));
+        tdr.append(el("b", "rend", rd === null ? "—" : pct1(rd)), el("span", "sub", alq.monto ? pesos0(alq.monto) + " / mes" : "Sin alquiler"));
         tdr.title = rd === null ? "" : "Alquiler × 12 sobre el precio de compra";
-        r.append(tdr, el("td", "num", pesos(v.ventaEstimada)));
+        r.append(tdr, el("td", "num", pesos0(v.ventaEstimada)));
       }
       return r;
     }
@@ -820,12 +825,12 @@
       var rf = el("tr");
       var l = el("td", null, (filtro.texto || filtro.forma ? "Total filtrado · " : "Total · ") + (filtro.lugar ? filtro.lugar + " · " : "") + filas.length + " unidad(es)"); l.colSpan = 2;
       rf.append(l);
-      cols.forEach(function (c) { rf.append(el("td", "num", hay(filas, c[0]) ? pesos(suma(filas, c[0])) : "—")); });
+      cols.forEach(function (c) { rf.append(el("td", "num", hay(filas, c[0]) ? (ed ? pesos : pesos0)(suma(filas, c[0])) : "—")); });
       rf.append(el("td", "num", pct(suma(filas, "coeficiente"))));
       if (conValores) {
         // Rendimiento del conjunto: alquileres de las unidades con precio de compra sobre la suma de esas compras.
         var vs = filas.map(function (u) { return { v: PropValores.de(u) || {}, a: alquilerDe(u).monto }; });
-        var tot = function (k) { var con = vs.filter(function (x) { return typeof x.v[k] === "number"; }); return con.length ? pesos(con.reduce(function (a, x) { return a + x.v[k]; }, 0)) : "—"; };
+        var tot = function (k) { var con = vs.filter(function (x) { return typeof x.v[k] === "number"; }); return con.length ? pesos0(con.reduce(function (a, x) { return a + x.v[k]; }, 0)) : "—"; };
         var conRend = vs.filter(function (x) { return PropValores.rendimiento(x.v, x.a) !== null; });
         var compraR = conRend.reduce(function (a, x) { return a + x.v.precioCompra; }, 0);
         var alqR = conRend.reduce(function (a, x) { return a + x.a; }, 0);
