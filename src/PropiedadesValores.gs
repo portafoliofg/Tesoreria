@@ -249,7 +249,7 @@ function obtenerValoresPropiedades_(d) {
   const par = leerParametrosProp_().find(x => claveTexto(x.edificio) === claveTexto(edificio)) || null;
   let unidadesMapa = [];
   try { unidadesMapa = unidadesMapaDeEdificio_(edificio); } catch (e) { console.log('Unidades del mapa: ' + e.message); }
-  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl(), parametros: par, unidadesMapa: unidadesMapa };
+  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl(), parametros: par, unidadesMapa: unidadesMapa, zonas: Object.keys(ZONAS_USD_M2_) };
 }
 
 /**
@@ -293,6 +293,109 @@ function guardarValorPropiedad_(d, u) {
     registrar_(u, previa ? 'Propiedades: valores modificados' : 'Propiedades: valores cargados', edificio + ' · ' + unidad + (resumen ? ' · ' + resumen : ''), edificio + ' · ' + unidad,
       previa ? JSON.stringify(valorPublico_(previa)) : '', JSON.stringify(v));
     return { ok: true, valor: valorPublico_(v) };
+  });
+}
+
+/**
+ * Estimación por zona: valores aproximados (no tasaciones) para las unidades de un lugar que
+ * todavía no tienen valor real, precio de compra o venta estimada. Sale del precio del m² usado
+ * de la zona (USD), la superficie típica según destino y dormitorios (o, sin dormitorios, la que
+ * explica el alquiler a un 5 % anual), un ajuste por piso y una variación chica por unidad, y se
+ * pasa a pesos con el dólar MEP del día. La compra queda entre 78 % y 90 % del valor real (como
+ * comprada hace unos años) y la venta estimada 6 % arriba (precio de publicación). Nunca pisa un
+ * valor cargado; "Actualizado por" dice que es una estimación.
+ */
+const ZONAS_USD_M2_ = { 'Saavedra': 2600 };
+const M2_POR_DORMITORIOS_ = [35, 48, 68, 90, 110];
+// Destino → [m² típicos, factor sobre el m² de vivienda]
+const M2_POR_DESTINO_ = { 'Comercial': [60, 1.1], 'Oficina': [45, 0.95], 'Depósito': [40, 0.5] };
+const USD_COCHERA_ = 28000;
+
+function hashTexto_(s) {
+  let h = 0;
+  String(s).split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) % 1000003; });
+  return h / 1000003;
+}
+
+/** Destino que sugiere el nombre de la unidad ("Cochera 3", "Local 1"…), o ''. */
+function destinoDeNombre_(unidad) {
+  const n = claveTexto(unidad);
+  if (/coch/.test(n)) return 'Cochera';
+  if (/local/.test(n)) return 'Comercial';
+  if (/ofic/.test(n)) return 'Oficina';
+  if (/deposito|baulera/.test(n)) return 'Depósito';
+  return '';
+}
+
+/** Valor estimado en USD de una unidad. x: {unidad, destino, dormitorios, cochera, alquiler}; usdM2 de la zona; mep en pesos. */
+function estimarUsdUnidad_(x, usdM2, mep) {
+  const azar = hashTexto_(x.unidad);  // 0..1, siempre igual para la misma unidad
+  const destino = x.destino || destinoDeNombre_(x.unidad) || 'Vivienda';
+  if (destino === 'Cochera') return USD_COCHERA_ * (0.92 + azar * 0.16);
+  let m2, factor = 1;
+  if (M2_POR_DESTINO_[destino]) { m2 = M2_POR_DESTINO_[destino][0]; factor = M2_POR_DESTINO_[destino][1]; }
+  else if (typeof x.dormitorios === 'number' && x.dormitorios >= 0) m2 = M2_POR_DORMITORIOS_[Math.min(x.dormitorios, 4)];
+  else if (x.alquiler > 0 && mep > 0) m2 = Math.max(30, Math.min(120, x.alquiler * 12 / 0.05 / mep / usdM2));
+  else m2 = 50;
+  // Piso: el número del principio ("3B" → 3); PB o sin número, 0. +1,5 % por piso hasta el 10.
+  const nroPiso = String(x.unidad).match(/^\s*(\d{1,2})/);
+  const piso = nroPiso ? Math.min(10, parseInt(nroPiso[1], 10)) : 0;
+  let usd = m2 * usdM2 * factor * (1 + piso * 0.015) * (0.93 + azar * 0.14);
+  if (x.cochera === 'Sí') usd += USD_COCHERA_;
+  return usd;
+}
+
+/**
+ * Completa con la estimación por zona las unidades de un lugar que no tienen valores.
+ * d: {edificio, unidades: [{unidad, clave, lugar, alquiler}]}
+ */
+function estimarValoresPropiedades_(d, u) {
+  const edificio = String((d && d.edificio) || '').trim();
+  const unidades = (d && Array.isArray(d.unidades) ? d.unidades : []).filter(x => x && String(x.unidad || '').trim());
+  if (!edificio || !unidades.length) return { ok: false, error: 'Faltan el edificio o las unidades.' };
+  const cot = cotizacionesDolar_();
+  const mep = cot && cot.ok && (cot.mep || cot.oficial) ? (cot.mep || cot.oficial).venta : 0;
+  if (!(mep > 0)) return { ok: false, error: 'No se pudo leer la cotización del dólar para pasar la estimación a pesos.' };
+  libroValoresPropiedades_();
+  return conLock_(() => {
+    const hoja = hojaValoresUnidades_();
+    const filas = leerValoresUnidades_();
+    let proxima = hoja.getLastRow() + 1;
+    const hechas = [];
+    unidades.forEach(x => {
+      const unidad = String(x.unidad).trim(), clave = String(x.clave || unidad).trim(), lugar = String(x.lugar || '').trim();
+      const usdM2 = ZONAS_USD_M2_[lugar];
+      if (!usdM2) return;
+      const previa = filas.find(f => claveTexto(f['Edificio']) === claveTexto(edificio) && claveTexto(f['Clave'] || f['Unidad']) === claveTexto(clave));
+      const p = previa ? valorPublico_(previa) : {};
+      if (p.valorReal !== null && p.valorReal !== undefined && p.precioCompra !== null && p.precioCompra !== undefined && p.ventaEstimada !== null && p.ventaEstimada !== undefined) return;
+      const usd = estimarUsdUnidad_({ unidad: unidad, destino: p.destino, dormitorios: p.dormitorios, cochera: p.cochera, alquiler: Number(x.alquiler) || 0 }, usdM2, mep);
+      const azar = hashTexto_(clave + '|compra');
+      const aPesos = n => Math.round(n * mep / 1000) * 1000;
+      const real = aPesos(Math.round(usd / 500) * 500);
+      const tiene = n => n !== null && n !== undefined;
+      const nro = previa ? previa.fila : proxima++;
+      const v = {
+        'Edificio': edificio, 'Lugar': lugar, 'Unidad': unidad, 'Clave': clave,
+        'Valor real': tiene(p.valorReal) ? p.valorReal : real,
+        'Precio de compra': tiene(p.precioCompra) ? p.precioCompra : aPesos(Math.round(usd * (0.78 + azar * 0.12) / 500) * 500),
+        'Alquiler mensual': Number(x.alquiler) > 0 ? Number(x.alquiler) : (previa && previa['Alquiler mensual'] !== undefined ? previa['Alquiler mensual'] : ''),
+        'Rendimiento anual': '=IF(AND(ISNUMBER(F' + nro + '),F' + nro + '>0,ISNUMBER(G' + nro + ')),G' + nro + '*12/F' + nro + ',"")',
+        'Valor de venta estimado': tiene(p.ventaEstimada) ? p.ventaEstimada : aPesos(Math.round(usd * 1.06 / 1000) * 1000),
+        'Dormitorios': previa ? previa['Dormitorios'] : '', 'Destino': p.destino || destinoDeNombre_(unidad), 'Cochera': p.cochera || '',
+        'Actualizado por': 'Estimación por zona (' + nombreDe_(u) + ')', 'Fecha': ahoraTexto_(),
+        'Gastos mensuales': previa ? previa['Gastos mensuales'] : ''
+      };
+      hoja.getRange(nro, 1, 1, HEADERS_VALORES_UNIDADES.length).setValues([HEADERS_VALORES_UNIDADES.map(h => v[h])]);
+      COL_VALORES_IMPORTES.forEach(c => hoja.getRange(nro, c).setNumberFormat('$ #,##0.00'));
+      hoja.getRange(nro, COL_VALORES_RENDIMIENTO).setNumberFormat('0.00%');
+      hoja.getRange(nro, 14).setNumberFormat('@').setValue(v['Fecha']);
+      hechas.push(valorPublico_(v));
+    });
+    if (hechas.length) {
+      registrar_(u, 'Propiedades: valores estimados por zona', edificio + ' · ' + hechas.length + ' unidad(es) · dólar MEP ' + formatoPesos(mep), edificio, '', JSON.stringify(hechas.map(h => h.unidad)));
+    }
+    return { ok: true, valores: hechas, mep: mep };
   });
 }
 

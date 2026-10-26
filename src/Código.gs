@@ -153,7 +153,7 @@ function doGet() {
 const ACCIONES_SITIO = ['estado', 'login', 'loginGoogle', 'logout', 'obtenerPropiedades', 'guardarPropiedades', 'asistente', // ASISTENTE: 'asistente' (ver Asistente.gs)
   'ubicacionesPropiedades', 'guardarUbicacionPropiedad', 'guardarVistaCalle', // mapa de propiedades (PropiedadesMapa.gs)
   'obtenerContratos', 'guardarContrato', 'aplicarActualizacionContrato', 'eliminarContrato', // contratos (Contratos.gs)
-  'obtenerValoresPropiedades', 'guardarValorPropiedad', // valores de las unidades (PropiedadesValores.gs)
+  'obtenerValoresPropiedades', 'guardarValorPropiedad', 'estimarValoresPropiedades', // valores de las unidades (PropiedadesValores.gs)
   'tableroF1']; // modo Fórmula 1 (TableroF1.gs)
 
 function doPost(e) {
@@ -267,6 +267,7 @@ const ACCIONES = {
   // Valores de las unidades de Propiedades, en una planilla aparte (PropiedadesValores.gs).
   obtenerValoresPropiedades: (d, u) => obtenerValoresPropiedades_(d, u),
   guardarValorPropiedad: (d, u) => guardarValorPropiedad_(d, u),
+  estimarValoresPropiedades: (d, u) => estimarValoresPropiedades_(d, u),
   tableroF1: (d, u) => tableroF1_(d, u),
   cotizacionesDolar: cotizacionesDolar_,
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
