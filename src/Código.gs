@@ -51,7 +51,9 @@ const HEADERS_CHEQUES = [
   'Fecha de Emisión', 'Fecha de Pago', 'Importe', 'Concepto', 'N° de Cuenta', 'Tipo de Cuenta', 'Cargado por', 'Conciliación', 'Comprobante',
   // Datos de la planilla de flujo de fondos. Estado: Pendiente, Pagado, Endosado, Depositado, En cartera, etc.
   // Canal "Bolsa": cheques y pagarés negociados por una ALYC.
-  'Persona', 'Estado', 'Fecha de Débito', 'Destino', 'Chequera', 'Banco Emisor', 'Canal', 'ALYC', 'SGR / Emisor', 'Moneda', 'ID Planilla'
+  'Persona', 'Estado', 'Fecha de Débito', 'Destino', 'Chequera', 'Banco Emisor', 'Canal', 'ALYC', 'SGR / Emisor', 'Moneda', 'ID Planilla',
+  // El día en que el cheque se cargó en la app (arqueo: cheques ingresados en el día).
+  'Fecha de Ingreso'
 ];
 const COL_COMPROBANTE_CHEQUE = HEADERS_CHEQUES.indexOf('Comprobante');
 const COL_BANCO_CHEQUE = HEADERS_CHEQUES.indexOf('Banco');
@@ -190,6 +192,7 @@ const ACCIONES = {
   marcarPropia: marcarPropia_,
   obtenerCheques: obtenerCheques_,
   guardarCheques: guardarChequesConOrdenes_,
+  actualizarEstadoCheque: actualizarEstadoCheque_,
   obtenerCatalogo: obtenerCatalogo_,
   guardarBanco: guardarBanco_,
   eliminarBanco: eliminarBanco_,
@@ -1040,10 +1043,13 @@ function guardarCheques_(d, u) {
     const iTipoCh = HEADERS_CHEQUES.indexOf('Tipo');
     const iCuit = HEADERS_CHEQUES.indexOf('CUIT');
     const iImporte = HEADERS_CHEQUES.indexOf('Importe');
+    const iIngreso = HEADERS_CHEQUES.indexOf('Fecha de Ingreso');
+    const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
     // Cheques de terceros: sin banco ni cuenta propia (solo los emitidos los llevan).
     const rows = (d.rows || []).map(r => {
       const f = HEADERS_CHEQUES.map((_, i) => r[i] == null ? '' : String(r[i]));
       f[COL_CARGADO_CHEQUE] = nombreDe_(u);
+      if (!f[iIngreso]) f[iIngreso] = hoy;
       if (f[iTipoCh] === 'De terceros') { f[COL_BANCO_CHEQUE] = ''; f[iTipo] = ''; f[iNumero] = ''; }
       return f;
     });
@@ -1076,6 +1082,42 @@ function guardarCheques_(d, u) {
     delete res.guardadas;
     res.ok = true;
     return res;
+  });
+}
+
+// ======================= Estado de un cheque =======================
+// Desde la pestaña Cheques se cambia el estado (pagado, depositado, endosado, anulado…).
+// Si pasa a un estado que mueve la cuenta y no tiene fecha de débito, se pone la del día
+// (o la que mande la página). d: {id (ID Planilla), banco, numero, tipo, estado, fechaDebito}
+const ESTADOS_CHEQUE_EDITABLES = ['Pendiente', 'En cartera', 'Pagado', 'Depositado', 'Acreditado', 'Endosado', 'Anulado', 'Caducado', 'Rechazado', 'Devolución', 'Custodia depositante'];
+const ESTADOS_CON_DEBITO = ['pagado', 'depositado', 'acreditado'];
+
+function actualizarEstadoCheque_(d, u) {
+  const estado = String(d.estado || '').trim();
+  if (ESTADOS_CHEQUE_EDITABLES.indexOf(estado) < 0) return { ok: false, error: 'Estado no válido.' };
+  return conLock_(() => {
+    const H = HEADERS_CHEQUES;
+    const hoja = obtenerHoja_(SHEET_CHEQUES, H);
+    const ult = hoja.getLastRow();
+    const datos = ult > 1 ? hoja.getRange(2, 1, ult - 1, H.length).getDisplayValues() : [];
+    const iEstado = H.indexOf('Estado'), iDeb = H.indexOf('Fecha de Débito'), iId = H.indexOf('ID Planilla'), iTipo = H.indexOf('Tipo');
+    const id = String(d.id || '').trim();
+    const banco = claveTexto(d.banco), numero = String(d.numero || '').trim();
+    let idx = -1;
+    if (id) idx = datos.findIndex(f => String(f[iId]).trim() === id);
+    if (idx < 0 && numero) idx = datos.findIndex(f => String(f[COL_NUMERO_CHEQUE]).trim() === numero && claveTexto(f[COL_BANCO_CHEQUE]) === banco && (!d.tipo || f[iTipo] === d.tipo));
+    if (idx < 0) return { ok: false, error: 'No se encontró el cheque.' };
+    const fila = datos[idx];
+    const antes = { 'Estado': fila[iEstado], 'Fecha de Débito': fila[iDeb] };
+    const fecha = String(d.fechaDebito || '').trim();
+    let debito = fila[iDeb];
+    if (ESTADOS_CON_DEBITO.indexOf(claveTexto(estado)) >= 0) debito = fecha || debito || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
+    else if (fecha) debito = fecha;
+    hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue(estado);
+    hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(debito);
+    registrar_(u, 'Cambio de estado de cheque', (fila[iTipo] || 'Cheque') + ' N° ' + fila[COL_NUMERO_CHEQUE] + ' · ' + (fila[iEstado] || 'sin estado') + ' → ' + estado,
+      fila[iId] || fila[COL_NUMERO_CHEQUE], antes, { 'Estado': estado, 'Fecha de Débito': debito });
+    return { ok: true, estado: estado, fechaDebito: debito };
   });
 }
 
@@ -3226,20 +3268,27 @@ function guardarMovimientosFci_(d, u) {
       const fecha = String(m.fecha || '').trim();
       const p = fecha.split('/');
       const banco = String(m.banco || '').trim();
-      const monto = importeANumero(m.monto);
+      // Con el tipo elegido (Rescate o Suscripción) el signo sale de ahí: rescate en negativo.
+      const tipo = claveTexto(m.tipo || '');
+      let monto = importeANumero(m.monto);
+      if (tipo.indexOf('rescate') === 0) monto = -Math.abs(monto);
+      else if (tipo.indexOf('suscrip') === 0) monto = Math.abs(monto);
       if (p.length !== 3 || p[2].length !== 4) { errores.push('Fila ' + (i + 1) + ': falta la fecha.'); return; }
       if (!banco) { errores.push('Fila ' + (i + 1) + ': falta el banco.'); return; }
       if (!monto) { errores.push('Fila ' + (i + 1) + ': falta el monto.'); return; }
       const moneda = m.moneda === 'USD' ? 'USD' : 'Pesos';
       const fondo = String(m.fondo || '').trim();
       const ref = String(m.ref || '').trim();
-      const base = [p[2] + p[1] + p[0], claveTexto(banco), claveTexto(fondo), moneda, monto.toFixed(2), ref].join('|');
+      const comprobante = String(m.comprobante || '').trim();
+      // El comprobante entra en la clave solo si hay (así los cargados antes siguen siendo los mismos).
+      const base = [p[2] + p[1] + p[0], claveTexto(banco), claveTexto(fondo), moneda, monto.toFixed(2), ref].concat(comprobante ? [comprobante] : []).join('|');
       vistos[base] = (vistos[base] || 0) + 1;
       const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, base + '|' + vistos[base])
         .slice(0, 5).map(b => ('0' + (b & 255).toString(16)).slice(-2)).join('');
       filas.push({
         'ID Planilla': 'FCIM-' + p[2] + p[1] + p[0] + '-' + hash, 'Persona': '', 'Fecha': fecha, 'Banco': banco, 'Fondo': fondo,
-        'Movimiento': monto < 0 ? 'Rescate' : 'Suscripción', 'Solicitud o rendimiento': ref ? 'Mov. N° ' + ref : '',
+        'Movimiento': monto < 0 ? 'Rescate' : 'Suscripción',
+        'Solicitud o rendimiento': [comprobante ? 'Comprobante ' + comprobante : '', ref ? 'Mov. N° ' + ref : ''].filter(Boolean).join(' · '),
         'Moneda': moneda, 'Monto': formatoPesos(monto).replace('$ ', '')
       });
     });
