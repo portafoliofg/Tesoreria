@@ -877,6 +877,7 @@
   .rf-tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .rf-tabla .rf-sub, .rf-tabla td.rf-sub { font-size: 11.5px; color: var(--faint); font-weight: 400; }
   .rf-tabla .pos { color: var(--ok); } .rf-tabla .neg { color: var(--bad); }
+  .rf-tabla .rf-mal { color: var(--bad); font-weight: 600; cursor: help; }
   .rf-periodo { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
   .rf-periodo b { color: var(--text); font-variant-numeric: tabular-nums; } .rf-periodo b.neg { color: var(--bad); }
   .pl-tabla tr.pl-banco-ini td { border-top: 2px solid var(--border); }
@@ -14752,10 +14753,16 @@ function renderRendFciInicio() {
     const tna = !p.dudoso && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
     const celda = (monto, iso) => { const td = el("td", "num"); td.append(el("div", null, fmt(monto)), el("div", "rf-sub", isoADma(iso))); return td; };
     const tdG = el("td", "num" + (p.dudoso ? "" : p.rend < 0 ? " neg" : " pos"));
-    tdG.append(el("div", null, p.dudoso ? "—" : (p.rend > 0 ? "+" : "") + fmt(p.rend)));
     const mov = p.susc + p.resc;
-    if (mov) tdG.append(el("div", "rf-sub", (mov > 0 ? "Susc. " : "Resc. ") + fmt(Math.abs(mov))));
-    else if (p.dudoso) tdG.append(el("div", "rf-sub", "Revisar movimientos"));
+    // Si no cuadra (rendimiento imposible para un FCI), se dice por qué en vez de mostrar un número falso.
+    tdG.append(el("div", p.dudoso ? "rf-mal" : null, p.dudoso ? "No cuadra" : (p.rend > 0 ? "+" : "") + fmt(p.rend)));
+    if (mov) tdG.append(el("div", "rf-sub", (mov > 0 ? "Suscripción " : "Rescate ") + fmt(Math.abs(mov))));
+    if (p.dudoso) {
+      tdG.title = "Saldo al cierre " + fmt(p.ini) + (mov ? (mov > 0 ? " + suscripción " : " − rescate ") + fmt(Math.abs(mov)) : "") +
+        " = esperado " + fmt(p.capital) + ". Actual " + fmt(p.fin) + ": diferencia " + fmt(p.rend) +
+        ". Revisá la fecha y el importe de los rescates o suscripciones de la pestaña FCI, o los saldos cargados.";
+      tdG.append(el("div", "rf-sub", "Revisá movimientos"));
+    }
     tr.append(celda(p.ini, p.desde), celda(p.fin, p.hasta), tdG, el("td", "num", tna === null ? "—" : pctTexto(tna)));
     tbody.append(tr);
     if (!usd) {
