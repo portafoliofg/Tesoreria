@@ -789,7 +789,7 @@
   .seg-op:has(input:checked) { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08), inset 0 0 0 1px var(--border); }
   .cheq-solapas { margin: 0 0 12px; }
   /* Panel compacto de Personalizar */
-  .pers-cab, .pers-fila { display: grid; grid-template-columns: 1fr 44px 92px 58px; align-items: center; gap: 8px; }
+  .pers-cab, .pers-fila { display: grid; grid-template-columns: 1fr 44px 92px; align-items: center; gap: 8px; }
   .pers-cab { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); padding: 0 10px 6px; }
   .pers-cab span:not(:first-child) { text-align: center; }
   .pers-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -875,6 +875,17 @@
   .pl-tabla th + th, .pl-tabla td + td { border-left: 1px solid var(--border); }
   .rf-card .pl-acciones select { width: auto; margin: 0; }
   .rf-kpis { margin: 4px 0 0; }
+  .flch-resumen { margin: 12px 0 10px; }
+  .flch-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .flch-tabla th { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); }
+  .flch-tabla td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .flch-tabla .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .flch-tabla .pos { color: var(--ok); } .flch-tabla .neg { color: var(--bad); }
+  .flch-tabla tr.flch-venc td { background: rgba(var(--accent-rgb), .08); font-weight: 600; }
+  .flch-tabla tr.flch-total td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: 0; }
+  .flch-nota { margin: -4px 0 10px; }
+  .flch-mes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 16px 0 6px; }
+  .flch-mes:first-child { margin-top: 4px; }
   .rf-tabla td { padding: 6px 8px; }
   .rf-tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .rf-tabla .rf-sub, .rf-tabla td.rf-sub { font-size: 11.5px; color: var(--faint); font-weight: 400; }
@@ -1374,11 +1385,11 @@
       </div>
     </div>
     <!-- Tablero: cada bloque es un "widget" que el usuario ordena, agranda u oculta (Personalizar).
-         Las secciones de "Más información" van plegadas: cada ícono abre o cierra la suya (se recuerda en el navegador). -->
+         Todos se ven siempre; los íconos de "Más información" llevan a cada uno. -->
     <div class="ini-editor" id="iniEditor" hidden>
       <div>
         <b>Personalizando Inicio</b>
-        <span>Arrastrá las tarjetas desde <span class="ini-agarre-ej" aria-hidden="true">⠿</span> o usá las flechas. Las secciones plegadas también se muestran mientras personalizás. Se guarda solo, para vos, en cualquier compu o celular.</span>
+        <span>Arrastrá las tarjetas desde <span class="ini-agarre-ej" aria-hidden="true">⠿</span> o usá las flechas. Se guarda solo, para vos, en cualquier compu o celular.</span>
       </div>
       <div class="ini-editor-acc">
         <button id="iniRestablecer" class="secondary small" type="button">Restablecer</button>
@@ -1389,11 +1400,11 @@
       <div class="ini-widget" data-widget="kpis"><div id="kpisInicio" class="kpis"></div></div>
       <div class="ini-widget" data-widget="fondos"><div class="ini-slot" id="inicioFondos"></div></div>
       <div class="ini-widget" data-widget="rendfci"><div class="ini-slot" id="inicioRendFci"></div></div>
+      <div class="ini-widget" data-widget="flujoch" data-seccion="flujoch"><div class="ini-slot" id="iniG-flujoch"></div></div>
       <div class="ini-widget" data-widget="planilla"><div class="ini-slot" id="inicioPlanilla"></div></div>
       <div class="ini-widget" data-widget="accesos"><div>
     <div class="ini-accesos-cab">
       <span>Más información</span>
-      <button type="button" class="link-btn" id="inicioAbrirTodo">Abrir todo</button>
     </div>
     <div class="ini-accesos" id="inicioAccesos">
         <button type="button" class="ini-acceso" data-seccion="saldos" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg></span><span class="acc-txt"><b>Saldos por cuenta</b><span class="acc-dato" data-dato="saldos"></span></span></button>
@@ -1406,6 +1417,7 @@
         <button type="button" class="ini-acceso" data-seccion="mes" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6" rx=".8"/><rect x="10.5" y="7" width="3" height="10" rx=".8"/><rect x="15.5" y="13" width="3" height="4" rx=".8"/></svg></span><span class="acc-txt"><b>Mes a mes</b><span class="acc-dato" data-dato="mes"></span></span></button>
         <button type="button" class="ini-acceso" data-seccion="negativos" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 21 19H3z"/><path d="M12 10v4"/><path d="M12 16.8v.2"/></svg></span><span class="acc-txt"><b>Cuentas en negativo</b></span></button>
         <button type="button" class="ini-acceso" data-seccion="tasas" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 19 5"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></span><span class="acc-txt"><b>Deuda contra inversión</b></span></button>
+        <button type="button" class="ini-acceso" data-seccion="flujoch"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16"/><path d="M7 12V6M11 12V8M15 12v6M19 12v4"/></svg></span><span class="acc-txt"><b>Flujo de cheques</b><span class="acc-dato" data-dato="flujoch"></span></span></button>
         <button type="button" class="ini-acceso" data-seccion="cartera" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M6.5 14h5"/><path d="M15 10.5h3"/></svg></span><span class="acc-txt"><b>Cartera de cheques</b></span></button>
         <button type="button" class="ini-acceso" data-seccion="bancos" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10 12 5l8 5"/><path d="M6 11v6M10 11v6M14 11v6M18 11v6"/><path d="M4 19.5h16"/></svg></span><span class="acc-txt"><b>Gastos bancarios</b></span></button>
         <button type="button" class="ini-acceso" data-seccion="rubros" aria-expanded="false"><span class="acc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h6"/><circle cx="18" cy="16" r="3"/></svg></span><span class="acc-txt"><b>Gastos por rubro</b></span></button>
@@ -2424,7 +2436,7 @@
       <button class="modal__close" data-cerrar="modalPersonalizar" type="button" aria-label="Cerrar">&times;</button>
     </div>
     <div class="modal__body">
-      <div class="pers-cab"><span>Tarjeta</span><span>Ver</span><span>Tamaño</span><span>Abierta</span></div>
+      <div class="pers-cab"><span>Tarjeta</span><span>Ver</span><span>Tamaño</span></div>
       <ul class="pers-lista" id="persLista"></ul>
     </div>
     <div class="modal__foot">
@@ -7570,7 +7582,7 @@ function limpiarDatosEnPantalla() {
     "kpisTransferencias", "kpisCheques", "kpisCuentas", "kpisAlertas", "concResultado", "concGuardadas", "kpisConciliacion", "flujoBox", "kpisFlujo", "areaImpresion"].forEach(id => { if ($(id)) $(id).replaceChildren(); });
   document.querySelectorAll(".modal-overlay.is-open").forEach(m => m.classList.remove("is-open"));
   cerrarDetalle();
-  ["kpisInicio", "inicioFondos", "inicioRendFci", "inicioPlanilla", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-mes", "iniG-negativos", "iniG-tasas", "iniG-cartera", "iniG-bancos", "iniG-rubros", "iniG-dolares", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
+  ["kpisInicio", "inicioFondos", "inicioRendFci", "inicioPlanilla", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-mes", "iniG-negativos", "iniG-tasas", "iniG-cartera", "iniG-flujoch", "iniG-bancos", "iniG-rubros", "iniG-dolares", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
   preferencias = {};
   editarInicio(false);
   flujoInicio = null;
@@ -10907,6 +10919,7 @@ const WIDGETS_INICIO = [
   { id: "kpis", titulo: "Indicadores", tam: "ancho" },
   { id: "fondos", titulo: "Total de fondos", tam: "ancho" },
   { id: "rendfci", titulo: "Rendimiento del FCI", tam: "mitad" },
+  { id: "flujoch", titulo: "Flujo de cheques", tam: "ancho" },
   { id: "planilla", titulo: "Saldos", tam: "ancho" },
   { id: "accesos", titulo: "Más información (íconos)", tam: "ancho" },
   { id: "saldos", titulo: "Saldos por cuenta", tam: "mitad" },
@@ -11037,7 +11050,7 @@ function barraWidget(w, def) {
     guardarDisenoInicio();
     aplicarDisenoInicio();
   });
-  barra.append(agarre, el("span", "ini-w-tit", def.titulo + (oculto ? " · oculta" : w.hidden ? " · plegada (se abre con su ícono)" : "")), arriba, abajo, tam, ver);
+  barra.append(agarre, el("span", "ini-w-tit", def.titulo + (oculto ? " · oculta" : "")), arriba, abajo, tam, ver);
   w.prepend(barra);
 }
 
@@ -11086,8 +11099,6 @@ function renderPanelPersonalizar() {
   ordenInicio().forEach((id, i, orden) => {
     const def = WIDGETS_INICIO.find(x => x.id === id);
     if (!def) return;
-    const w = widgetInicio(id);
-    const plegable = !!(w && w.dataset.seccion);
     const li = el("li", "pers-fila");
     li.dataset.id = id;
     li.draggable = true;
@@ -11134,21 +11145,9 @@ function renderPanelPersonalizar() {
       guardarPreferencias();
       aplicarDisenoInicio();
     });
-    const abierta = el("input");
-    abierta.type = "checkbox";
-    abierta.disabled = !plegable;
-    abierta.title = plegable ? "Abierta al entrar a Inicio (si no, se abre con su ícono)" : "Siempre a la vista";
-    abierta.checked = !plegable || seccionesInicio.indexOf(w.dataset.seccion) >= 0;
-    abierta.setAttribute("aria-label", "Abierta: " + def.titulo);
-    abierta.addEventListener("change", () => {
-      const k = w.dataset.seccion;
-      seccionesInicio = seccionesInicio.filter(x => x !== k);
-      if (abierta.checked) seccionesInicio.push(k);
-      guardarSeccionesInicio();
-    });
     const izq = el("span", "pers-izq");
     izq.append(agarre, tit, flechas);
-    li.append(izq, ver, tam, abierta);
+    li.append(izq, ver, tam);
     ul.append(li);
   });
 }
@@ -17427,40 +17426,27 @@ function graficoIngresosEgresos(t) {
   tablaViz(t.tabla, ["Mes", "Ingresos", "Egresos", "Resultado"], cats.map(c => [mesLargo(c.mes), fmtImp(c.ing), fmtImp(c.egr), fmtImp(c.neto)]));
 }
 
-// ---------------- Inicio: secciones plegables ----------------
-// Arriba siempre: resumen, total de fondos y planilla de saldos y FCI. El resto
-// (tarjetas y gráficos) se abre con su ícono; lo abierto se recuerda en el navegador.
-let seccionesInicio = [];
-try { seccionesInicio = JSON.parse(localStorage.getItem("lc-inicio-abiertas") || "[]") || []; } catch (e) {}
-
+// ---------------- Inicio: accesos de "Más información" ----------------
+// Todas las tarjetas se ven siempre (antes iban plegadas detrás de su ícono). Cada ícono lleva a
+// su tarjeta; si el usuario la había ocultado en Personalizar, la vuelve a mostrar.
 function aplicarSeccionesInicio() {
-  document.querySelectorAll("#vista-inicio [data-seccion]").forEach(n => {
-    const abierta = seccionesInicio.indexOf(n.dataset.seccion) >= 0;
-    if (n.classList.contains("ini-acceso")) n.setAttribute("aria-expanded", abierta ? "true" : "false");
-    else n.hidden = !abierta;
+  document.querySelectorAll("#vista-inicio .ini-widget[data-seccion]").forEach(n => { n.hidden = false; });
+}
+
+document.querySelectorAll("#inicioAccesos .ini-acceso").forEach(b => {
+  b.removeAttribute("aria-expanded");
+  b.addEventListener("click", () => {
+    const k = b.dataset.seccion;
+    const q = prefInicio();
+    if (q.ocultos.indexOf(k) >= 0) {
+      q.ocultos = q.ocultos.filter(x => x !== k);
+      preferencias.inicio = q;
+      guardarPreferencias();
+      aplicarDisenoInicio();
+    }
+    const destino = widgetInicio(k);
+    if (destino) destino.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   });
-  const todas = document.querySelectorAll("#inicioAccesos .ini-acceso").length;
-  $("inicioAbrirTodo").textContent = seccionesInicio.length >= todas ? "Cerrar todo" : "Abrir todo";
-}
-
-function guardarSeccionesInicio() {
-  try { localStorage.setItem("lc-inicio-abiertas", JSON.stringify(seccionesInicio)); } catch (e) {}
-  aplicarSeccionesInicio();
-}
-
-document.querySelectorAll("#inicioAccesos .ini-acceso").forEach(b => b.addEventListener("click", () => {
-  const k = b.dataset.seccion;
-  const i = seccionesInicio.indexOf(k);
-  if (i >= 0) { seccionesInicio.splice(i, 1); guardarSeccionesInicio(); return; }
-  seccionesInicio.push(k);
-  guardarSeccionesInicio();
-  const destino = document.querySelector('#vista-inicio [data-seccion="' + k + '"]:not(.ini-acceso)');
-  if (destino) destino.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}));
-$("inicioAbrirTodo").addEventListener("click", () => {
-  const todas = Array.from(document.querySelectorAll("#inicioAccesos .ini-acceso")).map(b => b.dataset.seccion);
-  seccionesInicio = seccionesInicio.length >= todas.length ? [] : todas;
-  guardarSeccionesInicio();
 });
 aplicarSeccionesInicio();
 
@@ -17866,6 +17852,8 @@ function renderGraficosInicio(saldoHoy) {
   $("iniG-bancos").replaceChildren(t8.card);
   $("iniG-rubros").replaceChildren(t9.card);
   $("iniG-dolares").replaceChildren(t10.card);
+  const t11 = tarjetaViz("Flujo de cheques", "A favor (de terceros por cobrar) y en contra (emitidos por debitar), este mes y los próximos 6.", "flujoch");
+  $("iniG-flujoch").replaceChildren(t11.card);
   aplicarSeccionesInicio();
   const seguro = (t, fn) => { try { fn(); } catch (err) { datoViz(t, ["No se pudo armar el gráfico: " + msgErr(err)], true); vacioViz(t, "No se pudo armar el gráfico."); } };
   seguro(t1, () => graficoSemanaCorta(t1, saldoHoy));
@@ -17878,6 +17866,110 @@ function renderGraficosInicio(saldoHoy) {
   seguro(t8, () => graficoGastosBancarios(t8));
   seguro(t9, () => graficoRubros(t9));
   seguro(t10, () => graficoDolares(t10));
+  seguro(t11, () => graficoFlujoCheques(t11));
+}
+
+// ----- Flujo de cheques (Inicio) -----
+// Cheques abiertos en pesos por mes de pago: a favor (de terceros en cartera o en custodia, por
+// cobrar) y en contra (emitidos pendientes de débito). Los vencidos que siguen abiertos van en una
+// fila aparte. Resumen siempre a la vista; "Ver detalle" abre el gráfico y cada cheque, mes por mes.
+const MESES_FLUJO_CHEQUES = 6;
+
+function graficoFlujoCheques(t) {
+  const hoy = hoyIso();
+  const mes0 = hoy.substring(0, 7) + "-01";
+  const meses = [];
+  for (let i = 0; i <= MESES_FLUJO_CHEQUES; i++) meses.push(sumarMesesIso(mes0, i));
+  const hasta = sumarMesesIso(mes0, MESES_FLUJO_CHEQUES + 1);
+  const abiertos = chequesDatos.filter(c => chequeAbierto(c));
+  const usd = abiertos.filter(c => monedaCheque(c) === "USD").length;
+  const enPesos = abiertos.filter(c => monedaCheque(c) !== "USD").map(c => ({ c: c, iso: fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]), imp: importeCheque(c) }))
+    .filter(x => x.iso && x.imp);
+  const fuera = enPesos.filter(x => x.iso >= hasta).length;
+  const grupo = (titulo, corto, lista, mes) => {
+    const fav = lista.filter(x => x.imp > 0).reduce((a, x) => a + x.imp, 0);
+    const con = lista.filter(x => x.imp < 0).reduce((a, x) => a + x.imp, 0);
+    return { titulo: titulo, corto: corto, mes: mes, lista: lista.sort((a, b) => a.iso.localeCompare(b.iso)), fav: fav, con: con, neto: fav + con,
+      nFav: lista.filter(x => x.imp > 0).length, nCon: lista.filter(x => x.imp < 0).length, datos: { fav: [fav, 0], con: [0, con] } };
+  };
+  // Vencidos: fecha de pago anterior a hoy y todavía abiertos (sin cobrar o sin debitar).
+  const vencidos = grupo("Vencidos sin cobrar ni debitar", "Venc.", enPesos.filter(x => x.iso < hoy), null);
+  const cats = meses.map((m, i) => grupo(mesLargo(m), mesCorto(m, i === 0 || m.substring(5, 7) === "01"),
+    enPesos.filter(x => x.iso >= hoy && x.iso.substring(0, 7) === m.substring(0, 7)), m));
+  const filas = (vencidos.lista.length ? [vencidos] : []).concat(cats);
+  let acum = 0;
+  filas.forEach(f => { acum += f.neto; f.acum = acum; });
+  const tFav = filas.reduce((a, f) => a + f.fav, 0), tCon = filas.reduce((a, f) => a + f.con, 0);
+  datoAcceso("flujoch", filas.some(f => f.lista.length) ? "Neto " + montoCorto(tFav + tCon) : "", tFav + tCon < 0);
+  if (!filas.some(f => f.lista.length)) {
+    datoViz(t, ["No hay cheques abiertos en pesos con pago hasta " + mesLargo(meses[meses.length - 1]).toLowerCase() + "."]);
+    vacioViz(t, "Sin cheques para mostrar.");
+    return;
+  }
+  const peor = cats.filter(c => c.lista.length).sort((a, b) => a.neto - b.neto)[0];
+  datoViz(t, ["Hasta " + mesLargo(meses[meses.length - 1]).toLowerCase() + ": a favor ", el("b", null, fmtImp(tFav)), ", en contra ", el("b", null, fmtImp(tCon)),
+    ". Neto ", el("b", null, fmtImp(tFav + tCon)), "." + (vencidos.lista.length ? " Hay " + vencidos.lista.length + " cheque(s) vencido(s) todavía abiertos." : "")], tFav + tCon < 0);
+  resumenViz(t, [
+    { label: "A favor", valor: montoCorto(tFav), sub: filas.reduce((a, f) => a + f.nFav, 0) + " cheque(s) de terceros", tono: "var(--vz-pos)" },
+    { label: "En contra", valor: montoCorto(tCon), sub: filas.reduce((a, f) => a + f.nCon, 0) + " cheque(s) emitidos", tono: "var(--vz-neg)", neg: true },
+    { label: "Neto", valor: montoCorto(tFav + tCon), sub: "Vencidos + " + (MESES_FLUJO_CHEQUES + 1) + " meses", neg: tFav + tCon < 0 },
+    { label: "Mes más ajustado", valor: peor ? montoCorto(peor.neto) : "—", sub: peor ? peor.titulo : "", neg: !!peor && peor.neto < 0 }
+  ]);
+
+  // Resumen mes a mes, siempre a la vista.
+  const tabla = el("table", "flch-tabla");
+  const th = el("tr");
+  ["Mes", "A favor", "En contra", "Neto", "Acumulado"].forEach((h, i) => th.append(el("th", i ? "num" : "", h)));
+  tabla.append(th);
+  filas.forEach(f => {
+    const tr = el("tr", f.mes ? "" : "flch-venc");
+    tr.append(el("td", null, f.titulo), el("td", "num pos", f.fav ? fmtImp(f.fav) : "—"), el("td", "num neg", f.con ? fmtImp(f.con) : "—"),
+      el("td", "num " + (f.neto < 0 ? "neg" : f.neto > 0 ? "pos" : ""), f.lista.length ? fmtImp(f.neto) : "—"), el("td", "num" + (f.acum < 0 ? " neg" : ""), fmtImp(f.acum)));
+    tabla.append(tr);
+  });
+  const tf = el("tr", "flch-total");
+  tf.append(el("td", null, "Total"), el("td", "num pos", fmtImp(tFav)), el("td", "num neg", fmtImp(tCon)), el("td", "num " + (tFav + tCon < 0 ? "neg" : "pos"), fmtImp(tFav + tCon)), el("td"));
+  tabla.append(tf);
+  const resumenMeses = envolverTabla(tabla);
+  resumenMeses.classList.add("flch-resumen");
+  t.card.insertBefore(resumenMeses, t.btnDetalle);
+  const notas = [];
+  if (fuera) notas.push(fuera + " cheque(s) con pago después de " + mesLargo(meses[meses.length - 1]).toLowerCase() + " no entran en el cuadro.");
+  if (usd) notas.push(usd + " cheque(s) en dólares no se suman (el cuadro es en pesos).");
+  if (notas.length) t.card.insertBefore(el("p", "dt-sub flch-nota", notas.join(" ")), t.btnDetalle);
+
+  // Detalle: gráfico y cada cheque, mes por mes.
+  const SERIES = [{ k: "fav", label: "A favor", color: "var(--vz-pos)" }, { k: "con", label: "En contra", color: "var(--vz-neg)" }];
+  leyendaViz(t.leyenda, SERIES.concat([{ label: "Neto del mes", color: "var(--text)", punto: true }]));
+  dibujarCombo(t, {
+    aria: "Cheques a favor y en contra por mes",
+    cats: filas,
+    barras: SERIES,
+    neto: true,
+    tooltip: i => {
+      const f = filas[i];
+      return { titulo: f.titulo, filas: [
+        { color: "var(--vz-pos)", valor: fmtImp(f.fav), label: "A favor (" + f.nFav + ")" },
+        { color: "var(--vz-neg)", valor: fmtImp(f.con), label: "En contra (" + f.nCon + ")" },
+        { total: true, valor: fmtImp(f.neto), label: "Neto" }
+      ], nota: "Acumulado: " + fmtImp(f.acum) };
+    }
+  });
+  t.ayuda.textContent = "Solo cheques abiertos en pesos: de terceros en cartera o en custodia (a favor) y emitidos pendientes (en contra), por fecha de pago.";
+  t.detalle.replaceChildren();
+  filas.filter(f => f.lista.length).forEach(f => {
+    const cab = el("div", "flch-mes");
+    cab.append(el("b", null, f.titulo), el("span", "dt-sub", f.lista.length + " cheque(s) · a favor " + fmtImp(f.fav) + " · en contra " + fmtImp(f.con) + " · neto " + fmtImp(f.neto)));
+    t.detalle.append(cab);
+    t.detalle.append(tablaDetalle(["Fecha de pago", "", "N°", "Titular", "Banco", "Estado", "Importe"], f.lista.map(x => {
+      const pill = el("span", "pill " + (x.imp > 0 ? "pill-ing" : "pill-egr"), x.imp > 0 ? "A favor" : "En contra");
+      const est = estadoCheque(x.c);
+      const imp = el("span", x.imp < 0 ? "neg" : "pos", fmtImp(x.imp));
+      return [isoADma(x.iso), pill, x.c["N° de Cheque"] || "—", x.c["Titular"] || "—", x.c["Banco"] || (x.imp > 0 ? "De terceros" : "—"), est.texto, imp];
+    }), [6]));
+  });
+  t.btnTabla.hidden = false;
+  tablaViz(t.tabla, ["Mes", "A favor", "En contra", "Neto", "Acumulado"], filas.map(f => [f.titulo, fmtImp(f.fav), fmtImp(f.con), fmtImp(f.neto), fmtImp(f.acum)]));
 }
 
 // ---------------- Panel lateral ----------------
