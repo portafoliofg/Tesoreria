@@ -876,6 +876,8 @@
   .rf-card .pl-acciones select { width: auto; margin: 0; }
   .rf-kpis { margin: 4px 0 0; }
   .flch-resumen { margin: 12px 0 10px; }
+  .imp-sec-prev { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+  .imp-sec-prev .imp-nuevas { color: var(--primary); }
   /* Pagos mensuales y Tarjetas: grilla concepto × mes, como la planilla */
   .nav-item.nav-sub { padding-left: 22px; }
   table.pm-tabla { font-size: 12.5px; }
@@ -13564,9 +13566,17 @@ function renderRevisionPlanilla() {
     tit.append(el("b", null, s.titulo), el("span", "imp-sec-dest", "→ " + s.dest));
     txt.append(tit, el("div", "dt-sub", s.n ? s.det : "No hay datos para esta parte en el archivo."));
     if (s.hoja) txt.append(el("div", "imp-sec-hoja", "Pestañas: " + s.hoja));
-    fila.append(chk, txt, el("span", "imp-sec-n", s.id === "saldos" ? "" : formatEntero(s.n)));
+    const n = el("span", "imp-sec-n", s.id === "saldos" ? "" : formatEntero(s.n));
+    if (s.id !== "saldos") { n.title = "Filas leídas del Excel (no todas son nuevas: ver abajo cuántas ya están en la app)"; }
+    fila.append(chk, txt, n);
+    if (s.id !== "saldos" && s.id !== "cuentas" && s.n) {
+      const prev = el("div", "imp-sec-prev", "Comparando con lo que ya está en la app…");
+      prev.dataset.prev = s.id;
+      txt.append(prev);
+    }
     box.append(fila);
   });
+  previaImportacionPlanilla();
   const notas = [];
   if (p.hojas.omitidas.length) {
     const motivo = n => {
@@ -13582,6 +13592,28 @@ function renderRevisionPlanilla() {
   $("impNotas").replaceChildren();
   notas.forEach(n => $("impNotas").append(el("p", "hint", n)));
   renderEtiquetasPlanilla();
+}
+
+// Antes de importar: de las filas leídas, cuántas ya están en la app (mismo ID Planilla: se
+// actualizan solo si cambiaron) y cuántas son nuevas. Las nuevas pueden coincidir igual con algo
+// cargado a mano o desde un comprobante: en ese caso se completa ese registro, no se duplica.
+async function previaImportacionPlanilla() {
+  const p = planillaFlujo;
+  try { await Promise.all([asegurarTransferencias(), asegurarCheques(), asegurarCompromisos(), asegurarInversiones()]); } catch (e) {}
+  if (p !== planillaFlujo) return;
+  const ids = lista => { const o = {}; lista.forEach(f => { const id = String(f["ID Planilla"] || "").trim(); if (id) o[id] = true; }); return o; };
+  const enApp = { movimientos: ids(transferenciasDatos), cheques: ids(chequesDatos), compromisos: ids(compromisosDatos), inversiones: Object.assign(ids(fciDatos), ids(bolsaDatos)) };
+  const filas = {
+    movimientos: p.movimientos.map(r => r.fila), cheques: p.cheques.map(r => r.fila), compromisos: p.compromisos, inversiones: p.fci.concat(p.bolsa)
+  };
+  Object.keys(filas).forEach(k => {
+    const nodo = document.querySelector('#impSecciones [data-prev="' + k + '"]');
+    if (!nodo) return;
+    const ya = filas[k].filter(f => enApp[k][String(f["ID Planilla"] || "").trim()]).length;
+    const nuevas = filas[k].length - ya;
+    nodo.replaceChildren(el("b", null, formatEntero(ya)), document.createTextNode(" ya están en la app (se actualizan solo si cambiaron) · "),
+      el("b", nuevas ? "imp-nuevas" : null, formatEntero(nuevas)), document.createTextNode(" nueva(s)" + (nuevas ? ": si alguna ya la cargaste a mano o desde un comprobante, se completa esa en vez de duplicarla" : "")));
+  });
 }
 
 function opcionesCuentasPlanilla(e) {
