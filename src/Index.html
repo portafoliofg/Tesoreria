@@ -2952,6 +2952,7 @@ function leerTextoArchivo(file) {
 }
 
 // opciones.columnas: armar las filas de una tabla por columnas (listados de cheques, ver textoConColumnas).
+// opciones.listadoEcheqs: usar las columnas solo si la imagen es un listado de e-cheqs (carga con otro tipo elegido).
 async function ocrFromFile(file, workerElegido, opciones) {
   // Texto pegado o archivo .txt: no hace falta OCR.
   if (esTextoPlano(file)) return (await leerTextoArchivo(file)).split("\t").join("  ").split("\r").join("");
@@ -2962,7 +2963,8 @@ async function ocrFromFile(file, workerElegido, opciones) {
   let text = "";
   for (const c of canvases) {
     const { data } = await worker.recognize(preprocess(c));
-    text += ((opciones && opciones.columnas && textoConColumnas(data)) || data.text) + "\n";
+    const tabla = opciones && (opciones.columnas || opciones.listadoEcheqs) ? textoConColumnas(data) : null;
+    text += ((tabla && (opciones.columnas || tipoListadoEcheqs(tabla)) && tabla) || data.text) + "\n";
   }
   return text;
 }
@@ -3279,6 +3281,17 @@ function parseTablaEcheqs(lineas, tipoCheque) {
     });
   });
   return filas.length ? { structured: true, formatoCheque: "E-cheq", tipoCheque: filas[0].tipoCheque, parsed: filas[0].parsed, lista: filas } : null;
+}
+
+// Si el texto es un listado de e-cheqs por columnas (título con "Echeq" o "Cheque"), el tipo de
+// cheque que corresponde ("Cheque emitido" o "Cheque de terceros"); si no, "".
+function tipoListadoEcheqs(texto) {
+  const lineas = String(texto || "").split("\n").map(l => l.trim()).filter(Boolean);
+  const cab = lineas.find(l => l.indexOf(" | ") >= 0 && /IMPORTE|MONTO/.test(normalizar(l)) && normalizar(l).indexOf("FECHA") >= 0);
+  if (!cab || !contieneAlguna(normalizar(cab), ["ECHEQ", "CHEQUE"])) return "";
+  const tabla = parseTablaEcheqs(lineas, "Emitido");
+  if (!tabla) return "";
+  return tabla.tipoCheque === "De terceros" ? "Cheque de terceros" : "Cheque emitido";
 }
 
 function parseListadoEcheqs(lineas, tipoCheque) {
@@ -4725,7 +4738,8 @@ function panelComprobante(r, idx) {
 
 // Cheque leído (comprobante o listado de e-cheqs): los datos en una grilla para revisar. El estado
 // viene del listado del banco (o el de un cheque nuevo) y se puede cambiar. Sin concepto.
-const CAMPOS_CHEQUE_LEIDO = [["N° de Cheque", "N° de cheque"], ["Titular", null], ["CUIT", "CUIT"], ["Importe", "Importe"], ["Fecha de Emisión", "Fecha de emisión"], ["Fecha de Pago", "Fecha de pago"]];
+// Solo N°, destinatario (o librador), estado, monto y fechas.
+const CAMPOS_CHEQUE_LEIDO = [["N° de Cheque", "N° de cheque"], ["Titular", null], ["Estado", "Estado"], ["Importe", "Monto"], ["Fecha de Emisión", "Fecha de emisión"], ["Fecha de Pago", "Fecha de pago"]];
 
 function formChequeLeido(r) {
   const grid = el("div", "cheque-form");
@@ -4736,6 +4750,14 @@ function formChequeLeido(r) {
   };
   CAMPOS_CHEQUE_LEIDO.forEach(c => {
     const x = fila(c[0]);
+    if (c[0] === "Estado") {
+      const sel = selectEstado(r.tipoCheque, x.Valor);
+      x.Valor = sel.value;
+      sel.disabled = r.sent;
+      sel.addEventListener("change", () => { x.Valor = sel.value; });
+      grid.append(campoForm(c[1], sel, "cf-estado"));
+      return;
+    }
     const input = el("input");
     input.type = "text";
     input.value = x.Valor || "";
@@ -4745,12 +4767,6 @@ function formChequeLeido(r) {
     const titulo = c[1] || (r.tipoCheque === "Emitido" ? "Destinatario" : "Librador");
     grid.append(campoForm(titulo, input, c[0] === "Importe" ? "cf-importe" : null));
   });
-  const xe = fila("Estado");
-  const sel = selectEstado(r.tipoCheque, xe.Valor);
-  xe.Valor = sel.value;
-  sel.disabled = r.sent;
-  sel.addEventListener("change", () => { xe.Valor = sel.value; });
-  grid.append(campoForm("Estado", sel, "cf-estado"));
   return grid;
 }
 
@@ -5076,9 +5092,13 @@ async function procesarArchivoCarga(f, o) {
         }
       }
       if (!listo) {
-        r.text = await ocrFromFile(f, await workerOcrNumero(o.worker || 0), { columnas: String(o.tipo || "").indexOf("Cheque") === 0 });
+        // Con "Transferencia" (el tipo de siempre) también se reconoce la captura del listado de
+        // e-cheqs: se carga como cheques sin tener que cambiar el tipo antes.
+        const detectar = o.tipo === "Transferencia";
+        r.text = await ocrFromFile(f, await workerOcrNumero(o.worker || 0), { columnas: String(o.tipo || "").indexOf("Cheque") === 0, listadoEcheqs: detectar });
         r.bancoDetectado = detectarBanco(r.text);
-        Object.assign(r, clasificarYParsear(r.text, o.banco, o.tipo));
+        if (detectar) r.tipo = tipoListadoEcheqs(r.text) || r.tipo;
+        Object.assign(r, clasificarYParsear(r.text, o.banco, r.tipo));
       }
       asignarCuenta(r, o.cuentaElegida);
     }
