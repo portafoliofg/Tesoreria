@@ -816,6 +816,29 @@
       lp.title = "Abre la planilla de Google de Propiedades (liquidaciones, contratos, ubicaciones y valores; aparte de la de Tesorería)";
       herr.append(lp);
     }
+    // Estimación por zona: las unidades de lugares con precio de m² conocido que no tienen valores.
+    var aEstimar = conValores && PropValores.zonas ? todas.filter(function (u) {
+      var l = lugarDe(d, u);
+      return PropValores.zonas().indexOf(l) >= 0 && (!filtro.lugar || filtro.lugar === l) && PropValores.faltanValores(u);
+    }) : [];
+    if (aEstimar.length) {
+      var be = el("button", "boton secundario chico", "Estimar valores por zona");
+      be.type = "button";
+      be.title = "Completa valor real, compra y venta estimada con el precio del m² de la zona (aproximado, no es una tasación)";
+      be.addEventListener("click", function () {
+        var zonas = aEstimar.map(function (u) { return lugarDe(d, u); }).filter(function (l, i, a) { return a.indexOf(l) === i; }).join(", ");
+        if (!confirm("Se van a completar con valores ESTIMADOS (precio del m² en " + zonas + ", aproximado) las " + aEstimar.length + " unidad(es) que no tienen valor real, compra o venta estimada. Los valores ya cargados no se tocan. ¿Seguir?")) return;
+        be.disabled = true; be.textContent = "Estimando…";
+        PropValores.estimar(actual.edificio, aEstimar.map(function (u) {
+          return { unidad: u.unidad, clave: u.clave || u.unidad, lugar: lugarDe(d, u), alquiler: alquilerDe(u).monto || null };
+        })).then(repintarPestana).catch(function (err) {
+          if (err && err.sesion === false) { irAlIngreso(); return; }
+          alert("No se pudieron estimar los valores: " + ((err && err.message) || err));
+          be.disabled = false; be.textContent = "Estimar valores por zona";
+        });
+      });
+      herr.append(be);
+    }
     p.append(herr);
     var cols = ed ? COLS : COLS.filter(function (c) { return hay(d.unidades, c[0]); });
     // Encabezado (y totales) fijos: la tabla se desplaza dentro de su caja.

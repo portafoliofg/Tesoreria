@@ -16,6 +16,7 @@
  *   adm: administración del mes y arreglosMes: promedio mensual de arreglos (los descuenta la liquidación).
  * PropValores.parametros() / guardarParametros(edificio, {costosVenta, tasaAlternativa}) → para Rentabilidad
  * PropValores.url() → enlace a la planilla de valores
+ * PropValores.zonas() / estimar(edificio, lista) / faltanValores(u) → estimación por zona (botón de Unidades)
  *
  * Rendimiento neto: (alquiler − administración − arreglos − gastos mensuales del dueño) × 12 / compra.
  */
@@ -56,6 +57,7 @@
       estado.parametros = r.parametros || null;
       estado.unidadesMapa = r.unidadesMapa || [];
       if (r.destinos && r.destinos.length) DESTINOS = r.destinos;
+      estado.zonas = r.zonas || [];
       estado.listo = true;
     }).catch(function (err) {
       if (err && err.sesion === false) throw err;
@@ -226,6 +228,27 @@
     iDorm.focus();
   }
 
+  /**
+   * Estimación por zona (PropiedadesValores.gs): completa los valores que faltan en las unidades
+   * de un lugar con precio de m² conocido. lista: [{unidad, clave, lugar, alquiler}]
+   */
+  function estimar(edificio, lista) {
+    return BGPSesion.pedir("estimarValoresPropiedades", { edificio: edificio, unidades: lista }).then(function (r) {
+      if (estado.edificio === edificio) {
+        (r.valores || []).forEach(function (v) {
+          var k = clave(v.clave);
+          estado.valores = estado.valores.filter(function (x) { return clave(x.clave) !== k; });
+          estado.valores.push(v);
+        });
+      }
+      return r;
+    });
+  }
+  function faltanValores(u) {
+    var v = de(u);
+    return !v || typeof v.valorReal !== "number" || typeof v.precioCompra !== "number" || typeof v.ventaEstimada !== "number";
+  }
+
   function botonInfo(u, ctx) {
     var b = el("button", "info", "i");
     b.type = "button";
@@ -241,6 +264,9 @@
     // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
     unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },
     guardarParametros: guardarParametros,
+    // Estimación por zona: lugares con precio de m² y completar los que faltan.
+    zonas: function () { return estado.listo ? (estado.zonas || []) : []; },
+    estimar: estimar, faltanValores: faltanValores,
     listo: function () { return estado.listo; },
     url: function () { return estado.url; }, error: function () { return estado.error; }
   };
