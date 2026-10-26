@@ -259,6 +259,7 @@ const ACCIONES = {
   aplicarActualizacionContrato: (d, u) => aplicarActualizacionContrato_(d, u),
   eliminarContrato: (d, u) => eliminarContrato_(d, u),
   tableroF1: (d, u) => tableroF1_(d, u),
+  cotizacionesDolar: cotizacionesDolar_,
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
 };
@@ -2095,6 +2096,7 @@ function revisarAlertas() {
     // Contratos que vencen o tienen que actualizarse (Contratos.gs), a partir de las 9.
     if (ahora.hora >= 9) {
       try { if (typeof enviarAvisosContratos_ === 'function') enviarAvisosContratos_(usuarios); } catch (e) { console.error('Avisos de contratos: ' + e.message); }
+      try { avisarDescubiertos_(usuarios, ahora.hoy); } catch (e) { console.error('Aviso de descubiertos: ' + e.message); }
     }
   } finally {
     lock.releaseLock();
@@ -2136,22 +2138,93 @@ function formatoPesos(n) {
 }
 
 /** Cheques cuya fecha de pago cae entre hoy y hoy + dias. '' si no hay. */
+/** Cheques todavía abiertos (pendientes o en cartera) que vencen en los próximos días: a pagar y a cobrar por separado. */
 function resumenCheques_(hoy, dias) {
   const limite = sumarDias(hoy, dias);
   const lista = leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES).map(c => {
     const p = String(c['Fecha de Pago'] || '').split('/');
     const iso = p.length === 3 ? p[2] + '-' + ('0' + p[1]).slice(-2) + '-' + ('0' + p[0]).slice(-2) : '';
     return { c: c, iso: iso };
-  }).filter(x => x.iso && x.iso >= hoy && x.iso <= limite)
+  }).filter(x => x.iso && x.iso >= hoy && x.iso <= limite && !x.c['Conciliación'] && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(x.c['Estado'])) >= 0)
     .sort((a, b) => a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0);
   if (!lista.length) return '';
-  let total = 0;
-  lista.forEach(x => { total += importeANumero(x.c['Importe']); });
-  const lineas = lista.slice(0, 15).map(x => '• ' + isoAMostrar(x.iso).substring(0, 5) + ' · ' + (x.c['Tipo'] || 'Cheque') +
-    ' N° ' + x.c['N° de Cheque'] + ' · ' + (x.c['Titular'] || 's/titular') + ' · ' + formatoPesos(importeANumero(x.c['Importe'])));
-  let t = '*Tesorería · Cheques a vencer*\nPróximos ' + dias + ' días: ' + lista.length + ' cheque(s) por ' + formatoPesos(total) + '\n' + lineas.join('\n');
+  // Totales por moneda: los cheques en dólares no se suman con los de pesos.
+  const tot = { pagar: { Pesos: 0, USD: 0 }, cobrar: { Pesos: 0, USD: 0 } };
+  const monedaDe = c => c['Moneda'] === 'USD' ? 'USD' : 'Pesos';
+  const importe = c => (monedaDe(c) === 'USD' ? 'U$S ' + formatoPesos(Math.abs(importeANumero(c['Importe']))).replace('$ ', '') : formatoPesos(Math.abs(importeANumero(c['Importe']))));
+  lista.forEach(x => { tot[x.c['Tipo'] === 'Emitido' ? 'pagar' : 'cobrar'][monedaDe(x.c)] += Math.abs(importeANumero(x.c['Importe'])); });
+  const totTexto = (rot, k) => (tot[k].Pesos ? '\n' + rot + ': ' + formatoPesos(tot[k].Pesos) : '') + (tot[k].USD ? '\n' + rot + ' en dólares: U$S ' + formatoPesos(tot[k].USD).replace('$ ', '') : '');
+  const lineas = lista.slice(0, 15).map(x => '• ' + isoAMostrar(x.iso).substring(0, 5) + ' · ' + (x.c['Tipo'] === 'Emitido' ? 'A pagar' : 'A cobrar') +
+    ' N° ' + x.c['N° de Cheque'] + ' · ' + (x.c['Titular'] || 's/titular') + ' · ' + importe(x.c));
+  let t = '*Tesorería · Cheques a vencer*\nPróximos ' + dias + ' días: ' + lista.length + ' cheque(s)' +
+    totTexto('A pagar', 'pagar') + totTexto('A cobrar', 'cobrar') + '\n' + lineas.join('\n');
   if (lista.length > 15) t += '\n… y ' + (lista.length - 15) + ' más.';
   return t;
+}
+
+// ----- Aviso diario de cuentas en negativo -----
+// Con el último saldo informado de cada cuenta (el que se carga del banco): las que están en
+// negativo y cuánto hay en fondos para cubrirlas. Se manda una vez por día, desde las 9, a los
+// usuarios con WhatsApp, solo si hay alguna. Se apaga con la propiedad AVISO_DESCUBIERTO = no.
+const PROP_DESCUBIERTO_ULTIMO = 'DESCUBIERTO_ULTIMO';
+
+function textoDescubiertos_() {
+  const ultimos = {};
+  leerFilas_(SHEET_SALDOS, HEADERS_SALDOS).forEach(s => {
+    const k = s['Cuenta ID'];
+    const iso = dmaAIso_(s['Fecha']);
+    if (!k || !iso) return;
+    const prev = ultimos[k];
+    if (!prev || iso > prev.iso || (iso === prev.iso && String(s['Fecha de Carga']) > String(prev.s['Fecha de Carga']))) ultimos[k] = { iso: iso, s: s };
+  });
+  const negativas = [], fci = [];
+  Object.keys(ultimos).forEach(k => {
+    const s = ultimos[k].s;
+    if (s['Moneda'] === 'USD') return;
+    const saldo = importeANumero(s['Saldo']);
+    if (s['Tipo'] === 'FCI' || String(k).indexOf('FCI|') === 0) { if (saldo > 0) fci.push({ banco: s['Banco'], saldo: saldo, iso: ultimos[k].iso }); }
+    else if (saldo < -0.005) negativas.push({ texto: s['Banco'] + ' ' + s['N° de Cuenta'], saldo: saldo, iso: ultimos[k].iso });
+  });
+  if (!negativas.length) return '';
+  // Los FCI informados hace más de 45 días respecto del último no cuentan (igual que en la app).
+  const ultimoFci = fci.reduce((m, f) => f.iso > m ? f.iso : m, '');
+  const vigentes = fci.filter(f => f.iso >= sumarDias(ultimoFci, -45)).sort((a, b) => b.saldo - a.saldo);
+  const deuda = -negativas.reduce((a, x) => a + x.saldo, 0);
+  let t = '*Tesorería · Cuentas en negativo*\n' + negativas.sort((a, b) => a.saldo - b.saldo).map(x => '• ' + x.texto + ': ' + formatoPesos(x.saldo) + ' (al ' + isoAMostrar(x.iso) + ')').join('\n') +
+    '\nTotal: ' + formatoPesos(-deuda);
+  if (vigentes.length && vigentes[0].saldo >= deuda) t += '\nSugerencia: rescatar ' + formatoPesos(deuda) + ' del FCI de ' + vigentes[0].banco + ' (' + formatoPesos(vigentes[0].saldo) + ') y cubrir cada cuenta, para no pagar descubierto.';
+  else if (vigentes.length) t += '\nEn fondos hay ' + formatoPesos(vigentes.reduce((a, f) => a + f.saldo, 0)) + ' para cubrir una parte.';
+  return t;
+}
+
+function avisarDescubiertos_(usuarios, hoy) {
+  const p = propiedades_();
+  if (claveTexto(p.getProperty('AVISO_DESCUBIERTO') || '') === 'no' || p.getProperty(PROP_DESCUBIERTO_ULTIMO) === hoy) return;
+  p.setProperty(PROP_DESCUBIERTO_ULTIMO, hoy);
+  const texto = textoDescubiertos_();
+  if (!texto) return;
+  Object.keys(usuarios).forEach(id => {
+    const u = usuarios[id];
+    if (!u['Teléfono WhatsApp'] || !p.getProperty('WA_APIKEY_' + id)) return;
+    try { enviarWhatsapp_(u, texto); } catch (e) { console.error('Aviso de descubierto a ' + u['Usuario'] + ': ' + e.message); }
+  });
+}
+
+// ----- Cotización del dólar (para la posición en dólares) -----
+// API pública dolarapi.com; se guarda 30 minutos. Si no responde, la app muestra la posición sin valuar.
+function cotizacionesDolar_() {
+  const cache = CacheService.getScriptCache();
+  const guardado = cache.get('cotiz_dolar');
+  if (guardado) { try { return JSON.parse(guardado); } catch (e) {} }
+  const res = UrlFetchApp.fetch('https://dolarapi.com/v1/dolares', { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return { ok: false, error: 'No se pudo leer la cotización del dólar.' };
+  const lista = JSON.parse(res.getContentText() || '[]');
+  const de = casa => { const x = lista.find(c => String(c.casa) === casa); return x && Number(x.compra) > 0 ? { compra: Number(x.compra), venta: Number(x.venta) } : null; };
+  const oficial = lista.find(c => String(c.casa) === 'oficial');
+  const r = { ok: true, oficial: de('oficial'), mep: de('bolsa'), ccl: de('contadoconliqui'), fuente: 'dolarapi.com',
+    fecha: oficial && oficial.fechaActualizacion ? Utilities.formatDate(new Date(oficial.fechaActualizacion), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') : '' };
+  try { cache.put('cotiz_dolar', JSON.stringify(r), 1800); } catch (e) {}
+  return r;
 }
 
 // ======================= Utilidades de hojas =======================
