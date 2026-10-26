@@ -698,13 +698,29 @@
    */
   function unidadesConContratos(d) {
     var extra = window.PropContratos && PropContratos.sinUnidad && actual ? PropContratos.sinUnidad(actual.edificio, d.unidades) : [];
+    // Montos del mes de la liquidación que se ve: Transferencia = lo que paga el inquilino (total con
+    // IVA si se facturó, subtotal si no) y Total = lo que cobra Andrés. Sin marcar si se facturó, sin montos.
+    var mes = d.orden ? String(d.orden).substring(0, 7) + "-01" : "";
     return d.unidades.concat(extra.map(function (x) {
-      return { unidad: x.unidad, clave: LectorPropiedades.claveUnidad(x.unidad), inquilino: x.inquilino, lugar: x.lugar || lugaresDe(d)[0], soloContrato: true };
+      var u = { unidad: x.unidad, clave: LectorPropiedades.claveUnidad(x.unidad), inquilino: x.inquilino, lugar: x.lugar || lugaresDe(d)[0], soloContrato: true };
+      var q = PropContratos.cuotaDe ? PropContratos.cuotaDe(actual.edificio, x.unidad, mes) : null;
+      if (q) {
+        u.cuota = q;
+        if (q.paga !== null) { u.transferencia = redondo(q.paga); u.efectivo = 0; u.cochera = 0; u.adm = 0; u.total = redondo(q.aCobrar); }
+      }
+      return u;
     }));
   }
   function pillEstado(u) {
     var f = el("div");
-    if (u.soloContrato) { f.append(el("span", "pill contrato", "Contrato"), el("span", "sub", "Todavía no está en la liquidación")); return f; }
+    if (u.soloContrato) {
+      f.append(el("span", "pill contrato", "Contrato"));
+      var q = u.cuota;
+      if (q && q.facturado) f.append(el("span", "sub", "Cuota " + q.cuota + " · " + (q.facturado === "SI" ? "con factura" : "sin factura") + " · cobra el " + String(q.participacion).replace(".", ",") + " %"));
+      else if (q) f.append(el("span", "sub aviso-txt", "Cuota " + q.cuota + ": falta marcar si se facturó (Contratos → Ver cuotas)"));
+      else f.append(el("span", "sub", "Todavía no está en la liquidación"));
+      return f;
+    }
     f.append(el("span", "pill " + (u.estado || ""), u.estado === "no-abono" ? "No abonó" : u.estado === "desocupado" ? "Desocupado" : u.estado === "amoblado" ? "Amoblado" : (u.forma || "—")));
     if (u.amoblado && u.estado !== "amoblado") { f.append(document.createTextNode(" ")); f.append(el("span", "pill amoblado", "Amoblado")); }
     if (u.mesTexto) f.append(el("span", "sub", u.mesTexto));

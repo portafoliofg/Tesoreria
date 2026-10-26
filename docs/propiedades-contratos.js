@@ -14,6 +14,8 @@
  *   dólares, al Dólar Blue venta de El Cronista), o null. fuenteDe(edificio, unidad) → de dónde sale.
  * PropContratos.sinUnidad(edificio, unidades) → contratos de unidades que no están en la liquidación
  *   (por ejemplo un galpón nuevo): [{unidad, inquilino, lugar}]
+ * PropContratos.cuotaDe(edificio, unidad, mesIso) → la cuota de ese mes en pesos: {cuota, subtotal,
+ *   total, facturado ("SI" | "NO" | ""), paga (lo que paga el inquilino), aCobrar, participacion} o null
  *
  * Contratos por m² (índice "Suma fija por m²"): metros × precio por m², que sube un monto fijo por m²
  * cada N meses. Tienen su cuadro de cuotas (como el del contrato) con el Dólar Blue del día.
@@ -254,8 +256,8 @@
       var fecha = sumarMeses(e.inicio, k - 1);
       var desde = mesesEntre(ultima, fecha);
       var pasos = desde >= 0 ? Math.floor(desde / cada) : -Math.ceil(-desde / cada);
-      var precio = Math.round((precioHoy + aumento * pasos) * 100) / 100;
-      var sub = Math.round(metros * precio * 100) / 100;
+      var sub = montoCuota(c, k);
+      var precio = Math.round(sub / metros * 100) / 100;
       var futura = k >= (e.cuota || 1);
       var subPesos = mon === "USD" ? (futura ? aPesos(sub) : null) : sub;
       var tr = el("tr", (k === e.cuota ? "actual" : "") + (pasos !== 0 && desde % cada === 0 && desde > 0 ? " sube" : ""));
@@ -420,6 +422,30 @@
     if (!c) return "";
     return c.datos["Moneda"] === "USD" ? "Contrato " + usd(c.estado.monto) + " al blue " + (estado.dolar ? pesos2(estado.dolar.venta) : "") : "Según el contrato";
   }
+  /** Monto de la cuota k en la moneda del contrato (los de m² con el precio que rige ese mes). */
+  function montoCuota(c, k) {
+    var e = c.estado;
+    if (c.datos["Índice"] !== INDICE_M2) return e.monto;
+    var metros = numero(c.datos["Metros"]), aumento = numero(c.datos["Aumento por m²"]) || 0, cada = parseInt(c.datos["Cada (meses)"], 10) || 12;
+    var desde = mesesEntre(e.ultima || e.inicio, sumarMeses(e.inicio, k - 1));
+    var pasos = desde >= 0 ? Math.floor(desde / cada) : -Math.ceil(-desde / cada);
+    return Math.round(metros * (Math.round((e.monto / metros + aumento * pasos) * 100) / 100) * 100) / 100;
+  }
+
+  function cuotaDe(edificio, unidad, mesIso) {
+    var c = estado.edificio === edificio && estado.listo ? contratoDe(unidad) : null;
+    if (!(c && c.estado && c.estado.inicio && c.estado.monto > 0)) return null;
+    var k = mesesEntre(c.estado.inicio, (mesIso || estado.hoy).substring(0, 7) + "-01") + 1;
+    if (k < 1 || (c.estado.totalCuotas && k > c.estado.totalCuotas)) return null;
+    var m = montoCuota(c, k);
+    var sub = c.datos["Moneda"] === "USD" ? aPesos(m) : m;
+    if (sub === null) return null;
+    var iva = ivaDe(c), part = participacionDe(c), fact = facturacionDe(c)[k] || "";
+    var total = sub * (1 + iva / 100);
+    var paga = fact === "SI" ? total : fact === "NO" ? sub : null;
+    return { cuota: k, subtotal: sub, total: total, facturado: fact, paga: paga, aCobrar: paga === null ? null : paga * part / 100, participacion: part };
+  }
+
   function sinUnidad(edificio, unidades) {
     if (estado.edificio !== edificio || !estado.listo) return [];
     var hay = {};
@@ -428,5 +454,5 @@
       .map(function (c) { return { unidad: c.datos["Unidad"], inquilino: c.datos["Inquilino"] || "", lugar: c.datos["Lugar"] || "" }; });
   }
 
-  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar, montoDe: montoDe, fuenteDe: fuenteDe, sinUnidad: sinUnidad };
+  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar, montoDe: montoDe, fuenteDe: fuenteDe, sinUnidad: sinUnidad, cuotaDe: cuotaDe };
 })();
