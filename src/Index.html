@@ -800,7 +800,30 @@
   .pers-tit { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pers-flechas { display: flex; gap: 2px; }
   .pers-flechas .link-btn { padding: 2px 6px; }
-  .cheq-estado-sel { height: 28px; padding: 0 6px; font-size: 12px; width: auto; min-width: 0; max-width: 150px; margin: 0; }
+  /* Estado del cheque: una etiqueta de color que es a la vez el selector para cambiarlo. */
+  select.est-sel { display: inline-block; width: auto; min-width: 0; height: 26px; margin: 0; padding: 0 26px 0 11px; border-radius: 99px; border: 1px solid transparent;
+    font-size: 12px; font-weight: 600; line-height: 24px; cursor: pointer; box-shadow: none;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 14px) 11px, calc(100% - 10px) 11px; background-size: 4px 4px; background-repeat: no-repeat; }
+  select.est-sel:hover { border-color: currentColor; }
+  select.est-sel:focus { box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .16); border-color: currentColor; }
+  select.est-sel option { color: var(--text); background: var(--surface); font-weight: 500; }
+  select.est-abierto { color: var(--primary); background-color: rgba(var(--primary-rgb), .1); }
+  select.est-ok { color: var(--ok); background-color: rgba(var(--ok-rgb), .11); }
+  select.est-endoso { color: var(--accent); background-color: rgba(var(--accent-rgb), .15); }
+  select.est-mal { color: var(--bad); background-color: rgba(var(--bad-rgb), .1); }
+  select.est-sel:disabled { opacity: .6; cursor: progress; }
+  .est-plazo { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .dt-estado .est-plazo { flex-basis: 100%; margin-top: -2px; padding-left: 4px; }
+  .est-plazo.alerta { color: var(--bad); font-weight: 600; }
+  .est-plazo.pronto { color: var(--warn); font-weight: 600; }
+  /* Revisión de un cheque leído: campos en grilla */
+  .cheque-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 16px; margin: 6px 0 4px; }
+  .cheque-form label { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .cheque-form .cf-importe input { font-family: var(--font-num); font-weight: 700; font-size: 16px; }
+  .cheque-form .cf-estado { display: flex; flex-direction: column; align-items: flex-start; }
+  .cheque-form .cf-estado select.est-sel { margin-top: 12px; height: 30px; line-height: 28px; font-size: 13px; background-position: calc(100% - 14px) 13px, calc(100% - 10px) 13px; }
+  .manual-estado { display: block; margin-top: 8px; }
   .conc-drop { margin-top: 10px; padding: 18px 16px; }
   .conc-archivo-info { margin-top: 10px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
   .conc-archivo-info b { font-weight: 600; }
@@ -1581,7 +1604,8 @@
       </div>
       <div class="actions" style="margin-top:0">
         <button id="btnRefrescarInversiones" class="secondary" type="button">Actualizar</button>
-        <button id="btnMovFci" type="button" title="En negativo: rescate. En positivo: suscripción.">Rescates y suscripciones</button>
+        <button id="btnMovFci" class="secondary" type="button" title="Varios a la vez, traerlos de Movimientos o leer comprobantes (PDF, foto o planilla)">Rescates y suscripciones</button>
+        <button class="btn-entrada-manual" data-tipo-default="FCI" type="button" title="Un rescate o suscripción: fecha, banco, fondo, movimiento, monto y N° de comprobante">Entrada manual</button>
       </div>
     </div>
     <div id="kpisInversiones" class="kpis"></div>
@@ -1954,6 +1978,7 @@
             <option>Transferencia</option>
             <option>Cheque emitido</option>
             <option>Cheque de terceros</option>
+            <option value="FCI">FCI (rescate o suscripción)</option>
           </select>
         </label>
         <label id="labManualBanco">Banco<select id="manualBanco"></select></label>
@@ -2018,7 +2043,37 @@
           <label>Fecha de pago<input data-campo="Fecha de Pago" type="text" placeholder="dd/mm/aaaa"></label>
         </div>
         <div class="row">
-          <label>Concepto<input data-campo="Concepto" type="text"></label>
+          <label>Estado<span id="manualEstadoCheque" class="manual-estado"></span></label>
+        </div>
+      </div>
+
+      <!-- FCI: rescate o suscripción, cargado a mano (va a la pestaña FCI y Bolsa). -->
+      <div id="manualCamposFci" class="manual-campos" hidden>
+        <div class="row">
+          <label>Fecha<input id="manualFciFecha" type="date"></label>
+          <label>Banco<select id="manualFciBanco"></select></label>
+        </div>
+        <div class="row">
+          <label>Fondo<input id="manualFciFondo" type="text" list="manualFciFondos" placeholder="Ej.: FBA Money Market Pesos"></label>
+          <datalist id="manualFciFondos"></datalist>
+          <label>Movimiento
+            <select id="manualFciMov">
+              <option value="Suscripción">Suscripción (entra al fondo)</option>
+              <option value="Rescate">Rescate (sale del fondo)</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Monto<input id="manualFciMonto" class="monto monto-grande" type="text" inputmode="decimal" placeholder="1.000.000,00"></label>
+          <label>Moneda
+            <select id="manualFciMoneda">
+              <option value="Pesos">Pesos</option>
+              <option value="USD">Dólares</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>N° de comprobante<input id="manualFciComprobante" type="text" placeholder="Número de referencia del banco (opcional)"></label>
         </div>
       </div>
       <p id="manualStatus" class="hint"></p>
@@ -3219,8 +3274,7 @@ function parseTablaEcheqs(lineas, tipoCheque) {
         { Campo: "Fecha de Emisión", Valor: fecha(c.emision) },
         { Campo: "Fecha de Pago", Valor: fecha(c.pago) || fecha(c.emision) },
         { Campo: "Importe", Valor: formatMonto(Math.abs(parseImporte(imp))) },
-        { Campo: "Estado", Valor: estadoAppDeEcheq(estadoBanco, tipo) },
-        { Campo: "Concepto", Valor: ["E-cheq", estadoBanco ? estadoBanco.charAt(0) + estadoBanco.substring(1).toLowerCase() : ""].filter(Boolean).join(" · ") }
+        { Campo: "Estado", Valor: estadoAppDeEcheq(estadoBanco, tipo) }
       ]
     });
   });
@@ -4633,6 +4687,8 @@ function panelComprobante(r, idx) {
 
   if (r.datos) {
     card.append(formMovimiento(r));
+  } else if (r.destino === "cheques" && r.structured) {
+    card.append(formChequeLeido(r));
   } else {
     const table = el("table");
     table.innerHTML = "<tr><th>Campo</th><th>Valor</th></tr>";
@@ -4665,6 +4721,37 @@ function panelComprobante(r, idx) {
   card.append(det);
   card.append(navTabs(idx));
   return card;
+}
+
+// Cheque leído (comprobante o listado de e-cheqs): los datos en una grilla para revisar. El estado
+// viene del listado del banco (o el de un cheque nuevo) y se puede cambiar. Sin concepto.
+const CAMPOS_CHEQUE_LEIDO = [["N° de Cheque", "N° de cheque"], ["Titular", null], ["CUIT", "CUIT"], ["Importe", "Importe"], ["Fecha de Emisión", "Fecha de emisión"], ["Fecha de Pago", "Fecha de pago"]];
+
+function formChequeLeido(r) {
+  const grid = el("div", "cheque-form");
+  const fila = campo => {
+    let x = r.parsed.find(p => p.Campo === campo);
+    if (!x) { x = { Campo: campo, Valor: "" }; r.parsed.push(x); }
+    return x;
+  };
+  CAMPOS_CHEQUE_LEIDO.forEach(c => {
+    const x = fila(c[0]);
+    const input = el("input");
+    input.type = "text";
+    input.value = x.Valor || "";
+    input.disabled = r.sent;
+    if (c[0] === "Importe") input.inputMode = "decimal";
+    input.addEventListener("input", () => { x.Valor = input.value; });
+    const titulo = c[1] || (r.tipoCheque === "Emitido" ? "Destinatario" : "Librador");
+    grid.append(campoForm(titulo, input, c[0] === "Importe" ? "cf-importe" : null));
+  });
+  const xe = fila("Estado");
+  const sel = selectEstado(r.tipoCheque, xe.Valor);
+  xe.Valor = sel.value;
+  sel.disabled = r.sent;
+  sel.addEventListener("change", () => { xe.Valor = sel.value; });
+  grid.append(campoForm("Estado", sel, "cf-estado"));
+  return grid;
 }
 
 function navTabs(idx) {
@@ -5052,6 +5139,8 @@ function filaDesde(r, headers) {
     if (h === "N° Interno" || h === "Fecha de Carga") return "";
     if (h === "Archivo") return r.filename;
     if (terceros && (h === "Banco" || h === "N° de Cuenta" || h === "Tipo de Cuenta")) return "";
+    // Los cheques no llevan concepto (no aporta: el titular y el estado ya dicen qué es).
+    if (headers === HEADERS_CHEQUES && h === "Concepto") return "";
     if (h === "Banco") return r.banco;
     if (h === "Tipo") return r.tipoCheque || "";
     if (h === "Origen") return r.origen || "Comprobante";
@@ -5226,12 +5315,58 @@ $("confirmNo").addEventListener("click", () => { cerrarModal("modalConfirm"); if
 
 // ---------------- Modal: Entrada manual ----------------
 function actualizarCamposManual() {
-  const esTransferencia = $("manualTipo").value === "Transferencia";
+  const tipo = $("manualTipo").value;
+  const esFci = tipo === "FCI";
+  const esTransferencia = tipo === "Transferencia";
   $("manualCamposTransferencia").hidden = !esTransferencia;
-  $("manualCamposCheque").hidden = esTransferencia;
-  const terceros = $("manualTipo").value === "Cheque de terceros";
-  $("labManualBanco").hidden = terceros;
-  $("labManualCuenta").hidden = terceros;
+  $("manualCamposCheque").hidden = esTransferencia || esFci;
+  $("manualCamposFci").hidden = !esFci;
+  const terceros = tipo === "Cheque de terceros";
+  $("labManualBanco").hidden = terceros || esFci;
+  $("labManualCuenta").hidden = terceros || esFci;
+  // Estado del cheque: Pendiente (emitido) o En cartera (de terceros), con selector para cambiarlo.
+  if (!esTransferencia && !esFci) {
+    const sel = selectEstado(terceros ? "De terceros" : "Emitido", "");
+    sel.dataset.campo = "Estado";
+    $("manualEstadoCheque").replaceChildren(sel);
+  }
+  if (esFci) prepararFciManual();
+}
+
+// FCI en la entrada manual: bancos con FCI (o del listado) y los fondos ya usados para sugerir.
+function prepararFciManual() {
+  if (!$("manualFciFecha").value) $("manualFciFecha").value = hoyIso();
+  const banco = $("manualFciBanco").value;
+  llenarSelect($("manualFciBanco"), bancosParaFci().map(b => ({ value: b, label: b })), "Elegí el banco");
+  if (banco) $("manualFciBanco").value = banco;
+  const fondos = {};
+  fciDatos.forEach(f => { if (String(f["Fondo"] || "").trim()) fondos[String(f["Fondo"]).trim()] = true; });
+  $("manualFciFondos").replaceChildren(...Object.keys(fondos).sort().map(f => new Option(f, f)));
+}
+
+async function guardarFciManual() {
+  const st = $("manualStatus");
+  const monto = Math.abs(parseImporte($("manualFciMonto").value));
+  if (!$("manualFciBanco").value) { setStatus(st, "Elegí el banco.", "hint msg-error"); return; }
+  if (!monto) { setStatus(st, "Completá el monto.", "hint msg-error"); return; }
+  const rescate = $("manualFciMov").value === "Rescate";
+  const btn = $("modalManualGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  try {
+    const res = await runJson("guardarMovimientosFci", { movs: [{
+      fecha: isoADma($("manualFciFecha").value || hoyIso()), banco: $("manualFciBanco").value, fondo: $("manualFciFondo").value.trim(),
+      moneda: $("manualFciMoneda").value, tipo: $("manualFciMov").value, monto: montoTexto(rescate ? -monto : monto), comprobante: $("manualFciComprobante").value.trim()
+    }] });
+    setStatus(st, res.nuevos ? "Guardado: " + $("manualFciMov").value.toLowerCase() + " de " + fmtImp(monto) + " en " + $("manualFciBanco").value + "." : "Ya estaba cargado.", "hint msg-ok");
+    ["manualFciMonto", "manualFciComprobante"].forEach(id => { $(id).value = ""; });
+    if (inversionesCargadas) asegurarInversiones(true).then(() => { if ($("vista-inversiones").classList.contains("active")) renderInversiones(); }).catch(() => {});
+  } catch (err) {
+    setStatus(st, msgErr(err), "hint msg-error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
 }
 
 // Cheques de terceros: sin banco ni cuenta propia (solo los emitidos los llevan).
@@ -5318,6 +5453,7 @@ $("manualMonto").addEventListener("change", () => {
 $("modalManualGuardar").addEventListener("click", async () => {
   const st = $("manualStatus");
   const tipo = $("manualTipo").value;
+  if (tipo === "FCI") { guardarFciManual(); return; }
   const banco = $("manualBanco").value;
   const esCheque = tipo !== "Transferencia";
   const tipoCheque = tipo === "Cheque emitido" ? "Emitido" : tipo === "Cheque de terceros" ? "De terceros" : null;
@@ -9773,20 +9909,40 @@ try { solapaCheques = localStorage.getItem("lc-solapa-cheques") === "cerrados" ?
 const ESTADOS_EMITIDO = ["Pendiente", "Pagado", "Anulado", "Rechazado", "Caducado"];
 const ESTADOS_TERCEROS = ["En cartera", "Depositado", "Acreditado", "Endosado", "Rechazado", "Devolución", "Caducado", "Custodia depositante"];
 
+// Color de la etiqueta según el estado: abierto, cobrado o pagado, endosado o con problema.
+function grupoEstadoCheque(estado) {
+  const n = normalizar(estado || "").trim();
+  if (["PAGADO", "DEPOSITADO", "ACREDITADO"].indexOf(n) >= 0) return "est-ok";
+  if (n === "ENDOSADO") return "est-endoso";
+  if (["ANULADO", "RECHAZADO", "CADUCADO", "DEVOLUCION"].indexOf(n) >= 0) return "est-mal";
+  return "est-abierto";
+}
+
+/** Selector de estado con forma de etiqueta. tipo: "Emitido" o "De terceros". Sin estado, el de un cheque nuevo. */
+function selectEstado(tipo, valor) {
+  const opciones = tipo === "Emitido" ? ESTADOS_EMITIDO : ESTADOS_TERCEROS;
+  const sel = el("select", "est-sel");
+  const actual = String(valor || "").trim() || opciones[0];
+  const enLista = opciones.find(o => normalizar(o) === normalizar(actual));
+  if (!enLista) sel.append(new Option(actual, actual));
+  opciones.forEach(o => sel.append(new Option(o, o)));
+  sel.value = enLista || actual;
+  const pintar = () => { sel.className = "est-sel " + grupoEstadoCheque(sel.value); };
+  sel.addEventListener("change", pintar);
+  pintar();
+  return sel;
+}
+
 // Cambiar el estado desde la fila (sin abrir el detalle). Al pasar a pagado, depositado o
 // acreditado sin fecha de débito, el servidor pone la de hoy.
 function selectorEstadoCheque(c) {
-  const opciones = c["Tipo"] === "Emitido" ? ESTADOS_EMITIDO : ESTADOS_TERCEROS;
-  const sel = el("select", "cheq-estado-sel");
+  const sel = selectEstado(c["Tipo"], c["Estado"]);
   sel.setAttribute("aria-label", "Cambiar el estado del cheque N° " + c["N° de Cheque"]);
-  const actual = String(c["Estado"] || "").trim();
-  const enLista = opciones.find(o => normalizar(o) === normalizar(actual));
-  if (!enLista) sel.append(new Option(actual ? actual + " (actual)" : "Sin estado", actual));
-  opciones.forEach(o => sel.append(new Option(o, o)));
-  sel.value = enLista || actual;
+  const previo = sel.value;
   ["click", "mousedown", "keydown"].forEach(ev => sel.addEventListener(ev, e => e.stopPropagation()));
   sel.addEventListener("change", async () => {
     const nuevo = sel.value;
+    if (nuevo === previo) return;
     sel.disabled = true;
     try {
       const res = await runJson("actualizarEstadoCheque", { id: c["ID Planilla"] || "", banco: c["Banco"] || "", numero: c["N° de Cheque"], tipo: c["Tipo"], estado: nuevo });
@@ -9796,7 +9952,8 @@ function selectorEstadoCheque(c) {
       aplicarFiltrosCheques();
     } catch (err) {
       toast("No se pudo cambiar el estado: " + msgErr(err), "error");
-      sel.value = enLista || actual;
+      sel.value = previo;
+      sel.className = "est-sel " + grupoEstadoCheque(previo);
       sel.disabled = false;
     }
   });
@@ -9865,9 +10022,11 @@ function renderCheques(filas) {
       { clave: "estado", titulo: "Estado", orden: c => estadoCheque(c).orden, celda: c => {
         const e = estadoCheque(c);
         const box = el("div", "dt-estado");
-        box.append(pill(e.texto, e.clase));
+        // El estado es la etiqueta misma (se cambia tocándola); los conciliados no se tocan.
+        box.append(c["Conciliación"] ? pill(e.texto, e.clase) : selectorEstadoCheque(c));
         if (c["Comprobante"]) { const i = icono(ICO.clip, "ico-clip"); i.title = "Tiene comprobante en Drive"; box.append(i); }
-        if (!c["Conciliación"]) box.append(selectorEstadoCheque(c));
+        // Abiertos: cuándo vence, debajo y en chico.
+        if (chequeAbierto(c)) box.append(el("div", "est-plazo" + (e.orden === 0 ? " alerta" : e.orden <= 2 ? " pronto" : ""), e.texto));
         return box;
       } },
       { clave: "importe", titulo: "Importe", clase: "num", dirInicial: "desc", orden: c => importeCheque(c), celda: c => celdaImporteNodo(importeCheque(c), monedaCheque(c)) }
