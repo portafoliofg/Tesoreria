@@ -218,6 +218,35 @@
     /* Contratos (propiedades-contratos.js) */
     .contr-sub { display: block; font-size: 12px; color: var(--tenue); margin-top: 2px; }
     .lado { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    /* Unidades: encabezado y totales fijos al desplazar la tabla */
+    .tabla-scroll.fija { max-height: min(70vh, 760px); overflow: auto; overscroll-behavior: contain; border-radius: 10px; }
+    .tabla-scroll.fija thead th { position: sticky; top: 0; z-index: 2; background: var(--crema-clara); box-shadow: inset 0 -1px 0 var(--borde); border-bottom: 0; }
+    .tabla-scroll.fija tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--crema-clara); box-shadow: inset 0 2px 0 var(--borde); border-top: 0; }
+    th.valor-ini, td.valor-ini { border-left: 1px solid var(--borde); }
+    td .rend { display: block; color: var(--verde); font-weight: 700; }
+    td.num .sub { font-family: var(--texto); }
+    /* Valores y detalle de la unidad (propiedades-valores.js) */
+    .info { font: italic 700 12px/1 Georgia, "Times New Roman", serif; color: var(--verde); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.3);
+      width: 20px; height: 20px; border-radius: 50%; margin-left: 8px; padding: 0; cursor: pointer; vertical-align: 1px; }
+    .info:hover { color: #fffaf0; background: var(--verde); border-color: var(--verde); }
+    .info:focus-visible { outline: 2px solid var(--oro); outline-offset: 2px; }
+    dialog.ficha { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 20px; border: 1px solid var(--borde); border-radius: 18px;
+      background: var(--crema-clara); color: var(--tinta); font-family: var(--texto); box-shadow: 0 30px 60px -30px rgba(28, 74, 44, 0.6); }
+    dialog.ficha::backdrop { background: rgba(36, 50, 42, 0.35); backdrop-filter: blur(2px); }
+    .ficha-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+    .ficha-cab h3 { margin: 0; font-family: var(--titulos); font-weight: 600; font-size: 20px; letter-spacing: 0.06em; color: var(--verde); }
+    .ficha h4 { margin: 14px 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oro); }
+    .ficha-campos { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 4px; }
+    .ficha-campos input, .ficha-campos select { width: 100%; min-width: 0; }
+    .ficha-campos select { font: inherit; font-size: 14px; color: var(--tinta); background: #fffdfa; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 10px; padding: 8px 12px; }
+    .ficha-campos select:focus { outline: none; border-color: var(--oro); box-shadow: 0 0 0 3px rgba(184, 137, 58, 0.18); }
+    .ficha-calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 12px; }
+    .ficha-calc .kpi { padding: 12px 14px; box-shadow: none; }
+    .ficha-calc .kpi b { font-size: 18px; }
+    .ficha-calc .kpi.ok b { color: var(--verde-claro); }
+    .ficha-calc .kpi.baja b { color: var(--rojo); }
+    .ficha-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+    .ficha .alerta { margin-top: 8px; }
   </style>
 </head>
 <body class="verificando">
@@ -245,7 +274,8 @@
 
   <script src="sesion.js?v=9"></script>
   <script src="propiedades-lector.js?v=7"></script>
-  <script src="propiedades-contratos.js?v=2"></script>
-  <script src="propiedades-vista.js?v=14"></script>
+  <script src="propiedades-contratos.js?v=3"></script>
+  <script src="propiedades-valores.js?v=1"></script>
+  <script src="propiedades-vista.js?v=15"></script>
 </body>
 </html>

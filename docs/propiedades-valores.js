@@ -1,0 +1,210 @@
+/*
+ * Propiedades · valores y detalle de cada unidad (botón "i" de la pestaña Unidades).
+ *
+ * Valor real, precio de compra y valor de venta estimado, más el detalle: dormitorios,
+ * destino y cochera. Todo se carga a mano; el rendimiento se calcula solo: alquiler
+ * mensual × 12 sobre el precio de compra. El alquiler es el del contrato (Contratos) o,
+ * si no hay contrato, lo que pagó la unidad en la liquidación que se está viendo.
+ * Los datos viven en una planilla de Google aparte (PropiedadesValores.gs), nunca en esta página.
+ *
+ * PropValores.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
+ * PropValores.de(u) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, ...} o null
+ * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
+ * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle. ctx: {edificio, lugar, alquiler, fuente, alGuardar}
+ * PropValores.url() → enlace a la planilla de valores
+ */
+(function () {
+  "use strict";
+  var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
+  var estado = { edificio: null, valores: [], url: "", cargando: null, listo: false, error: "" };
+  var dialogo = null;
+
+  function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
+  var fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+  function pesos(n) { return typeof n === "number" && !isNaN(n) ? fmt.format(n) : "—"; }
+  function pct(n) { return typeof n === "number" && isFinite(n) ? (n * 100).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + " %" : "—"; }
+  function clave(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim(); }
+  function numero(txt) {
+    var t = String(txt == null ? "" : txt).replace(/[^0-9,.\-]/g, "");
+    if (!t || t === "-") return null;
+    var c = t.lastIndexOf(","), p = t.lastIndexOf(".");
+    // 1.234,56 · 450.000 (punto de miles) · 1234.56
+    if (c > p) t = t.split(".").join("").replace(",", ".");
+    else if (c < 0 && /^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.split(".").join("");
+    else t = t.split(",").join("");
+    var n = parseFloat(t);
+    return isNaN(n) ? null : n;
+  }
+  function numTxt(n) { return typeof n === "number" ? n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : ""; }
+  function claveDe(u) { return u.clave || u.unidad; }
+
+  function cargar(edificio) {
+    if (estado.edificio === edificio && estado.cargando) return estado.cargando;
+    estado.edificio = edificio;
+    estado.error = "";
+    estado.listo = false;
+    estado.cargando = BGPSesion.pedir("obtenerValoresPropiedades", { edificio: edificio }).then(function (r) {
+      if (estado.edificio !== edificio) return;
+      estado.valores = r.valores || [];
+      estado.url = r.url || "";
+      if (r.destinos && r.destinos.length) DESTINOS = r.destinos;
+      estado.listo = true;
+    }).catch(function (err) {
+      if (err && err.sesion === false) throw err;
+      estado.error = (err && err.message) || "No se pudieron cargar los valores de las unidades.";
+      estado.valores = []; estado.listo = true;
+    });
+    return estado.cargando;
+  }
+
+  function de(u) {
+    if (!estado.listo) return null;
+    var k = clave(claveDe(u)), n = clave(u.unidad);
+    return estado.valores.find(function (v) { return clave(v.clave) === k; }) ||
+      estado.valores.find(function (v) { return clave(v.unidad) === n; }) || null;
+  }
+
+  function rendimiento(v, alquiler) {
+    return v && typeof v.precioCompra === "number" && v.precioCompra > 0 && typeof alquiler === "number" && alquiler > 0 ? alquiler * 12 / v.precioCompra : null;
+  }
+
+  // ----- Detalle de la unidad -----
+  function armarDialogo() {
+    if (dialogo) return dialogo;
+    dialogo = el("dialog", "ficha");
+    dialogo.setAttribute("aria-labelledby", "fichaTitulo");
+    dialogo.addEventListener("click", function (e) { if (e.target === dialogo) dialogo.close(); });
+    document.body.append(dialogo);
+    return dialogo;
+  }
+
+  function campo(etiqueta, control, ayuda) {
+    var lab = el("label", null, etiqueta);
+    lab.append(control);
+    if (ayuda) lab.append(el("small", null, ayuda));
+    return lab;
+  }
+  function inputNum(valor, titulo, entero) {
+    var i = el("input");
+    i.type = "text"; i.inputMode = entero ? "numeric" : "decimal"; i.placeholder = "Sin cargar";
+    i.value = numTxt(valor);
+    i.setAttribute("aria-label", titulo);
+    return i;
+  }
+  function selectDe(opciones, valor, titulo) {
+    var s = el("select");
+    s.setAttribute("aria-label", titulo);
+    opciones.forEach(function (o) { var x = el("option", null, o[1]); x.value = o[0]; s.append(x); });
+    s.value = valor || "";
+    return s;
+  }
+
+  function abrir(u, ctx) {
+    var dlg = armarDialogo();
+    var v = de(u) || {};
+    dlg.replaceChildren();
+    var cab = el("div", "ficha-cab");
+    var tit = el("div");
+    var h = el("h3", null, u.unidad || "Unidad"); h.id = "fichaTitulo";
+    tit.append(h, el("span", "sub", [u.inquilino || "Sin inquilino", ctx.lugar].filter(Boolean).join(" · ")));
+    var cerrar = el("button", "quitar", "×");
+    cerrar.type = "button"; cerrar.setAttribute("aria-label", "Cerrar");
+    cerrar.addEventListener("click", function () { dlg.close(); });
+    cab.append(tit, cerrar);
+    dlg.append(cab);
+
+    var form = el("form");
+    form.method = "dialog";
+    // Detalle
+    form.append(el("h4", null, "Detalle"));
+    var c1 = el("div", "campos ficha-campos");
+    var iDorm = inputNum(v.dormitorios, "Dormitorios", true);
+    var sDest = selectDe([["", "Sin dato"]].concat(DESTINOS.map(function (d) { return [d, d]; })), v.destino, "Destino");
+    var sCoch = selectDe([["", "Sin dato"], ["Sí", "Sí"], ["No", "No"]], v.cochera, "Cochera");
+    c1.append(campo("Dormitorios", iDorm), campo("Destino", sDest), campo("Cochera", sCoch));
+    form.append(c1);
+    // Valores
+    form.append(el("h4", null, "Valores"));
+    var c2 = el("div", "campos ficha-campos");
+    var iReal = inputNum(v.valorReal, "Valor real de la propiedad");
+    var iCompra = inputNum(v.precioCompra, "Precio de compra");
+    var iVenta = inputNum(v.ventaEstimada, "Valor de venta estimado");
+    c2.append(campo("Valor real", iReal), campo("Precio de compra", iCompra), campo("Venta estimada", iVenta));
+    form.append(c2);
+    // Lo calculado: rendimiento y diferencia entre la venta estimada y la compra.
+    var calc = el("div", "ficha-calc");
+    var kAlq = el("div", "kpi"), kRend = el("div", "kpi"), kVta = el("div", "kpi");
+    calc.append(kAlq, kRend, kVta);
+    form.append(calc);
+    function kpi(k, titulo, valor, pie) { k.replaceChildren(el("small", null, titulo), el("b", null, valor), el("span", null, pie)); }
+    function recalcular() {
+      var compra = numero(iCompra.value), venta = numero(iVenta.value);
+      kpi(kAlq, "Alquiler mensual", pesos(ctx.alquiler), ctx.alquiler ? ctx.fuente : "Sin alquiler cargado");
+      var r = rendimiento({ precioCompra: compra }, ctx.alquiler);
+      kpi(kRend, "Rendimiento anual", pct(r), r === null ? (compra ? "Falta el alquiler" : "Cargá el precio de compra") : "Alquiler × 12 sobre la compra");
+      var dif = compra && venta ? venta / compra - 1 : null;
+      kpi(kVta, "Venta vs. compra", dif === null ? "—" : (dif > 0 ? "+" : "") + pct(dif), dif === null ? "Cargá compra y venta estimada" : pesos(venta - compra));
+      kRend.classList.toggle("ok", r !== null);
+      kVta.classList.toggle("baja", dif !== null && dif < 0);
+      kVta.classList.toggle("ok", dif !== null && dif >= 0);
+    }
+    [iCompra, iVenta].forEach(function (i) { i.addEventListener("input", recalcular); });
+    recalcular();
+
+    var msg = el("div", "alerta error");
+    msg.hidden = true;
+    form.append(msg);
+    var pie = el("div", "ficha-pie");
+    pie.append(el("span", "estado-guardado", v.actualizadoPor ? "Último cambio de " + v.actualizadoPor + (v.fecha ? " el " + v.fecha : "") : "Todavía sin cargar"));
+    var botones = el("div", "barra-acciones");
+    var bc = el("button", "boton secundario", "Cancelar"); bc.type = "button";
+    bc.addEventListener("click", function () { dlg.close(); });
+    var bg = el("button", "boton", "Guardar"); bg.type = "submit";
+    botones.append(bc, bg);
+    pie.append(botones);
+    form.append(pie);
+    dlg.append(form);
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var dorm = numero(iDorm.value);
+      if (iDorm.value.trim() && (dorm === null || dorm < 0 || dorm > 20 || Math.round(dorm) !== dorm)) { msg.textContent = "Dormitorios: un número entero de 0 a 20."; msg.hidden = false; iDorm.focus(); return; }
+      var malos = [[iReal, "el valor real"], [iCompra, "el precio de compra"], [iVenta, "la venta estimada"]].filter(function (x) { return x[0].value.trim() && !(numero(x[0].value) >= 0); });
+      if (malos.length) { msg.textContent = "Revisá " + malos[0][1] + ": tiene que ser un importe."; msg.hidden = false; malos[0][0].focus(); return; }
+      msg.hidden = true;
+      bg.disabled = true; bg.textContent = "Guardando…";
+      BGPSesion.pedir("guardarValorPropiedad", {
+        edificio: ctx.edificio, lugar: ctx.lugar || "", unidad: u.unidad, clave: claveDe(u),
+        valorReal: numero(iReal.value), precioCompra: numero(iCompra.value), ventaEstimada: numero(iVenta.value),
+        dormitorios: dorm, destino: sDest.value, cochera: sCoch.value, alquiler: ctx.alquiler || null
+      }).then(function (r) {
+        var k = clave(claveDe(u));
+        estado.valores = estado.valores.filter(function (x) { return clave(x.clave) !== k; });
+        if (r.valor) estado.valores.push(r.valor);
+        dlg.close();
+        if (ctx.alGuardar) ctx.alGuardar();
+      }).catch(function (err) {
+        if (err && err.sesion === false) { location.replace("index.html?v=7#elegir"); return; }
+        msg.textContent = "No se pudo guardar: " + ((err && err.message) || err);
+        msg.hidden = false;
+        bg.disabled = false; bg.textContent = "Guardar";
+      });
+    });
+    dlg.showModal();
+    iDorm.focus();
+  }
+
+  function botonInfo(u, ctx) {
+    var b = el("button", "info", "i");
+    b.type = "button";
+    b.title = "Detalle y valores de " + (u.unidad || "la unidad");
+    b.setAttribute("aria-label", b.title);
+    b.addEventListener("click", function (e) { e.stopPropagation(); abrir(u, ctx); });
+    return b;
+  }
+
+  window.PropValores = {
+    cargar: cargar, de: de, rendimiento: rendimiento, botonInfo: botonInfo,
+    url: function () { return estado.url; }, error: function () { return estado.error; }
+  };
+})();

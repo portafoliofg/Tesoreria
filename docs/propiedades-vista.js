@@ -211,6 +211,8 @@
   function mostrar() {
     // Los contratos del edificio (teléfonos para "Recordarle"); al llegar se redibuja la pestaña.
     if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); });
+    // Valores y detalle de cada unidad (planilla aparte, propiedades-valores.js).
+    if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
     var caja = $("contenido");
     caja.replaceChildren();
     $("acciones").replaceChildren();
@@ -659,12 +661,23 @@
     ["transferencia", "Transferencia"], ["efectivo", "Efectivo"], ["punitorios", "Punitorios"], ["muniRentas", "Muni y rentas"],
     ["cochera", "Cochera"], ["adm", "Adm. (6 %)"], ["arreglos", "Arreglos"], ["total", "Total"]
   ];
+  // Valores de cada unidad (se cargan a mano con la "i"; el rendimiento se calcula solo).
+  var COLS_VALOR = [["valorReal", "Valor real"], ["precioCompra", "Precio de compra"], ["rendimiento", "Alquiler · rend."], ["ventaEstimada", "Venta estimada"]];
+  /** Alquiler mensual de la unidad: el del contrato o, si no hay, lo que pagó en la liquidación. */
+  function alquilerDe(u) {
+    var c = window.PropContratos && actual ? PropContratos.montoDe(actual.edificio, u.unidad) : null;
+    if (c) return { monto: c, fuente: "Según el contrato" };
+    var m = montoUnidad(u);
+    return { monto: m, fuente: m ? "Lo que pagó en " + (datos().periodo || "la liquidación") : "" };
+  }
   var COLORES_ESTADO = { transfiere: "A8D08D", efectivo: "FFFFFF", "no-abono": "FF0000", desocupado: "A5A5A5", amoblado: "8EAADB" };
   var MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   function panelUnidades(d) {
     var ed = editando();
-    var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó y la liquidación de los que pagan en efectivo.");
+    var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó, la liquidación de los que pagan en efectivo y sus valores. Tocá la “i” para ver y cargar el detalle y los valores.");
+    var conValores = !ed && !!window.PropValores;
+    if (conValores && PropValores.error()) p.append(el("div", "alerta error", PropValores.error()));
     // Pestañas por lugar, con la cantidad de unidades de cada uno.
     var subs = el("div", "pestanas sub");
     subs.setAttribute("role", "tablist");
@@ -685,13 +698,21 @@
     [["", "Todas las unidades"], ["Transfiere", "Transfieren"], ["Efectivo", "Pagan en efectivo"]].forEach(function (o) { var x = el("option", null, o[1]); x.value = o[0]; sel.append(x); });
     sel.value = filtro.forma;
     herr.append(buscar, sel);
+    if (conValores && PropValores.url()) {
+      var lp = el("a", "boton secundario chico", "Planilla de valores");
+      lp.href = PropValores.url(); lp.target = "_blank"; lp.rel = "noopener";
+      lp.title = "Abre la planilla de Google con los valores de las unidades (aparte de la de inversiones)";
+      herr.append(lp);
+    }
     p.append(herr);
     var cols = ed ? COLS : COLS.filter(function (c) { return hay(d.unidades, c[0]); });
-    var wrap = el("div", "tabla-scroll"), t = el("table", ed ? "editable" : "");
+    // Encabezado (y totales) fijos: la tabla se desplaza dentro de su caja.
+    var wrap = el("div", "tabla-scroll fija"), t = el("table", ed ? "editable" : "");
     var thead = el("thead"), tr = el("tr");
     tr.append(el("th", null, "Unidad"), el("th", null, "Pago"));
     cols.forEach(function (c) { tr.append(el("th", "num", c[1])); });
     tr.append(el("th", "num", "Coef. expensas"));
+    if (conValores) COLS_VALOR.forEach(function (c, i) { tr.append(el("th", "num" + (i === 0 ? " valor-ini" : ""), c[1])); });
     if (ed) tr.append(el("th", null, ""));
     thead.append(tr);
     var tbody = el("tbody"), tfoot = el("tfoot");
@@ -701,13 +722,25 @@
       var r = el("tr");
       var cu = el("td", "unidad"), m = el("span", "marca-color");
       m.style.background = "#" + (u.color || "FFFFFF");
-      cu.append(m, document.createTextNode(u.unidad), el("span", "sub", u.inquilino || "—"));
+      cu.append(m, document.createTextNode(u.unidad));
+      var alq = conValores ? alquilerDe(u) : null;
+      if (conValores) cu.append(PropValores.botonInfo(u, { edificio: actual.edificio, lugar: lugarDe(d, u), alquiler: alq.monto, fuente: alq.fuente, alGuardar: repintarPestana }));
+      cu.append(el("span", "sub", u.inquilino || "—"));
       var cp = el("td"); cp.append(pillEstado(u));
       // Unidad que no abonó: mensaje de WhatsApp listo para el inquilino (propiedades-contratos.js).
       if (u.estado === "no-abono" && window.PropContratos) cp.append(PropContratos.botonRecordar(u, d, actual.edificio));
       r.append(cu, cp);
       cols.forEach(function (c) { var v = u[c[0]]; r.append(el("td", "num" + (v === 0 ? " cero" : ""), typeof v === "number" ? pesos(v) : "—")); });
       r.append(el("td", "num", pct(u.coeficiente)));
+      if (conValores) {
+        var v = PropValores.de(u) || {};
+        var rd = PropValores.rendimiento(v, alq.monto);
+        r.append(el("td", "num valor-ini", pesos(v.valorReal)), el("td", "num", pesos(v.precioCompra)));
+        var tdr = el("td", "num");
+        tdr.append(el("b", "rend", rd === null ? "—" : pct1(rd)), el("span", "sub", alq.monto ? pesos(alq.monto) + " / mes" : "Sin alquiler"));
+        tdr.title = rd === null ? "" : "Alquiler × 12 sobre el precio de compra";
+        r.append(tdr, el("td", "num", pesos(v.ventaEstimada)));
+      }
       return r;
     }
     function filaEdicion(u, idx) {
@@ -781,7 +814,7 @@
       if (!filas.length) {
         var vacioLugar = filtro.lugar && !d.unidades.some(function (u) { return lugarDe(d, u) === filtro.lugar; });
         var r0 = el("tr"), c0 = el("td", "vacio", vacioLugar ? "Todavía no hay unidades en " + filtro.lugar + "." + (ed ? " Agregalas con “+ Unidad”." : " Tocá Editar y “+ Unidad” para cargarlas.") : "Ninguna unidad coincide con la búsqueda.");
-        c0.colSpan = cols.length + 4; r0.append(c0); tbody.append(r0);
+        c0.colSpan = cols.length + 4 + (conValores ? COLS_VALOR.length : 0); r0.append(c0); tbody.append(r0);
       }
       tfoot.replaceChildren();
       var rf = el("tr");
@@ -789,6 +822,16 @@
       rf.append(l);
       cols.forEach(function (c) { rf.append(el("td", "num", hay(filas, c[0]) ? pesos(suma(filas, c[0])) : "—")); });
       rf.append(el("td", "num", pct(suma(filas, "coeficiente"))));
+      if (conValores) {
+        // Rendimiento del conjunto: alquileres de las unidades con precio de compra sobre la suma de esas compras.
+        var vs = filas.map(function (u) { return { v: PropValores.de(u) || {}, a: alquilerDe(u).monto }; });
+        var tot = function (k) { var con = vs.filter(function (x) { return typeof x.v[k] === "number"; }); return con.length ? pesos(con.reduce(function (a, x) { return a + x.v[k]; }, 0)) : "—"; };
+        var conRend = vs.filter(function (x) { return PropValores.rendimiento(x.v, x.a) !== null; });
+        var compraR = conRend.reduce(function (a, x) { return a + x.v.precioCompra; }, 0);
+        var alqR = conRend.reduce(function (a, x) { return a + x.a; }, 0);
+        rf.append(el("td", "num valor-ini", tot("valorReal")), el("td", "num", tot("precioCompra")),
+          el("td", "num", compraR ? pct1(alqR * 12 / compraR) : "—"), el("td", "num", tot("ventaEstimada")));
+      }
       if (ed) rf.append(el("td"));
       tfoot.append(rf);
     }

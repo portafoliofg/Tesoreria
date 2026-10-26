@@ -10,6 +10,7 @@
  * PropContratos.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
  * PropContratos.panel(d, edificio, repintar) → nodo de la pestaña
  * PropContratos.botonRecordar(u, d, edificio) → enlace de WhatsApp para una unidad que no abonó
+ * PropContratos.montoDe(edificio, unidad) → monto actual del contrato de la unidad, o null
  */
 (function () {
   "use strict";
@@ -245,5 +246,10 @@
     return a;
   }
 
-  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar };
+  function montoDe(edificio, unidad) {
+    var c = estado.edificio === edificio && estado.listo ? contratoDe(unidad) : null;
+    return c && c.estado && typeof c.estado.monto === "number" && c.estado.monto > 0 ? c.estado.monto : null;
+  }
+
+  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar, montoDe: montoDe };
 })();
