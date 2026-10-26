@@ -758,9 +758,9 @@
     sel.value = filtro.forma;
     herr.append(buscar, sel);
     if (conValores && PropValores.url()) {
-      var lp = el("a", "boton secundario chico", "Planilla de valores");
+      var lp = el("a", "boton secundario chico", "Planilla de Propiedades");
       lp.href = PropValores.url(); lp.target = "_blank"; lp.rel = "noopener";
-      lp.title = "Abre la planilla de Google con los valores de las unidades (aparte de la de inversiones)";
+      lp.title = "Abre la planilla de Google de Propiedades (liquidaciones, contratos, ubicaciones y valores; aparte de la de Tesorería)";
       herr.append(lp);
     }
     p.append(herr);

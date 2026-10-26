@@ -1,4 +1,10 @@
 /**
+ * Planilla de Propiedades (aparte de la de Tesorería): acá viven TODAS las hojas de
+ * Propiedades. Las de liquidaciones (Propiedades), Contratos y Ubicaciones de propiedades
+ * estaban antes en la planilla de Tesorería: la primera vez que se usan se mudan solas
+ * (se copian, se verifica que la copia sea igual y recién ahí se borran de Tesorería;
+ * ver libroPropiedadesMigrado_). Código.gs las busca acá con libroDe_.
+ *
  * Valores de cada unidad de Propiedades: valor real, precio de compra, valor de venta
  * estimado y el detalle (dormitorios, destino y cochera). Se cargan a mano desde la
  * pestaña Unidades de bgpsammar.com/propiedades.html (botón "i" de cada unidad).
@@ -20,7 +26,10 @@
  */
 
 const PROP_VALORES_ID = 'PROPIEDADES_VALORES_ID';
-const PROP_VALORES_NOMBRE = 'Propiedades · Valores de unidades';
+const PROP_VALORES_NOMBRE = 'Propiedades';
+// Nombre que tenía la planilla antes de recibir todas las hojas de Propiedades.
+const PROP_VALORES_NOMBRE_VIEJO = 'Propiedades · Valores de unidades';
+const PROP_HOJAS_MIGRADAS = 'PROPIEDADES_HOJAS_MIGRADAS';
 const SHEET_VALORES_UNIDADES = 'Unidades';
 const HEADERS_VALORES_UNIDADES = [
   'Edificio', 'Lugar', 'Unidad', 'Clave', 'Valor real', 'Precio de compra', 'Alquiler mensual', 'Rendimiento anual',
@@ -47,7 +56,7 @@ function libroValoresPropiedades_() {
   }
   if (!LIBRO_VALORES_) {
     // Con el lock y volviendo a mirar el ID: dos pedidos a la vez no crean dos planillas.
-    const lock = LockService.getScriptLock();
+    const lock = lockPropiedades_();
     lock.waitLock(20000);
     try {
       olvidarPropiedades_();
@@ -62,6 +71,100 @@ function libroValoresPropiedades_() {
     }
   }
   return LIBRO_VALORES_;
+}
+
+/**
+ * Lock propio (el del documento de Tesorería), distinto del de conLock_: esto puede
+ * ejecutarse con conLock_ ya tomado (por ejemplo al guardar un contrato) sin trabarse.
+ */
+function lockPropiedades_() {
+  return LockService.getDocumentLock() || LockService.getScriptLock();
+}
+
+let HOJAS_MIGRADAS_ = null;
+let MUDANZA_INTENTADA_ = false;
+
+/**
+ * El libro de la hoja de Propiedades `nombre`: la planilla de Propiedades, con las hojas viejas
+ * ya mudadas desde la de Tesorería. Se intenta mudar una vez por ejecución; ya mudadas, queda
+ * anotado en la propiedad PROPIEDADES_HOJAS_MIGRADAS. Si esa hoja no se pudo mudar, se sigue
+ * usando la de Tesorería (así no se pierde de vista ningún dato).
+ */
+function libroPropiedadesMigrado_(nombre) {
+  const libro = libroValoresPropiedades_();
+  if (!HOJAS_MIGRADAS_) { try { HOJAS_MIGRADAS_ = JSON.parse(propiedades_().getProperty(PROP_HOJAS_MIGRADAS) || '{}'); } catch (e) { HOJAS_MIGRADAS_ = {}; } }
+  if (!MUDANZA_INTENTADA_ && HOJAS_PROPIEDADES_.some(n => !HOJAS_MIGRADAS_[n])) {
+    MUDANZA_INTENTADA_ = true;
+    migrarHojasPropiedades_(libro);
+  }
+  return HOJAS_MIGRADAS_[nombre] ? libro : libro_();
+}
+
+/** Mismo contenido (lo que se ve en cada celda) en las dos hojas. */
+function hojasIguales_(a, b) {
+  const fa = a.getLastRow(), ca = a.getLastColumn();
+  if (fa !== b.getLastRow() || ca !== b.getLastColumn()) return false;
+  if (!fa || !ca) return true;
+  return JSON.stringify(a.getRange(1, 1, fa, ca).getDisplayValues()) === JSON.stringify(b.getRange(1, 1, fa, ca).getDisplayValues());
+}
+
+/**
+ * Muda a la planilla de Propiedades las hojas de Propiedades que quedaron en la de Tesorería:
+ * copia la hoja entera (con formatos), verifica que la copia sea igual y recién ahí la borra
+ * de Tesorería. Si algo no coincide, no borra nada y deja el error en el registro.
+ */
+function migrarHojasPropiedades_(destino) {
+  const lock = lockPropiedades_();
+  lock.waitLock(30000);
+  try {
+    olvidarPropiedades_();
+    try { HOJAS_MIGRADAS_ = JSON.parse(propiedades_().getProperty(PROP_HOJAS_MIGRADAS) || '{}'); } catch (e) { HOJAS_MIGRADAS_ = {}; }
+    const tesoreria = libro_();
+    const hechas = [];
+    HOJAS_PROPIEDADES_.forEach(nombre => {
+      if (HOJAS_MIGRADAS_[nombre]) return;
+      try {
+        const origen = tesoreria.getSheetByName(nombre);
+        if (origen) {
+          const temporal = 'Mudando · ' + nombre;
+          const resto = destino.getSheetByName(temporal);
+          if (resto) destino.deleteSheet(resto);  // de un intento anterior que se cortó
+          const ya = destino.getSheetByName(nombre);
+          if (ya && !hojasIguales_(origen, ya)) {
+            // No debería pasar: ya hay otra hoja con ese nombre y distinto contenido. No se toca nada.
+            throw new Error('La planilla de Propiedades ya tiene una hoja "' + nombre + '" distinta de la de Tesorería.');
+          }
+          if (!ya) {
+            const copia = origen.copyTo(destino).setName(temporal);
+            SpreadsheetApp.flush();
+            if (!hojasIguales_(origen, copia)) { destino.deleteSheet(copia); throw new Error('La copia de "' + nombre + '" no salió igual.'); }
+            copia.setName(nombre);
+            SpreadsheetApp.flush();
+          }
+          const filas = Math.max(0, origen.getLastRow() - 1);
+          tesoreria.deleteSheet(origen);
+          hechas.push(nombre + ' (' + filas + ' filas)');
+        }
+        HOJAS_MIGRADAS_[nombre] = 1;
+        // Lo que esta ejecución tenía guardado de la hoja vieja.
+        delete HOJAS_[nombre];
+        Object.keys(HOJAS_LISTAS_).forEach(k => { if (k.indexOf(nombre + '|') === 0) delete HOJAS_LISTAS_[k]; });
+      } catch (e) {
+        console.error('No se pudo mudar la hoja ' + nombre + ' a la planilla de Propiedades: ' + e.message);
+        registrar_(null, 'Propiedades: error al mudar hoja', nombre + ': ' + e.message, nombre, '', '');
+      }
+    });
+    if (destino.getName() === PROP_VALORES_NOMBRE_VIEJO) destino.rename(PROP_VALORES_NOMBRE);
+    // La hoja vacía que trae una planilla nueva ("Hoja 1"), si ya hay otras.
+    if (destino.getSheets().length > 1) destino.getSheets().filter(h => /^(Hoja|Sheet) ?1$/.test(h.getName()) && h.getLastRow() === 0).forEach(h => destino.deleteSheet(h));
+    propiedades_().setProperty(PROP_HOJAS_MIGRADAS, JSON.stringify(HOJAS_MIGRADAS_));
+    if (hechas.length) {
+      try { marcarCambioDatos_(); } catch (e) {}
+      registrar_(null, 'Propiedades: hojas mudadas a su planilla', hechas.join(' · ') + ' → ' + destino.getName(), destino.getId(), '', '');
+    }
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Hoja Unidades de la planilla de valores, con los títulos en negrita y fijos. */

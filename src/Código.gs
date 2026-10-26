@@ -2364,16 +2364,28 @@ function libro_() {
   return LIBRO_;
 }
 
+// Las hojas de Propiedades viven en la planilla aparte de Propiedades, no en la de Tesorería
+// (ver PropiedadesValores.gs: la primera vez se mudan solas y se borran de acá).
+const HOJAS_PROPIEDADES_ = ['Propiedades', 'Contratos', 'Ubicaciones de propiedades'];
+
+/**
+ * El libro donde está (o va) la hoja: el de Propiedades para las suyas, el de Tesorería para el
+ * resto. Si una hoja de Propiedades todavía no se pudo mudar, se sigue usando la de Tesorería.
+ */
+function libroDe_(nombre) {
+  return HOJAS_PROPIEDADES_.indexOf(nombre) >= 0 ? libroPropiedadesMigrado_(nombre) : libro_();
+}
+
 /** La hoja con ese nombre, o null si no existe. */
 function hoja_(nombre) {
   if (HOJAS_[nombre]) return HOJAS_[nombre];
-  const sheet = libro_().getSheetByName(nombre);
+  const sheet = libroDe_(nombre).getSheetByName(nombre);
   if (sheet) HOJAS_[nombre] = sheet;
   return sheet;
 }
 
 function obtenerHojaSinMemo_(nombre, headers) {
-  const ss = libro_();
+  const ss = libroDe_(nombre);
   const sheet = ss.getSheetByName(nombre) || ss.insertSheet(nombre);
   if (sheet.getMaxColumns() < headers.length) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
@@ -4112,8 +4124,9 @@ function guardarPreferencias_(d, u) {
 // Liquidaciones mensuales de alquileres de cada edificio (por ejemplo "Calle
 // Ejemplo 123 · Octubre/26"). La página bgpsammar.com/propiedades.html lee la
 // planilla de Excel del mes y manda lo leído; acá se guarda como JSON, una fila por
-// edificio y período. Los datos (inquilinos, montos, patentes) viven solo en esta
-// planilla: el repositorio y la página son públicos, así que nunca van ahí.
+// edificio y período, en la planilla de Propiedades (aparte de la de Tesorería, ver
+// libroDe_). Los datos (inquilinos, montos, patentes) viven solo en esa planilla: el
+// repositorio y la página son públicos, así que nunca van ahí.
 const SHEET_PROPIEDADES = 'Propiedades';
 const HEADERS_PROPIEDADES = ['Edificio', 'Período', 'Orden', 'Datos', 'Archivo', 'Cargado por', 'Fecha de Carga'];
 const MAX_DATOS_PROPIEDAD = 48000;
