@@ -20,6 +20,13 @@
  * BGPSesion.pedir(accion, d)   Promise → respuesta del servidor para una acción con sesión
  *                              (por ejemplo los datos de Propiedades). Falla con el motivo;
  *                              si la sesión venció, el error trae .sesion = false.
+ * BGPSesion.pedirConMemoria(accion, d, alLlegar, soloServidor)
+ *                              Para las acciones que responden comprimido (formato "gz", por ejemplo
+ *                              obtenerPropiedades). Llama a alLlegar(datos, true) al instante con lo
+ *                              último guardado en este navegador (salvo con soloServidor) y a
+ *                              alLlegar(datos, false) cuando responde el servidor, solo si cambió algo.
+ *                              Promise → la respuesta del servidor; falla igual que pedir().
+ *                              Lo guardado se borra al salir.
  */
 (function () {
   // Si la URL /exec cambia algún día, actualizarla acá y en el iframe de index.html.
@@ -59,6 +66,47 @@
         throw new Error("No se pudo conectar con el servidor. Revisá la conexión y probá de nuevo.");
       })
       .then(function (r) { clearTimeout(reloj); return r; }, function (err) { clearTimeout(reloj); throw err; });
+  }
+
+  // ----- Memoria de este navegador (IndexedDB) -----
+  // Si el navegador no deja guardar, leer devuelve null y todo sigue andando sin memoria.
+  var memoria = (function () {
+    var base = null;
+    function abrir() {
+      if (!base) base = new Promise(function (resolve) {
+        try {
+          var req = indexedDB.open("bgp-memoria", 1);
+          req.onupgradeneeded = function () { req.result.createObjectStore("datos"); };
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = req.onblocked = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+      return base;
+    }
+    function operar(modo, fn) {
+      return abrir().then(function (db) {
+        if (!db) return null;
+        return new Promise(function (resolve) {
+          try {
+            var t = db.transaction("datos", modo);
+            var pedido = fn(t.objectStore("datos"));
+            t.oncomplete = function () { resolve(pedido && pedido.result !== undefined ? pedido.result : null); };
+            t.onerror = t.onabort = function () { resolve(null); };
+          } catch (e) { resolve(null); }
+        });
+      }).catch(function () { return null; });
+    }
+    return {
+      leer: function (k) { return operar("readonly", function (s) { return s.get(k); }); },
+      guardar: function (k, v) { return operar("readwrite", function (s) { return s.put(v, k); }); },
+      borrar: function () { return operar("readwrite", function (s) { return s.clear(); }); }
+    };
+  })();
+
+  function descomprimir(gz) {
+    var bin = atob(gz), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text().then(JSON.parse);
   }
 
   window.BGPSesion = {
@@ -107,10 +155,42 @@
         throw err;
       });
     },
+    pedirConMemoria: function (accion, datos, alLlegar, soloServidor) {
+      var api = this;
+      if (typeof DecompressionStream === "undefined" || typeof indexedDB === "undefined") {
+        return api.pedir(accion, datos).then(function (r) { alLlegar(r, false); return r; });
+      }
+      var u = api.usuario();
+      var k = (u && u.usuario || "") + "|" + accion;
+      return memoria.leer(k).then(function (g) {
+        // A la vista lo guardado (si hay) mientras se espera al servidor.
+        var mostrado = g && !soloServidor
+          ? descomprimir(g.gz).then(function (o) { alLlegar(o, true); return true; }, function () { return false; })
+          : Promise.resolve(false);
+        function pedirServidor(clave) {
+          return api.pedir(accion, Object.assign({}, datos, { formato: "gz", clave: clave }));
+        }
+        return pedirServidor(g ? g.clave : "").then(function (r) {
+          return mostrado.then(function (ok) {
+            if (!r.igual) return procesar(r);
+            if (ok) return r;
+            // No cambió, pero lo guardado no estaba a la vista (soloServidor o no se pudo leer).
+            return descomprimir(g.gz).then(function (o) { alLlegar(o, false); return r; },
+              function () { return pedirServidor("").then(procesar); });
+          });
+        });
+        function procesar(r) {
+          if (r.gz === undefined) { alLlegar(r, false); return r; }
+          if (r.clave) memoria.guardar(k, { clave: r.clave, gz: r.gz });
+          return descomprimir(r.gz).then(function (o) { alLlegar(o, false); return r; });
+        }
+      });
+    },
     salir: function () {
       var t = leer(CLAVE);
       guardar("", null);
       guardarGoogle("");
+      memoria.borrar();
       if (!t) return Promise.resolve();
       return pedir("logout", { token: t }, t).then(function () {}, function () {});
     }

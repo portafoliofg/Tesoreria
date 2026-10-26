@@ -25,7 +25,7 @@
   if (!guardado) { irAlIngreso(); return; }
   $("quien").textContent = guardado.nombre || guardado.usuario || "";
   document.body.classList.remove("verificando");
-  BGPSesion.consultar().then(function (u) { if (!u) irAlIngreso(); }, function () {});
+  // La sesión no se consulta aparte: ubicacionesPropiedades la valida (si venció, vuelve al ingreso).
 
   // ----- Ayudas -----
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }

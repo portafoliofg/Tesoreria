@@ -38,10 +38,7 @@
   if (!guardado) { irAlIngreso(); return; }
   $("quien").textContent = guardado.nombre || guardado.usuario || "";
   document.body.classList.remove("verificando");
-  BGPSesion.consultar().then(function (u) {
-    if (!u) { irAlIngreso(); return; }
-    $("quien").textContent = u.nombre || u.usuario;
-  }, function () {});
+  // La sesión no se consulta aparte: obtenerPropiedades la valida (si venció, vuelve al ingreso).
   $("salir").addEventListener("click", function () { BGPSesion.salir().then(irAlIngreso); });
   window.addEventListener("beforeunload", function (e) { if (borrador) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -156,14 +153,28 @@
   }
 
   // ----- Datos -----
-  function cargar(seleccion) {
-    return BGPSesion.pedir("obtenerPropiedades").then(function (r) {
+  // Al abrir la página se muestra al instante lo último guardado en este navegador y se
+  // actualiza si el servidor trae algo distinto (conGuardado). Después de guardar se espera
+  // al servidor. seleccion: la clave a mostrar, o una función que la elige con la lista.
+  function cargar(seleccion, conGuardado) {
+    var pintado = false;
+    return BGPSesion.pedirConMemoria("obtenerPropiedades", {}, function (r, guardado) {
+      // Lo que llega mientras se edita no cambia lo que está a la vista.
+      if (pintado && borrador) return;
       lista = (r.liquidaciones || []).slice().sort(function (a, b) {
         return String(b.orden).localeCompare(String(a.orden)) || String(a.edificio).localeCompare(String(b.edificio));
       });
-      armarSelector(seleccion);
+      // Si ya se mostró lo guardado, se mantiene lo que la persona tenga elegido.
+      var elegida = pintado && actual ? clave(actual) : typeof seleccion === "function" ? seleccion(lista) : seleccion;
+      armarSelector(elegida);
       mostrar();
-    }).catch(function (err) { errorEn($("contenido"), err); });
+      pintado = true;
+    }, !conGuardado).then(function (r) {
+      if (r.usuario) $("quien").textContent = r.usuario.nombre || r.usuario.usuario || "";
+    }).catch(function (err) {
+      if (pintado && !(err && err.sesion === false)) { console.error(err); return; }
+      errorEn($("contenido"), err);
+    });
   }
   function clave(x) { return x.edificio + "|" + x.periodo; }
   function armarSelector(seleccion) {
@@ -1010,12 +1021,12 @@
     var q = new URLSearchParams(location.search);
     var ed = q.get("edificio");
     if (q.get("lugar")) { filtro.lugar = q.get("lugar"); pestana = "unidades"; }
-    if (!ed) { cargar(); return; }
-    BGPSesion.pedir("obtenerPropiedades").then(function (r) {
-      var suyas = (r.liquidaciones || []).filter(function (x) { return x.edificio === ed; })
+    if (!ed) { cargar(undefined, true); return; }
+    cargar(function (todas) {
+      var suyas = todas.filter(function (x) { return x.edificio === ed; })
         .sort(function (a, b) { return String(b.orden).localeCompare(String(a.orden)); });
       var elegida = suyas.find(function (x) { return x.periodo === q.get("periodo"); }) || suyas[0];
-      cargar(elegida ? clave(elegida) : undefined);
-    }, function () { cargar(); });
+      return elegida ? clave(elegida) : undefined;
+    }, true);
   })();
 })();

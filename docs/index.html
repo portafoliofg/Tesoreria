@@ -12,7 +12,12 @@
   <title>Andrés Sammartino</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600;700&display=swap">
+  <!-- La app y el ingreso hablan con Apps Script: la conexión se abre mientras carga la página. -->
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com">
+  <!-- Las letras no frenan el dibujo de la página: se aplican cuando llegan. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600;700&display=swap"></noscript>
   <style>
     /* Paleta del logo de Andrés Sammartino: fondo crema, verde campo y dorado. */
     :root {
@@ -64,9 +69,12 @@
     }
     .capa.brillo {
       background: linear-gradient(105deg, transparent 42%, rgba(255, 246, 220, 0.95) 50%, transparent 58%) 100% 0 / 300% 100% no-repeat;
+      mix-blend-mode: screen;
+    }
+    /* La máscara (y su imagen) solo si la presentación se va a ver. */
+    .intro.con-imagenes .capa.brillo {
       -webkit-mask: url("intro-oro.webp?v=6") center / 100% 100% no-repeat;
               mask: url("intro-oro.webp?v=6") center / 100% 100% no-repeat;
-      mix-blend-mode: screen;
     }
     .intro.anima .intro-luz { animation: luz 2.6s ease 1.1s both; }
     .intro.anima .capa.verde, .intro.anima .capa.oro { animation: dibujar 1.7s cubic-bezier(0.45, 0.05, 0.25, 1) 0.25s both; }
@@ -218,11 +226,11 @@
     <div class="intro" id="intro">
       <div class="intro-luz" aria-hidden="true"></div>
       <div class="intro-logo" id="introLogo" role="img" aria-label="Andrés Sammartino · Campos, bolsa de valores e inversiones inmobiliarias">
-        <img class="capa verde" src="intro-verde.webp?v=6" alt="" width="928" height="700">
-        <img class="capa oro" src="intro-oro.webp?v=6" alt="" width="928" height="700">
+        <img class="capa verde" data-src="intro-verde.webp?v=6" alt="" width="928" height="700">
+        <img class="capa oro" data-src="intro-oro.webp?v=6" alt="" width="928" height="700">
         <span class="capa brillo"></span>
-        <img class="capa nombre" src="intro-nombre.webp?v=6" alt="" width="928" height="700">
-        <img class="capa lema" src="intro-lema.webp?v=6" alt="" width="928" height="700">
+        <img class="capa nombre" data-src="intro-nombre.webp?v=6" alt="" width="928" height="700">
+        <img class="capa lema" data-src="intro-lema.webp?v=6" alt="" width="928" height="700">
       </div>
       <button type="button" class="vc-saltar" id="vcSaltar">Saltar</button>
     </div>
@@ -280,7 +288,7 @@
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
           <!-- ?v=: subirlo al cambiar propiedades.html, así el navegador no usa una copia vieja. -->
-          <a class="cartel" id="irPropiedades" href="propiedades.html?v=8">
+          <a class="cartel" id="irPropiedades" href="propiedades.html?v=9">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -298,7 +306,7 @@
       </div>
     </section>
   </div>
-  <script src="sesion.js?v=8"></script>
+  <script src="sesion.js?v=9"></script>
   <script>
     // Pantalla de inicio: la presentación animada del logo y, al terminar, el ingreso (si
     // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
@@ -570,12 +578,18 @@
         if (e.persisted && usuario && !BGPSesion.token()) { history.replaceState(null, "", "#elegir"); location.reload(); }
       });
 
-      // Al volver desde Propiedades o al salir (index.html#elegir) no se repite la presentación.
-      if (location.hash === "#elegir") {
+      // La presentación se ve una sola vez: con la sesión guardada, si ya se vio en esta pestaña
+      // o al volver desde Propiedades o al salir (index.html#elegir), el selector o el ingreso
+      // aparecen al instante. Sus imágenes se bajan solo si se va a ver.
+      var introVista = false;
+      try { introVista = sessionStorage.getItem("bgp-intro") === "1"; sessionStorage.setItem("bgp-intro", "1"); } catch (e) {}
+      if (location.hash === "#elegir" || BGPSesion.token() || introVista) {
         intro.remove();
         alTerminar();
         return;
       }
+      Array.prototype.forEach.call(intro.querySelectorAll("img[data-src]"), function (im) { im.src = im.getAttribute("data-src"); });
+      intro.classList.add("con-imagenes");
 
       document.getElementById("vcSaltar").addEventListener("click", alTerminar);
 
