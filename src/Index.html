@@ -13463,6 +13463,8 @@ function saldosDelResumen(fechaDma, idsReales) {
   if (!planillaFlujo.tsvResumen) return [];
   const resp = saldosLeidos;
   const out = [];
+  // Un solo saldo de FCI por banco y moneda (el resumen lo repite en cada cuenta del banco).
+  const vistosFci = {};
   try {
     armarSaldosLeidos(filasDesdeTexto(planillaFlujo.tsvResumen));
     saldosLeidos.forEach(r => {
@@ -13818,7 +13820,6 @@ const COD_TIPO_FACTURA = { "1": "Factura A", "6": "Factura B", "11": "Factura C"
 
 function cuitsEnTexto(t) {
   const out = [];
-    const vistosFci = {};
   const re = /\b(20|23|24|25|26|27|30|33|34)-?\s?(\d{8})-?\s?(\d)\b/g;
   let m;
   while ((m = re.exec(t))) { const c = m[1] + m[2] + m[3]; if (out.indexOf(c) < 0) out.push(c); }
