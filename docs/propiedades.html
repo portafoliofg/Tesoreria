@@ -348,6 +348,13 @@
     .ficha-calc .kpi.baja b { color: var(--rojo); }
     .ficha-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
     .ficha .alerta { margin-top: 8px; }
+    /* Rentabilidad */
+    .rent-param { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; margin-bottom: 0; }
+    .rent-param input { width: 100%; min-width: 0; }
+    .rent-guardar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 20px; }
+    .pill.alquilar { color: var(--verde-claro); background: rgba(47, 107, 66, 0.12); }
+    .pill.vender { color: var(--oro); background: rgba(217, 180, 106, 0.22); }
+    td.rend-celda { color: var(--verde); font-weight: 700; }
   </style>
 </head>
 <body class="verificando">
@@ -388,7 +395,7 @@
   <script src="sesion.js?v=9"></script>
   <script src="propiedades-lector.js?v=7"></script>
   <script src="propiedades-contratos.js?v=3"></script>
-  <script src="propiedades-valores.js?v=1"></script>
-  <script src="propiedades-vista.js?v=17"></script>
+  <script src="propiedades-valores.js?v=2"></script>
+  <script src="propiedades-vista.js?v=18"></script>
 </body>
 </html>

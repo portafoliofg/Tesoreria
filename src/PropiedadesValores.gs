@@ -10,6 +10,13 @@
  * El rendimiento no se carga: es el alquiler mensual × 12 sobre el precio de compra.
  * La página lo calcula con el alquiler actual (contrato o liquidación) y en la planilla
  * queda como fórmula sobre el alquiler que tenía la unidad al guardar.
+ *
+ * Gastos mensuales: lo que paga el dueño por la unidad aparte de la administración y los
+ * arreglos que ya descuenta la liquidación (impuestos, expensas, seguro…). Con eso la
+ * página calcula el rendimiento neto.
+ *
+ * Hoja Parámetros: por edificio, los costos de venta (%) y la tasa anual de la inversión
+ * alternativa (%) con que la pestaña Rentabilidad arma los escenarios de venta.
  */
 
 const PROP_VALORES_ID = 'PROPIEDADES_VALORES_ID';
@@ -17,11 +24,13 @@ const PROP_VALORES_NOMBRE = 'Propiedades · Valores de unidades';
 const SHEET_VALORES_UNIDADES = 'Unidades';
 const HEADERS_VALORES_UNIDADES = [
   'Edificio', 'Lugar', 'Unidad', 'Clave', 'Valor real', 'Precio de compra', 'Alquiler mensual', 'Rendimiento anual',
-  'Valor de venta estimado', 'Dormitorios', 'Destino', 'Cochera', 'Actualizado por', 'Fecha'
+  'Valor de venta estimado', 'Dormitorios', 'Destino', 'Cochera', 'Actualizado por', 'Fecha', 'Gastos mensuales'
 ];
+const SHEET_PARAMETROS_PROP = 'Parámetros';
+const HEADERS_PARAMETROS_PROP = ['Edificio', 'Costos de venta %', 'Tasa alternativa %', 'Actualizado por', 'Fecha'];
 const DESTINOS_UNIDAD = ['Vivienda', 'Comercial', 'Oficina', 'Cochera', 'Depósito', 'Otro'];
 // Columnas con importes y la del rendimiento (1 = columna A).
-const COL_VALORES_IMPORTES = [5, 6, 7, 9];
+const COL_VALORES_IMPORTES = [5, 6, 7, 9, 15];
 const COL_VALORES_RENDIMIENTO = 8;
 
 let LIBRO_VALORES_ = null;
@@ -64,11 +73,39 @@ function hojaValoresUnidades_() {
     const hojas = libro.getSheets();
     hoja = hojas.length === 1 && hojas[0].getLastRow() === 0 ? hojas[0].setName(SHEET_VALORES_UNIDADES) : libro.insertSheet(SHEET_VALORES_UNIDADES);
   }
-  if (hoja.getLastRow() === 0) {
-    hoja.getRange(1, 1, 1, HEADERS_VALORES_UNIDADES.length).setValues([HEADERS_VALORES_UNIDADES]).setFontWeight('bold');
-    hoja.setFrozenRows(1);
-  }
+  titulosValores_(hoja, HEADERS_VALORES_UNIDADES);
   return hoja;
+}
+
+/** Títulos en negrita y fijos; si la hoja ya existía con menos columnas, completa los que faltan. */
+function titulosValores_(hoja, headers) {
+  if (hoja.getMaxColumns() < headers.length) hoja.insertColumnsAfter(hoja.getMaxColumns(), headers.length - hoja.getMaxColumns());
+  if (hoja.getLastRow() === 0) {
+    hoja.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    hoja.setFrozenRows(1);
+    return;
+  }
+  const actuales = hoja.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
+  if (headers.some((h, i) => !String(actuales[i] || '').trim())) {
+    hoja.getRange(1, 1, 1, headers.length).setValues([headers.map((h, i) => String(actuales[i] || '').trim() || h)]).setFontWeight('bold');
+  }
+}
+
+function hojaParametrosProp_() {
+  const libro = libroValoresPropiedades_();
+  const hoja = libro.getSheetByName(SHEET_PARAMETROS_PROP) || libro.insertSheet(SHEET_PARAMETROS_PROP);
+  titulosValores_(hoja, HEADERS_PARAMETROS_PROP);
+  return hoja;
+}
+
+function leerParametrosProp_() {
+  const hoja = hojaParametrosProp_();
+  const ultima = hoja.getLastRow();
+  if (ultima < 2) return [];
+  return hoja.getRange(2, 1, ultima - 1, HEADERS_PARAMETROS_PROP.length).getValues().map((f, i) => ({
+    fila: i + 2, edificio: String(f[0] || ''), costosVenta: numeroValor_(f[1]), tasaAlternativa: numeroValor_(f[2]),
+    actualizadoPor: String(f[3] || ''), fecha: String(f[4] || '')
+  })).filter(x => x.edificio);
 }
 
 function numeroValor_(v) {
@@ -96,6 +133,7 @@ function valorPublico_(f) {
     valorReal: num(f['Valor real']), precioCompra: num(f['Precio de compra']), ventaEstimada: num(f['Valor de venta estimado']),
     dormitorios: f['Dormitorios'] === '' || f['Dormitorios'] === null ? null : Number(f['Dormitorios']),
     destino: String(f['Destino'] || ''), cochera: String(f['Cochera'] || ''),
+    gastosMensuales: num(f['Gastos mensuales']),
     actualizadoPor: String(f['Actualizado por'] || ''), fecha: fecha
   };
 }
@@ -105,7 +143,8 @@ function obtenerValoresPropiedades_(d) {
   const edificio = String((d && d.edificio) || '').trim();
   const libro = libroValoresPropiedades_();
   const valores = leerValoresUnidades_().filter(f => !edificio || claveTexto(f['Edificio']) === claveTexto(edificio)).map(valorPublico_);
-  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl() };
+  const par = leerParametrosProp_().find(x => claveTexto(x.edificio) === claveTexto(edificio)) || null;
+  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl(), parametros: par };
 }
 
 /**
@@ -113,6 +152,8 @@ function obtenerValoresPropiedades_(d) {
  * d: {edificio, lugar, unidad, clave, valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, alquiler}
  */
 function guardarValorPropiedad_(d, u) {
+  // Los parámetros de Rentabilidad viajan por esta misma acción (así no hace falta otra en Código.gs).
+  if (d && d.parametros) return guardarParametrosPropiedades_(d, u);
   const edificio = String((d && d.edificio) || '').trim(), unidad = String((d && d.unidad) || '').trim();
   if (!edificio || !unidad) return { ok: false, error: 'Falta el edificio o la unidad.' };
   const clave = String(d.clave || unidad).trim();
@@ -135,7 +176,8 @@ function guardarValorPropiedad_(d, u) {
       // Rendimiento anual sobre el precio de compra: (alquiler × 12) / compra.
       'Rendimiento anual': '=IF(AND(ISNUMBER(F' + nro + '),F' + nro + '>0,ISNUMBER(G' + nro + ')),G' + nro + '*12/F' + nro + ',"")',
       'Valor de venta estimado': vacio(numeroValor_(d.ventaEstimada)),
-      'Dormitorios': dorm, 'Destino': destino, 'Cochera': cochera, 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
+      'Dormitorios': dorm, 'Destino': destino, 'Cochera': cochera, 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(),
+      'Gastos mensuales': vacio(numeroValor_(d.gastosMensuales))
     };
     const rango = hoja.getRange(nro, 1, 1, HEADERS_VALORES_UNIDADES.length);
     rango.setValues([HEADERS_VALORES_UNIDADES.map(h => v[h])]);
@@ -146,5 +188,24 @@ function guardarValorPropiedad_(d, u) {
     registrar_(u, previa ? 'Propiedades: valores modificados' : 'Propiedades: valores cargados', edificio + ' · ' + unidad + (resumen ? ' · ' + resumen : ''), edificio + ' · ' + unidad,
       previa ? JSON.stringify(valorPublico_(previa)) : '', JSON.stringify(v));
     return { ok: true, valor: valorPublico_(v) };
+  });
+}
+
+/** Costos de venta y tasa alternativa de un edificio. d: {parametros: true, edificio, costosVenta, tasaAlternativa} (en %) */
+function guardarParametrosPropiedades_(d, u) {
+  const edificio = String(d.edificio || '').trim();
+  if (!edificio) return { ok: false, error: 'Falta el edificio.' };
+  const costos = numeroValor_(d.costosVenta), tasa = numeroValor_(d.tasaAlternativa);
+  if (costos !== null && costos > 50) return { ok: false, error: 'Los costos de venta tienen que ser un porcentaje de 0 a 50.' };
+  if (tasa !== null && tasa > 1000) return { ok: false, error: 'La tasa alternativa tiene que ser un porcentaje anual de 0 a 1000.' };
+  libroValoresPropiedades_();
+  return conLock_(() => {
+    const hoja = hojaParametrosProp_();
+    const previa = leerParametrosProp_().find(x => claveTexto(x.edificio) === claveTexto(edificio));
+    const fila = [edificio, costos === null ? '' : costos, tasa === null ? '' : tasa, nombreDe_(u), ahoraTexto_()];
+    hoja.getRange(previa ? previa.fila : hoja.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
+    registrar_(u, 'Propiedades: parámetros de rentabilidad', edificio + ' · costos de venta ' + (costos === null ? '—' : costos + ' %') + ' · tasa alternativa ' + (tasa === null ? '—' : tasa + ' %'), edificio,
+      previa ? JSON.stringify(previa) : '', JSON.stringify(fila));
+    return { ok: true, parametros: { edificio: edificio, costosVenta: costos, tasaAlternativa: tasa, actualizadoPor: nombreDe_(u), fecha: ahoraTexto_() } };
   });
 }

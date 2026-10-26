@@ -19,11 +19,12 @@
   var $ = function (id) { return document.getElementById(id); };
   var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   var ADM = 0.06;
-  var PESTANAS = [["tablero", "Tablero"], ["resumen", "Resumen"], ["unidades", "Unidades"], ["contratos", "Contratos"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"], ["historial", "Historial"]];
+  var PESTANAS = [["tablero", "Tablero"], ["resumen", "Resumen"], ["unidades", "Unidades"], ["rentabilidad", "Rentabilidad"], ["contratos", "Contratos"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"], ["historial", "Historial"]];
   // Ícono de cada sección en el menú lateral (trazos de un SVG de 24 × 24).
   var ICONOS = {
     tablero: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="5" rx="1.5"/><rect x="13" y="11" width="7" height="9" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/>',
     resumen: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    rentabilidad: '<path d="M4 19h16"/><path d="M6 15l4-4 3 3 6-7"/><path d="M15 7h4v4"/>',
     unidades: '<path d="M4 20V6l8-3v17M12 9l8 3v8"/><path d="M3 20h18M7.5 8.5v.01M7.5 12v.01M7.5 15.5v.01M15.5 14v.01M15.5 17v.01"/>',
     contratos: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5"/><path d="M8.5 16.5c1-1.5 2-1.5 2.5 0s1.5 1.5 2.5 0 1.5-1 2 0"/>',
     expensas: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
@@ -240,7 +241,7 @@
     // Los contratos del edificio (teléfonos para "Recordarle"); al llegar se redibuja la pestaña.
     if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); });
     // Valores y detalle de cada unidad (planilla aparte, propiedades-valores.js).
-    if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () { if (pestana === "unidades" && !editando()) repintarPestana(); }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
+    if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () { if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana(); }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
     var caja = $("contenido");
     caja.replaceChildren();
     $("acciones").replaceChildren();
@@ -317,13 +318,14 @@
     var d = datos();
     if (editando()) recalcularTotales(d);
     // Unidades usa todo el ancho de la pantalla: así entran todas las columnas sin deslizar.
-    document.body.classList.toggle("ancho", pestana === "unidades");
+    document.body.classList.toggle("ancho", pestana === "unidades" || pestana === "rentabilidad");
     var previos = Array.prototype.slice.call(cuerpo.querySelectorAll("input, select, textarea, button"));
     var foco = previos.indexOf(document.activeElement);
     cuerpo.replaceChildren();
     if (pestana === "tablero") cuerpo.append(vistaTablero(d));
     else if (pestana === "historial") cuerpo.append(vistaHistorial(d));
     else if (pestana === "unidades") cuerpo.append(panelUnidades(d));
+    else if (pestana === "rentabilidad") cuerpo.append(vistaRentabilidad(d));
     else if (pestana === "expensas") cuerpo.append(panelExpensas(d));
     else if (pestana === "cocheras") { var g = el("div", "grilla mitad"); g.append(panelCocheras(d), panelNovedades(d)); cuerpo.append(g); }
     else if (pestana === "transferencias") cuerpo.append(panelPlanillaTransferencias(d));
@@ -710,6 +712,23 @@
     var m = montoUnidad(u);
     return { monto: m, fuente: m ? "Lo que pagó en " + (datos().periodo || "la liquidación") : "" };
   }
+  /** Promedio mensual de arreglos de la unidad en los últimos 12 meses del edificio (los descuenta la liquidación). */
+  function arreglosMes(u, d) {
+    var meses = delEdificio(d).slice(-12).map(function (x) { return x === actual ? d : x.datos; });
+    if (meses.indexOf(d) < 0) meses.push(d);
+    var k = u.clave || u.unidad, total = 0;
+    meses.forEach(function (m) {
+      var x = (m.unidades || []).find(function (y) { return (y.clave || y.unidad) === k; });
+      if (x && typeof x.arreglos === "number") total += x.arreglos;
+    });
+    return meses.length ? total / meses.length : 0;
+  }
+  /** Lo que necesitan la ficha ("i") y Rentabilidad para calcular el neto de una unidad. */
+  function ctxUnidad(u, d) {
+    var alq = alquilerDe(u);
+    return { edificio: actual.edificio, lugar: lugarDe(d, u), alquiler: alq.monto, fuente: alq.fuente,
+      adm: typeof u.adm === "number" ? u.adm : 0, arreglosMes: arreglosMes(u, d), alGuardar: repintarPestana };
+  }
   var COLORES_ESTADO = { transfiere: "A8D08D", efectivo: "FFFFFF", "no-abono": "FF0000", desocupado: "A5A5A5", amoblado: "8EAADB" };
   var MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -764,7 +783,7 @@
       m.style.background = "#" + (u.color || "FFFFFF");
       cu.append(m, document.createTextNode(u.unidad));
       var alq = conValores ? alquilerDe(u) : null;
-      if (conValores) cu.append(PropValores.botonInfo(u, { edificio: actual.edificio, lugar: lugarDe(d, u), alquiler: alq.monto, fuente: alq.fuente, alGuardar: repintarPestana }));
+      if (conValores) cu.append(PropValores.botonInfo(u, ctxUnidad(u, d)));
       cu.append(el("span", "sub", u.inquilino || "—"));
       var cp = el("td"); cp.append(pillEstado(u));
       // Unidad que no abonó: mensaje de WhatsApp listo para el inquilino (propiedades-contratos.js).
@@ -888,6 +907,175 @@
       p.append(acc);
     }
     return p;
+  }
+
+  // ----- Rentabilidad -----
+  // Portafolio (por lugar y total), rendimiento neto de cada unidad y escenarios de venta:
+  // qué deja por año seguir alquilando contra vender al valor estimado (menos los costos de
+  // venta) e invertir lo cobrado a la tasa alternativa. Usa los valores de la "i" de cada unidad.
+  var COSTOS_VENTA_DEF = 5;
+  function vistaRentabilidad(d) {
+    var box = el("div", "columna");
+    if (!window.PropValores || !PropValores.listo()) { box.append(el("p", "cargando", "Cargando valores de las unidades…")); return box; }
+    if (PropValores.error()) box.append(el("div", "alerta error", PropValores.error()));
+    var par = PropValores.parametros() || {};
+    var costos = typeof par.costosVenta === "number" ? par.costosVenta : COSTOS_VENTA_DEF;
+    var tasa = typeof par.tasaAlternativa === "number" ? par.tasaAlternativa : null;
+    var aCargo = ((d.expensas || {}).aCargo || {}).valores || {};
+    var impEdificio = (aCargo.rentas || 0) + (aCargo.municipalidad || 0);
+
+    // Una fila por unidad con todo calculado.
+    var filas = d.unidades.map(function (u) {
+      var ctx = ctxUnidad(u, d), v = PropValores.de(u) || {}, c = PropValores.calculo(v, ctx);
+      var ventaNeta = v.ventaEstimada > 0 ? v.ventaEstimada * (1 - costos / 100) : null;
+      var netoAnual = c.neto === null ? null : c.neto * 12;
+      var vendiendo = ventaNeta !== null && tasa !== null ? ventaNeta * tasa / 100 : null;
+      return { u: u, lugar: lugarDe(d, u), v: v, c: c, ctx: ctx, ventaNeta: ventaNeta, netoAnual: netoAnual, vendiendo: vendiendo,
+        sobreVenta: netoAnual !== null && ventaNeta ? netoAnual / ventaNeta : null };
+    });
+    function sumar(lista, f) { return lista.reduce(function (a, x) { var n = f(x); return a + (typeof n === "number" ? n : 0); }, 0); }
+    function variacion(lista, k) {
+      var con = lista.filter(function (x) { return x.v.precioCompra > 0 && x.v[k] > 0; });
+      var compra = sumar(con, function (x) { return x.v.precioCompra; });
+      return compra ? sumar(con, function (x) { return x.v[k]; }) / compra - 1 : null;
+    }
+    function resumen(lista) {
+      var conCompra = lista.filter(function (x) { return x.v.precioCompra > 0 && x.c.alquiler; });
+      var compra = sumar(conCompra, function (x) { return x.v.precioCompra; });
+      return {
+        n: lista.length, conValores: lista.filter(function (x) { return x.v.precioCompra > 0 || x.v.valorReal > 0 || x.v.ventaEstimada > 0; }).length,
+        invertido: sumar(lista, function (x) { return x.v.precioCompra; }), valorReal: sumar(lista, function (x) { return x.v.valorReal; }),
+        venta: sumar(lista, function (x) { return x.v.ventaEstimada; }),
+        alquilerAnual: sumar(lista, function (x) { return x.c.alquiler && x.c.alquiler * 12; }),
+        gastosAnual: sumar(lista, function (x) { return x.c.alquiler ? x.c.gastos * 12 : 0; }),
+        netoAnual: sumar(lista, function (x) { return x.netoAnual; }),
+        compraConRenta: compra,
+        // Valor real y venta contra la compra, solo de las unidades que tienen los dos datos.
+        dReal: variacion(lista, "valorReal"), dVenta: variacion(lista, "ventaEstimada"),
+        brutoConCompra: sumar(conCompra, function (x) { return x.c.alquiler * 12; }),
+        netoConCompra: sumar(conCompra, function (x) { return x.netoAnual; })
+      };
+    }
+    var tot = resumen(filas);
+    var rendBruto = tot.compraConRenta ? tot.brutoConCompra / tot.compraConRenta : null;
+    var rendNeto = tot.compraConRenta ? (tot.netoConCompra - impEdificio * 12) / tot.compraConRenta : null;
+    var valoriz = tot.dVenta;
+    function signo(n) { return (n >= 0 ? "+" : "") + pct1(n); }
+
+    // Parámetros de los escenarios (compartidos: quedan en la planilla de valores).
+    var pp = panel("Escenarios de venta", "Compara lo que deja por año alquilar con vender al valor estimado, descontar los costos de venta e invertir lo cobrado a la tasa alternativa. No incluye la valorización futura de la propiedad.");
+    var campos = el("div", "campos rent-param");
+    var iCostos = el("input"); iCostos.type = "text"; iCostos.inputMode = "decimal"; iCostos.value = numTxt(costos, 1); iCostos.setAttribute("aria-label", "Costos de venta en porcentaje");
+    var iTasa = el("input"); iTasa.type = "text"; iTasa.inputMode = "decimal"; iTasa.value = tasa === null ? "" : numTxt(tasa, 1); iTasa.placeholder = "Ej. 30"; iTasa.setAttribute("aria-label", "Tasa alternativa anual en porcentaje");
+    var l1 = el("label", null, "Costos de venta (%)"); l1.append(iCostos, el("small", null, "Comisión, escribanía e impuestos"));
+    var l2 = el("label", null, "Tasa alternativa anual (%)"); l2.append(iTasa, el("small", null, "Lo que rendiría la plata en otra inversión (FCI, bolsa, plazo fijo)"));
+    var bG = el("button", "boton chico", "Guardar"); bG.type = "button";
+    var estadoPar = el("span", "estado-guardado", par.actualizadoPor ? "Último cambio de " + par.actualizadoPor + (par.fecha ? " el " + par.fecha : "") : "");
+    bG.addEventListener("click", function () {
+      var c = numeroDe(iCostos.value), t = numeroDe(iTasa.value);
+      if (iCostos.value.trim() && (c === null || c < 0 || c > 50)) { alert("Costos de venta: un porcentaje de 0 a 50."); return; }
+      if (iTasa.value.trim() && (t === null || t < 0 || t > 1000)) { alert("Tasa alternativa: un porcentaje anual de 0 a 1000."); return; }
+      bG.disabled = true; bG.textContent = "Guardando…";
+      PropValores.guardarParametros(actual.edificio, { costosVenta: c, tasaAlternativa: t }).then(repintarPestana).catch(function (err) {
+        if (err && err.sesion === false) { irAlIngreso(); return; }
+        alert("No se pudieron guardar los parámetros: " + err.message);
+        bG.disabled = false; bG.textContent = "Guardar";
+      });
+    });
+    var lg = el("div", "rent-guardar"); lg.append(bG, estadoPar);
+    campos.append(l1, l2, lg);
+    pp.append(campos);
+
+    // KPIs del portafolio
+    var k = el("div", "kpis");
+    [
+      ["Invertido", corto(tot.invertido || null), tot.conValores + " de " + tot.n + " unidades con valores"],
+      ["Valor real", corto(tot.valorReal || null), tot.dReal === null ? "Cargalo con la “i”" : signo(tot.dReal) + " sobre la compra", tot.dReal !== null && tot.dReal < 0 ? "baja" : "ok"],
+      ["Venta estimada", corto(tot.venta || null), valoriz === null ? "Cargala con la “i”" : signo(valoriz) + " sobre la compra", valoriz !== null && valoriz < 0 ? "baja" : "ok"],
+      ["Alquiler anual", corto(tot.alquilerAnual || null), "Neto " + corto(tot.netoAnual - impEdificio * 12) + " después de gastos"],
+      ["Rendimiento bruto", rendBruto === null ? "—" : pct1(rendBruto), "Alquiler sobre la compra"],
+      ["Rendimiento neto", rendNeto === null ? "—" : pct1(rendNeto), "Después de adm., arreglos, gastos" + (impEdificio ? " e impuestos a cargo" : ""), rendNeto !== null && rendNeto < 0 ? "baja" : "ok"]
+    ].forEach(function (x) {
+      var kk = el("div", "kpi" + (x[3] ? " " + x[3] : ""));
+      kk.append(el("small", null, x[0]), el("b", null, x[1]), el("span", null, x[2]));
+      k.append(kk);
+    });
+    box.append(k);
+    if (!tot.conValores) box.append(el("div", "alerta", "Todavía no hay valores cargados. Tocá la “i” de cada unidad (en Unidades o en la tabla de abajo) y cargá precio de compra, valor real, venta estimada y gastos."));
+
+    // Por lugar
+    var pl = panel("Por lugar", "Rendimientos sobre el precio de compra de las unidades que lo tienen cargado." + (impEdificio ? " Los impuestos a cargo del dueño (Expensas, " + pesos0(impEdificio) + " por mes) se descuentan solo en el total." : ""));
+    var tl = el("table"), th = el("thead"), hr = el("tr");
+    ["Lugar", "Unidades", "Invertido", "Valor real", "Venta estimada", "Alquiler anual", "Gastos anuales", "Neto anual", "Rend. bruto", "Rend. neto"].forEach(function (h, i) { hr.append(el("th", i ? "num" : "", h)); });
+    th.append(hr);
+    var tb = el("tbody");
+    function filaResumen(nombre, r, extraGastos, cls) {
+      var tr = el("tr", cls || "");
+      var neto = r.netoAnual - (extraGastos || 0);
+      tr.append(el("td", null, nombre), el("td", "num", r.conValores + " / " + r.n), el("td", "num", pesos0(r.invertido || null)), el("td", "num", pesos0(r.valorReal || null)),
+        el("td", "num", pesos0(r.venta || null)), el("td", "num", pesos0(r.alquilerAnual || null)), el("td", "num", pesos0((r.gastosAnual + (extraGastos || 0)) || null)),
+        el("td", "num" + (neto < 0 ? " rojo" : ""), pesos0(r.alquilerAnual ? neto : null)),
+        el("td", "num", r.compraConRenta ? pct1(r.brutoConCompra / r.compraConRenta) : "—"),
+        el("td", "num", r.compraConRenta ? pct1((r.netoConCompra - (extraGastos || 0)) / r.compraConRenta) : "—"));
+      return tr;
+    }
+    lugaresDe(d).forEach(function (l) {
+      var del = filas.filter(function (x) { return x.lugar === l; });
+      if (del.length) tb.append(filaResumen(l, resumen(del)));
+    });
+    var tf = el("tfoot");
+    tf.append(filaResumen("Total", tot, impEdificio * 12));
+    tl.append(th, tb, tf);
+    var wl = el("div", "tabla-scroll"); wl.append(tl); pl.append(wl);
+
+    // Unidades: rendimiento neto y escenario de venta, de la que más rinde a la que menos.
+    var pu = panel("Unidades: rendimiento y escenario de venta", tasa === null ? "Cargá la tasa alternativa arriba para comparar alquilar con vender." :
+      "Vendiendo: venta estimada − " + numTxt(costos, 1) + " % de costos, invertida al " + numTxt(tasa, 1) + " % anual.");
+    var orden = filas.slice().sort(function (a, b) {
+      var ra = a.c.rendNeto, rb = b.c.rendNeto;
+      if (ra === null && rb === null) return 0;
+      if (ra === null) return 1;
+      if (rb === null) return -1;
+      return rb - ra;
+    });
+    var tu = el("table"), thu = el("thead"), hu = el("tr");
+    ["Unidad", "Lugar", "Compra", "Alquiler / mes", "Gastos / mes", "Neto / mes", "Rend. bruto", "Rend. neto", "Rend. s/ venta", "Alquilando / año", "Vendiendo / año", "Conviene"].forEach(function (h, i) {
+      hu.append(el("th", i > 1 && i < 11 ? "num" : "", h));
+    });
+    thu.append(hu);
+    var tbu = el("tbody");
+    orden.forEach(function (x) {
+      var tr = el("tr");
+      var cu = el("td", "unidad");
+      cu.append(document.createTextNode(x.u.unidad), PropValores.botonInfo(x.u, x.ctx), el("span", "sub", x.u.inquilino || "—"));
+      var conv = el("td"), dif = x.netoAnual !== null && x.vendiendo !== null ? x.vendiendo - x.netoAnual : null;
+      if (dif === null) conv.append(el("span", "sub", x.v.ventaEstimada ? (tasa === null ? "Falta la tasa" : "Falta el alquiler") : "Falta la venta estimada"));
+      else {
+        conv.append(el("span", "pill " + (dif > 0 ? "vender" : "alquilar"), dif > 0 ? "Vender" : "Alquilar"));
+        conv.append(el("span", "sub", "+" + pesos0(Math.abs(dif)) + " por año"));
+      }
+      tr.append(cu, el("td", null, x.lugar), el("td", "num", pesos0(x.v.precioCompra > 0 ? x.v.precioCompra : null)),
+        el("td", "num", pesos0(x.c.alquiler)), el("td", "num", x.c.alquiler ? pesos0(x.c.gastos) : "—"),
+        el("td", "num" + (x.c.neto !== null && x.c.neto < 0 ? " rojo" : ""), pesos0(x.c.neto)),
+        el("td", "num", x.c.bruto === null ? "—" : pct1(x.c.bruto)), el("td", "num rend-celda", x.c.rendNeto === null ? "—" : pct1(x.c.rendNeto)),
+        el("td", "num", x.sobreVenta === null ? "—" : pct1(x.sobreVenta)),
+        el("td", "num", pesos0(x.netoAnual)), el("td", "num", pesos0(x.vendiendo)), conv);
+      tbu.append(tr);
+    });
+    // Todo el portafolio: seguir alquilando o vender todo lo que tiene venta estimada.
+    var conEsc = filas.filter(function (x) { return x.netoAnual !== null && x.vendiendo !== null; });
+    var tfu = el("tfoot"), rf = el("tr");
+    var alqT = sumar(conEsc, function (x) { return x.netoAnual; }), vendT = sumar(conEsc, function (x) { return x.vendiendo; });
+    var lt = el("td", null, "Total · " + conEsc.length + " unidad(es) con escenario"); lt.colSpan = 9;
+    var ct = el("td");
+    if (conEsc.length) ct.append(el("span", "pill " + (vendT > alqT ? "vender" : "alquilar"), vendT > alqT ? "Vender" : "Alquilar"));
+    rf.append(lt, el("td", "num", conEsc.length ? pesos0(alqT) : "—"), el("td", "num", conEsc.length ? pesos0(vendT) : "—"), ct);
+    tfu.append(rf);
+    tu.append(thu, tbu, tfu);
+    var wu = el("div", "tabla-scroll fija"); wu.append(tu); pu.append(wu);
+
+    box.append(pl, pp, pu);
+    return box;
   }
 
   // El coeficiente de una unidad es el mismo en Unidades y en Expensas.

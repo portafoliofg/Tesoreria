@@ -10,13 +10,19 @@
  * PropValores.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
  * PropValores.de(u) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, ...} o null
  * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
- * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle. ctx: {edificio, lugar, alquiler, fuente, alGuardar}
+ * PropValores.calculo(v, ctx) → {alquiler, gastos, neto, bruto, rendNeto} por mes (rendimientos anuales sobre la compra)
+ * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle.
+ *   ctx: {edificio, lugar, alquiler, fuente, adm, arreglosMes, alGuardar}
+ *   adm: administración del mes y arreglosMes: promedio mensual de arreglos (los descuenta la liquidación).
+ * PropValores.parametros() / guardarParametros(edificio, {costosVenta, tasaAlternativa}) → para Rentabilidad
  * PropValores.url() → enlace a la planilla de valores
+ *
+ * Rendimiento neto: (alquiler − administración − arreglos − gastos mensuales del dueño) × 12 / compra.
  */
 (function () {
   "use strict";
   var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
-  var estado = { edificio: null, valores: [], url: "", cargando: null, listo: false, error: "" };
+  var estado = { edificio: null, valores: [], url: "", parametros: null, cargando: null, listo: false, error: "" };
   var dialogo = null;
 
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
@@ -47,6 +53,7 @@
       if (estado.edificio !== edificio) return;
       estado.valores = r.valores || [];
       estado.url = r.url || "";
+      estado.parametros = r.parametros || null;
       if (r.destinos && r.destinos.length) DESTINOS = r.destinos;
       estado.listo = true;
     }).catch(function (err) {
@@ -66,6 +73,20 @@
 
   function rendimiento(v, alquiler) {
     return v && typeof v.precioCompra === "number" && v.precioCompra > 0 && typeof alquiler === "number" && alquiler > 0 ? alquiler * 12 / v.precioCompra : null;
+  }
+
+  function calculo(v, ctx) {
+    var alq = ctx && ctx.alquiler > 0 ? ctx.alquiler : null;
+    var fijos = v && typeof v.gastosMensuales === "number" ? v.gastosMensuales : 0;
+    var gastos = (ctx && ctx.adm || 0) + (ctx && ctx.arreglosMes || 0) + fijos;
+    var neto = alq === null ? null : alq - gastos;
+    var compra = v && v.precioCompra > 0 ? v.precioCompra : null;
+    return { alquiler: alq, gastos: gastos, fijos: fijos, neto: neto, bruto: alq && compra ? alq * 12 / compra : null, rendNeto: neto !== null && compra ? neto * 12 / compra : null };
+  }
+
+  function guardarParametros(edificio, p) {
+    return BGPSesion.pedir("guardarValorPropiedad", { parametros: true, edificio: edificio, costosVenta: p.costosVenta, tasaAlternativa: p.tasaAlternativa })
+      .then(function (r) { if (estado.edificio === edificio) estado.parametros = r.parametros || null; return r; });
   }
 
   // ----- Detalle de la unidad -----
@@ -129,26 +150,35 @@
     var iReal = inputNum(v.valorReal, "Valor real de la propiedad");
     var iCompra = inputNum(v.precioCompra, "Precio de compra");
     var iVenta = inputNum(v.ventaEstimada, "Valor de venta estimado");
-    c2.append(campo("Valor real", iReal), campo("Precio de compra", iCompra), campo("Venta estimada", iVenta));
+    var iGastos = inputNum(v.gastosMensuales, "Gastos mensuales a cargo del dueño");
+    c2.append(campo("Valor real", iReal), campo("Precio de compra", iCompra), campo("Venta estimada", iVenta),
+      campo("Gastos mensuales", iGastos, "Impuestos, expensas, seguro… a cargo del dueño"));
     form.append(c2);
-    // Lo calculado: rendimiento y diferencia entre la venta estimada y la compra.
+    // Lo calculado: rendimientos y diferencia entre la venta estimada y la compra.
     var calc = el("div", "ficha-calc");
-    var kAlq = el("div", "kpi"), kRend = el("div", "kpi"), kVta = el("div", "kpi");
-    calc.append(kAlq, kRend, kVta);
+    var kAlq = el("div", "kpi"), kRend = el("div", "kpi"), kNeto = el("div", "kpi"), kVta = el("div", "kpi");
+    calc.append(kAlq, kRend, kNeto, kVta);
     form.append(calc);
     function kpi(k, titulo, valor, pie) { k.replaceChildren(el("small", null, titulo), el("b", null, valor), el("span", null, pie)); }
     function recalcular() {
       var compra = numero(iCompra.value), venta = numero(iVenta.value);
+      var c = calculo({ precioCompra: compra, gastosMensuales: numero(iGastos.value) }, ctx);
       kpi(kAlq, "Alquiler mensual", pesos(ctx.alquiler), ctx.alquiler ? ctx.fuente : "Sin alquiler cargado");
-      var r = rendimiento({ precioCompra: compra }, ctx.alquiler);
-      kpi(kRend, "Rendimiento anual", pct(r), r === null ? (compra ? "Falta el alquiler" : "Cargá el precio de compra") : "Alquiler × 12 sobre la compra");
+      kpi(kRend, "Rendimiento bruto", pct(c.bruto), c.bruto === null ? (compra ? "Falta el alquiler" : "Cargá el precio de compra") : "Alquiler × 12 sobre la compra");
+      var partes = [];
+      if (ctx.adm) partes.push("adm. " + pesos(ctx.adm));
+      if (ctx.arreglosMes) partes.push("arreglos " + pesos(ctx.arreglosMes));
+      if (c.fijos) partes.push("gastos " + pesos(c.fijos));
+      kpi(kNeto, "Rendimiento neto", pct(c.rendNeto), c.neto === null ? "Falta el alquiler" : "Neto " + pesos(c.neto) + "/mes" + (partes.length ? " (− " + partes.join(", ") + ")" : " (sin gastos)"));
       var dif = compra && venta ? venta / compra - 1 : null;
       kpi(kVta, "Venta vs. compra", dif === null ? "—" : (dif > 0 ? "+" : "") + pct(dif), dif === null ? "Cargá compra y venta estimada" : pesos(venta - compra));
-      kRend.classList.toggle("ok", r !== null);
+      kRend.classList.toggle("ok", c.bruto !== null);
+      kNeto.classList.toggle("ok", c.rendNeto !== null && c.rendNeto >= 0);
+      kNeto.classList.toggle("baja", c.rendNeto !== null && c.rendNeto < 0);
       kVta.classList.toggle("baja", dif !== null && dif < 0);
       kVta.classList.toggle("ok", dif !== null && dif >= 0);
     }
-    [iCompra, iVenta].forEach(function (i) { i.addEventListener("input", recalcular); });
+    [iCompra, iVenta, iGastos].forEach(function (i) { i.addEventListener("input", recalcular); });
     recalcular();
 
     var msg = el("div", "alerta error");
@@ -169,13 +199,14 @@
       e.preventDefault();
       var dorm = numero(iDorm.value);
       if (iDorm.value.trim() && (dorm === null || dorm < 0 || dorm > 20 || Math.round(dorm) !== dorm)) { msg.textContent = "Dormitorios: un número entero de 0 a 20."; msg.hidden = false; iDorm.focus(); return; }
-      var malos = [[iReal, "el valor real"], [iCompra, "el precio de compra"], [iVenta, "la venta estimada"]].filter(function (x) { return x[0].value.trim() && !(numero(x[0].value) >= 0); });
+      var malos = [[iReal, "el valor real"], [iCompra, "el precio de compra"], [iVenta, "la venta estimada"], [iGastos, "los gastos mensuales"]].filter(function (x) { return x[0].value.trim() && !(numero(x[0].value) >= 0); });
       if (malos.length) { msg.textContent = "Revisá " + malos[0][1] + ": tiene que ser un importe."; msg.hidden = false; malos[0][0].focus(); return; }
       msg.hidden = true;
       bg.disabled = true; bg.textContent = "Guardando…";
       BGPSesion.pedir("guardarValorPropiedad", {
         edificio: ctx.edificio, lugar: ctx.lugar || "", unidad: u.unidad, clave: claveDe(u),
         valorReal: numero(iReal.value), precioCompra: numero(iCompra.value), ventaEstimada: numero(iVenta.value),
+        gastosMensuales: numero(iGastos.value),
         dormitorios: dorm, destino: sDest.value, cochera: sCoch.value, alquiler: ctx.alquiler || null
       }).then(function (r) {
         var k = clave(claveDe(u));
@@ -204,7 +235,9 @@
   }
 
   window.PropValores = {
-    cargar: cargar, de: de, rendimiento: rendimiento, botonInfo: botonInfo,
+    cargar: cargar, de: de, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
+    parametros: function () { return estado.parametros; }, guardarParametros: guardarParametros,
+    listo: function () { return estado.listo; },
     url: function () { return estado.url; }, error: function () { return estado.error; }
   };
 })();
