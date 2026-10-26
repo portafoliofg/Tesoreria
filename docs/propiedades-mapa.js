@@ -56,43 +56,87 @@
   }
 
   // ----- Mapa -----
+  // Nitidez del satélite: Esri tiene imagen real hasta el nivel 19 (más cerca solo estira la
+  // foto). En pantallas de alta densidad (celulares, notebooks con retina) cada pixel de la página
+  // son 2 de la pantalla: con piezas de 128 en vez de 256 se pide un nivel más de detalle y la foto
+  // se ve 1 a 1 en lugar de estirada. Las calles y los nombres van como vectores (OpenFreeMap):
+  // se dibujan nítidos a cualquier zoom, en lugar de imágenes de texto que se pixelan.
+  var DENSIDAD = window.devicePixelRatio || 1;
+  var PIEZA_SATELITE = DENSIDAD >= 1.5 ? 128 : 256;
+  var ZOOM_MAX_SATELITE = 19;
+  var NOMBRE = ["coalesce", ["get", "name:es"], ["get", "name"]];
+  var HALO = { "text-color": "#ffffff", "text-halo-color": "rgba(0, 0, 0, 0.78)", "text-halo-width": 1.6, "text-halo-blur": 0.4 };
+
   function estiloSatelite() {
     return {
       version: 8,
+      glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
       sources: {
-        satelite: { type: "raster", tiles: [ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19,
+        satelite: { type: "raster", tiles: [ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}"], tileSize: PIEZA_SATELITE, maxzoom: ZOOM_MAX_SATELITE,
           attribution: "Imágenes © Esri, Maxar, Earthstar Geographics" },
-        calles: { type: "raster", tiles: [ESRI + "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19 },
-        nombres: { type: "raster", tiles: [ESRI + "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"], tileSize: 256, maxzoom: 19 },
         osm: { type: "vector", url: "https://tiles.openfreemap.org/planet", attribution: "© OpenStreetMap" }
       },
       layers: [
-        { id: "satelite", type: "raster", source: "satelite" },
-        { id: "calles", type: "raster", source: "calles", paint: { "raster-opacity": 0.85 } },
-        { id: "nombres", type: "raster", source: "nombres" },
+        { id: "satelite", type: "raster", source: "satelite",
+          paint: { "raster-fade-duration": 120, "raster-contrast": 0.06, "raster-saturation": 0.06 } },
+        { id: "calles", type: "line", source: "osm", "source-layer": "transportation", minzoom: 12,
+          filter: ["match", ["get", "class"], ["motorway", "trunk", "primary", "secondary", "tertiary", "minor"], true, false],
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": "rgba(255, 255, 255, 0.5)",
+            "line-width": ["interpolate", ["exponential", 1.6], ["zoom"], 12, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 1.2, 0.4], 18, ["match", ["get", "class"], ["motorway", "trunk", "primary"], 9, 4]]
+          } },
         { id: "edificios-3d", type: "fill-extrusion", source: "osm", "source-layer": "building", minzoom: 15,
           paint: {
             "fill-extrusion-color": "#efe9dd",
             "fill-extrusion-height": ["coalesce", ["get", "render_height"], 6],
             "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-            "fill-extrusion-opacity": 0.55
-          } }
+            "fill-extrusion-opacity": 0.28
+          } },
+        { id: "nombres-calles", type: "symbol", source: "osm", "source-layer": "transportation_name", minzoom: 14,
+          filter: ["match", ["get", "class"], ["motorway", "trunk", "primary", "secondary", "tertiary", "minor"], true, false],
+          layout: { "symbol-placement": "line", "text-field": NOMBRE, "text-font": ["Noto Sans Regular"],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 14, 11, 18, 15], "text-max-angle": 30, "text-padding": 4 },
+          paint: HALO },
+        { id: "nombres-lugares", type: "symbol", source: "osm", "source-layer": "place", maxzoom: 16,
+          filter: ["match", ["get", "class"], ["city", "town", "village", "suburb", "neighbourhood"], true, false],
+          layout: { "text-field": NOMBRE, "text-font": ["Noto Sans Bold"],
+            "text-size": ["match", ["get", "class"], "city", 17, "town", 15, 13], "text-padding": 6, "text-letter-spacing": 0.02 },
+          paint: HALO }
       ]
     };
   }
 
   var mapa = new maplibregl.Map({
     container: "mapa", style: estiloSatelite(), center: CENTRO_INICIAL, zoom: 11, pitch: 45, bearing: -15,
-    maxPitch: 75, attributionControl: { compact: true }
+    maxZoom: ZOOM_MAX_SATELITE, maxPitch: 70, fadeDuration: 120, maxTileCacheSize: 600, refreshExpiredTiles: false,
+    attributionControl: { compact: true }
   });
   mapa.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-right");
   mapa.addControl(new maplibregl.FullscreenControl(), "bottom-right");
+  mapa.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+  // Zoom con la rueda o el panel táctil más suave (menos saltos y menos piezas a medio cargar).
+  mapa.scrollZoom.setWheelZoomRate(1 / 600);
+  mapa.scrollZoom.setZoomRate(1 / 120);
 
-  document.querySelectorAll(".capas button").forEach(function (b) {
+  document.querySelectorAll(".capas button[data-capa]").forEach(function (b) {
     b.addEventListener("click", function () {
-      document.querySelectorAll(".capas button").forEach(function (x) { x.classList.toggle("activa", x === b); });
-      mapa.setStyle(b.dataset.capa === "mapa" ? ESTILO_MAPA : estiloSatelite());
+      document.querySelectorAll(".capas button[data-capa]").forEach(function (x) { x.classList.toggle("activa", x === b); });
+      var satelite = b.dataset.capa !== "mapa";
+      mapa.setStyle(satelite ? estiloSatelite() : ESTILO_MAPA);
+      // El mapa de calles es vectorial: puede acercarse más que la foto satelital.
+      mapa.setMaxZoom(satelite ? ZOOM_MAX_SATELITE : 20);
     });
+  });
+
+  // 2D / 3D: desde arriba la foto se ve más nítida (sin perspectiva); en 3D, inclinada.
+  var vista3d = true;
+  $("vista3d").addEventListener("click", function () {
+    vista3d = !vista3d;
+    $("vista3d").textContent = vista3d ? "2D" : "3D";
+    $("vista3d").title = vista3d ? "Ver desde arriba (más nítido)" : "Ver inclinado en 3D";
+    pararGiro();
+    mapa.easeTo({ pitch: vista3d ? 50 : 0, bearing: vista3d ? mapa.getBearing() : 0, duration: 900 });
   });
 
   // ----- Giro alrededor del lugar elegido -----
@@ -407,10 +451,10 @@
     pararGiro();
     var u = lugares.filter(ubicado);
     if (!u.length) return;
-    if (u.length === 1) { mapa.flyTo({ center: [u[0].lon, u[0].lat], zoom: 16, pitch: 55, duration: animar ? 2000 : 0 }); return; }
+    if (u.length === 1) { mapa.flyTo({ center: [u[0].lon, u[0].lat], zoom: 16, pitch: vista3d ? 50 : 0, duration: animar ? 2000 : 0 }); return; }
     var b = new maplibregl.LngLatBounds();
     u.forEach(function (l) { b.extend([l.lon, l.lat]); });
-    mapa.fitBounds(b, { padding: 90, pitch: 45, bearing: -15, maxZoom: 16, duration: animar ? 2000 : 0 });
+    mapa.fitBounds(b, { padding: 90, pitch: vista3d ? 45 : 0, bearing: vista3d ? -15 : 0, maxZoom: 16, duration: animar ? 2000 : 0 });
   }
   $("verTodo").addEventListener("click", function () { pararRecorrido(); seleccionado = null; cerrarFicha(); pintarLista(); marcarPines(); verTodo(true); });
 
@@ -426,7 +470,7 @@
     mostrarFicha(l, false);
     if (!ubicado(l) || !volar) { pararGiro(); return; }
     pararGiro();
-    mapa.flyTo({ center: [l.lon, l.lat], zoom: 17.6, pitch: 62, bearing: mapa.getBearing() + 40, speed: 0.9, curve: 1.5, essential: true });
+    mapa.flyTo({ center: [l.lon, l.lat], zoom: 18, pitch: vista3d ? 55 : 0, bearing: vista3d ? mapa.getBearing() + 40 : 0, speed: 0.9, curve: 1.5, essential: true });
     mapa.once("moveend", function () { if (seleccionado === l) empezarGiro(); });
   }
 

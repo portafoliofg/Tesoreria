@@ -148,6 +148,7 @@
     .capas { position: absolute; left: 16px; top: 16px; display: flex; gap: 6px; z-index: 2; padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--borde); box-shadow: 0 12px 30px -18px rgba(0, 0, 0, 0.6); }
     .capas button { font: 600 12.5px/1 var(--texto); color: var(--tenue); background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
     .capas button.activa { color: #fffaf0; background: var(--verde); }
+    .capas .vista3d { margin-left: 4px; border-left: 1px solid var(--borde); border-radius: 0 8px 8px 0; min-width: 34px; }
     .maplibregl-ctrl-attrib { font-size: 10.5px; }
     /* Con el panel abierto, los controles del mapa se corren para no quedar debajo. */
     .cuerpo.con-ficha .maplibregl-ctrl-bottom-right { right: min(600px, 100%); }
@@ -192,6 +193,7 @@
         <div class="capas" role="group" aria-label="Tipo de mapa">
           <button type="button" class="activa" data-capa="satelite">Satélite</button>
           <button type="button" data-capa="mapa">Mapa</button>
+          <button type="button" id="vista3d" class="vista3d" title="Ver desde arriba (más nítido)">2D</button>
         </div>
         <section class="ficha" id="ficha" hidden aria-live="polite"></section>
         <dialog class="dlg-kml" id="dlgKml" aria-labelledby="dlgKmlTit"></dialog>
@@ -200,6 +202,6 @@
   </div>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="sesion.js?v=9"></script>
-  <script src="propiedades-mapa.js?v=7"></script>
+  <script src="propiedades-mapa.js?v=8"></script>
 </body>
 </html>
