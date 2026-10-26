@@ -873,6 +873,12 @@
   .pl-tabla th + th, .pl-tabla td + td { border-left: 1px solid var(--border); }
   .rf-card .pl-acciones select { width: auto; margin: 0; }
   .rf-kpis { margin: 4px 0 0; }
+  .rf-tabla td { padding: 6px 8px; }
+  .rf-tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rf-tabla .rf-sub, .rf-tabla td.rf-sub { font-size: 11.5px; color: var(--faint); font-weight: 400; }
+  .rf-tabla .pos { color: var(--ok); } .rf-tabla .neg { color: var(--bad); }
+  .rf-periodo { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .rf-periodo b { color: var(--text); font-variant-numeric: tabular-nums; } .rf-periodo b.neg { color: var(--bad); }
   .pl-tabla tr.pl-banco-ini td { border-top: 2px solid var(--border); }
   .pl-tabla input { width: 100%; min-width: 110px; margin: 0; height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
   .pl-tabla input.pl-previo { color: var(--faint); font-style: italic; }
@@ -14691,56 +14697,96 @@ function inputPlanilla(item, alCambiar) {
 }
 
 // ----- Rendimiento del FCI (cuadro de Inicio) -----
-// Con los saldos de FCI de cada banco y los rescates y suscripciones del medio: lo ganado en el
-// período elegido, la TNA y el saldo. El fondo y el período elegidos se recuerdan en las preferencias.
+// Solo los bancos que tienen FCI (último saldo de FCI mayor a cero). Por banco: el saldo al
+// cierre (el informado anterior), el actual (el último) y lo ganado entre los dos, sin contar
+// rescates ni suscripciones del medio. Abajo, lo ganado por todos los fondos en pesos en el
+// período elegido (se recuerda en las preferencias).
 const PERIODOS_REND_FCI = [[7, "7 días"], [30, "30 días"], [90, "90 días"], [0, "Desde enero"], [365, "12 meses"]];
 
 function renderRendFciInicio() {
   const box = $("inicioRendFci");
   if (!box) return;
   const hoy = hoyIso();
-  const fondos = calcularRendimientoFciSaldos().filter(f => f.periodos.length);
+  const fondos = calcularRendimientoFciSaldos().filter(f => f.ultimo && f.ultimo.saldo > 0);
   const pref = preferencias.rendFci || {};
   const card = el("div", "card rf-card");
   const head = el("div", "pl-head");
   head.append(el("div", "card-title", "Rendimiento del FCI"));
   const acc = el("div", "pl-acciones");
-  const selFondo = el("select");
-  selFondo.setAttribute("aria-label", "Fondo");
-  selFondo.append(new Option("Todos los fondos en pesos", "todos"));
-  fondos.forEach(f => selFondo.append(new Option("FCI · " + f.banco + (f.moneda === "USD" ? " (USD)" : ""), f.k)));
-  selFondo.value = fondos.some(f => f.k === pref.k) ? pref.k : "todos";
   const selPer = el("select");
   selPer.setAttribute("aria-label", "Período");
   PERIODOS_REND_FCI.forEach(p => selPer.append(new Option(p[1], String(p[0]))));
   selPer.value = PERIODOS_REND_FCI.some(p => String(p[0]) === String(pref.dias)) ? String(pref.dias) : "30";
-  const cambiar = () => { preferencias.rendFci = { k: selFondo.value, dias: parseInt(selPer.value, 10) }; guardarPreferencias(); renderRendFciInicio(); };
-  selFondo.addEventListener("change", cambiar);
-  selPer.addEventListener("change", cambiar);
-  acc.append(selFondo, selPer);
+  selPer.addEventListener("change", () => { preferencias.rendFci = Object.assign({}, pref, { dias: parseInt(selPer.value, 10) }); guardarPreferencias(); renderRendFciInicio(); });
+  acc.append(selPer);
   head.append(acc);
   card.append(head);
   if (!fondos.length) {
-    card.append(el("p", "hint", "Hace falta un segundo saldo de FCI de un banco para calcular el rendimiento. Cargalos en la planilla de saldos."));
+    card.append(el("p", "hint", "Ningún banco tiene saldo de FCI. Cargalo en la planilla de saldos."));
     box.replaceChildren(card);
     return;
   }
-  const dias = parseInt(selPer.value, 10);
-  const desde = dias ? sumarDiasIso(hoy, -dias) : (parseInt(hoy.substring(0, 4), 10) - 1) + "-12-31";
-  const elegidos = selFondo.value === "todos" ? fondos.filter(f => f.moneda !== "USD") : fondos.filter(f => f.k === selFondo.value);
-  const usd = elegidos.length === 1 && elegidos[0].moneda === "USD";
-  const r = tnaVentana([].concat.apply([], elegidos.map(f => f.periodos)), desde, hoy);
-  const saldo = elegidos.reduce((a, f) => a + f.ultimo.saldo, 0);
-  const fmt = usd ? formatUsd : formatImporte;
-  const k = el("div", "kpis rf-kpis");
-  [["Ganado", fmt(r.rend), "Sin contar rescates ni suscripciones", r.rend < 0], ["TNA", r.tna === null ? "—" : pctTexto(r.tna), "Tasa nominal anual del período", false],
-    ["Saldo", fmt(saldo), elegidos.length === 1 ? "Al " + isoADma(elegidos[0].ultimo.iso) : elegidos.length + " fondos", false]].forEach(x => {
-    const kp = el("div", "kpi");
-    kp.append(el("div", "k-label", x[0]), el("div", "k-val" + (x[3] ? " neg" : ""), x[1]), el("div", "k-sub", x[2]));
-    k.append(kp);
+
+  // Cierre contra actual, banco por banco.
+  const tabla = el("table", "pl-tabla rf-tabla");
+  const thead = el("thead"), trh = el("tr");
+  ["Banco", "Al cierre", "Actual", "Ganado", "TNA"].forEach(h => trh.append(el("th", null, h)));
+  thead.append(trh);
+  const tbody = el("tbody");
+  let tot = { cierre: 0, actual: 0, ganado: 0, capital: 0, dias: 0, hay: false };
+  let dudosos = 0;
+  fondos.forEach(f => {
+    const usd = f.moneda === "USD";
+    const fmt = usd ? formatUsd : formatImporte;
+    const p = f.periodos.length ? f.periodos[f.periodos.length - 1] : null;
+    const tr = el("tr");
+    tr.append(el("td", "pl-cta", f.banco + (usd ? " (USD)" : "")));
+    if (!p) {
+      const td = el("td", "rf-sub", "Hace falta un saldo anterior para comparar");
+      td.colSpan = 2;
+      tr.append(td, el("td", "num", fmt(f.ultimo.saldo)), el("td", "num", "—"));
+      tbody.append(tr);
+      return;
+    }
+    if (p.dudoso) dudosos++;
+    const tna = !p.dudoso && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
+    const celda = (monto, iso) => { const td = el("td", "num"); td.append(el("div", null, fmt(monto)), el("div", "rf-sub", isoADma(iso))); return td; };
+    const tdG = el("td", "num" + (p.dudoso ? "" : p.rend < 0 ? " neg" : " pos"));
+    tdG.append(el("div", null, p.dudoso ? "—" : (p.rend > 0 ? "+" : "") + fmt(p.rend)));
+    const mov = p.susc + p.resc;
+    if (mov) tdG.append(el("div", "rf-sub", (mov > 0 ? "Susc. " : "Resc. ") + fmt(Math.abs(mov))));
+    else if (p.dudoso) tdG.append(el("div", "rf-sub", "Revisar movimientos"));
+    tr.append(celda(p.ini, p.desde), celda(p.fin, p.hasta), tdG, el("td", "num", tna === null ? "—" : pctTexto(tna)));
+    tbody.append(tr);
+    if (!usd) {
+      tot.cierre += p.ini; tot.actual += p.fin; tot.hay = true;
+      if (!p.dudoso) { tot.ganado += p.rend; tot.capital += p.capital * p.d; }
+    }
   });
-  card.append(k);
-  if (r.dudosos) card.append(el("p", "dt-sub", r.dudosos + " período(s) con saltos raros no se cuentan (suele faltar un rescate o una suscripción)."));
+  tabla.append(thead, tbody);
+  if (tot.hay && fondos.filter(f => f.moneda !== "USD").length > 1) {
+    const tfoot = el("tfoot"), trf = el("tr");
+    trf.append(el("td", null, "Total $"), el("td", null, formatImporte(tot.cierre)), el("td", null, formatImporte(tot.actual)),
+      el("td", tot.ganado < 0 ? "neg" : "pos", (tot.ganado > 0 ? "+" : "") + formatImporte(tot.ganado)),
+      el("td", null, tot.capital > 0 ? pctTexto(tot.ganado / tot.capital * 365) : "—"));
+    tfoot.append(trf);
+    tabla.append(tfoot);
+  }
+  card.append(envolverTabla(tabla));
+
+  // Lo ganado por todos los fondos en pesos en el período elegido.
+  const enPesos = fondos.filter(f => f.moneda !== "USD" && f.periodos.length);
+  if (enPesos.length) {
+    const dias = parseInt(selPer.value, 10);
+    const desde = dias ? sumarDiasIso(hoy, -dias) : (parseInt(hoy.substring(0, 4), 10) - 1) + "-12-31";
+    const r = tnaVentana([].concat.apply([], enPesos.map(f => f.periodos)), desde, hoy);
+    const per = PERIODOS_REND_FCI.find(p => String(p[0]) === selPer.value);
+    const linea = el("p", "rf-periodo");
+    linea.append("En " + (per ? per[1].toLowerCase() : "el período") + ": ganado ", el("b", r.rend < 0 ? "neg" : null, formatImporte(r.rend)), " · TNA ", el("b", null, r.tna === null ? "—" : pctTexto(r.tna)));
+    card.append(linea);
+    dudosos = Math.max(dudosos, r.dudosos || 0);
+  }
+  if (dudosos) card.append(el("p", "dt-sub", dudosos + " período(s) con saltos raros no se cuentan (suele faltar un rescate o una suscripción)."));
   box.replaceChildren(card);
 }
 
