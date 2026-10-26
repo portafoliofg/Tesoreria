@@ -53,7 +53,9 @@ const HEADERS_CHEQUES = [
   // Canal "Bolsa": cheques y pagarés negociados por una ALYC.
   'Persona', 'Estado', 'Fecha de Débito', 'Destino', 'Chequera', 'Banco Emisor', 'Canal', 'ALYC', 'SGR / Emisor', 'Moneda', 'ID Planilla',
   // El día en que el cheque se cargó en la app (arqueo: cheques ingresados en el día).
-  'Fecha de Ingreso'
+  'Fecha de Ingreso',
+  // Se carga a mano al cargar el cheque (no sale del comprobante).
+  'Banco Aceptante'
 ];
 const COL_COMPROBANTE_CHEQUE = HEADERS_CHEQUES.indexOf('Comprobante');
 const COL_BANCO_CHEQUE = HEADERS_CHEQUES.indexOf('Banco');

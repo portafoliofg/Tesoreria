@@ -2156,14 +2156,18 @@
         <p class="hint">El N° interno se asigna automáticamente al guardar.</p>
       </div>
 
+      <datalist id="listaBancosCheque"></datalist>
       <div id="manualCamposCheque" class="manual-campos" hidden>
         <div class="row">
           <label>N° de cheque<input data-campo="N° de Cheque" type="text"></label>
           <label>Titular<input data-campo="Titular" type="text"></label>
         </div>
         <div class="row">
-          <label>CUIT<input data-campo="CUIT" type="text"></label>
           <label>Importe<input data-campo="Importe" type="text" placeholder="0,00"></label>
+          <label>Banco aceptante<input data-campo="Banco Aceptante" type="text" list="listaBancosCheque" placeholder="Ej.: BBVA"></label>
+        </div>
+        <div class="row">
+          <label>Concepto<input data-campo="Concepto" type="text" placeholder="Ej.: pago soja, anticipo, alquiler"></label>
         </div>
         <div class="row">
           <label>Fecha de emisión<input data-campo="Fecha de Emisión" type="text" placeholder="dd/mm/aaaa"></label>
@@ -2925,12 +2929,15 @@ const HEADERS_TRANSFERENCIAS = [
   "Fecha del Movimiento", "Origen", "Entre Cuentas Propias", "Contraparte", "Cargado por", "Conciliación",
   "Destinatario", "CUIT Destino", "Cuenta Destino", "Banco Destino"
 ];
-// En el mismo orden que la hoja del servidor (se mandan por posición) hasta Estado: el estado que
-// trae un listado de e-cheqs se guarda tal cual (Cargado por lo pone el servidor).
+// En el mismo orden que la hoja del servidor (se mandan por posición): el estado que trae un
+// listado de e-cheqs se guarda tal cual (Cargado por y Fecha de Ingreso los pone el servidor).
+// Concepto y Banco Aceptante se cargan a mano; el CUIT ya no se carga.
 const HEADERS_CHEQUES = [
   "Archivo", "Banco", "Tipo", "N° de Cheque", "Titular", "CUIT",
   "Fecha de Emisión", "Fecha de Pago", "Importe", "Concepto", "N° de Cuenta", "Tipo de Cuenta",
-  "Cargado por", "Conciliación", "Comprobante", "Persona", "Estado"
+  "Cargado por", "Conciliación", "Comprobante", "Persona", "Estado",
+  "Fecha de Débito", "Destino", "Chequera", "Banco Emisor", "Canal", "ALYC", "SGR / Emisor", "Moneda", "ID Planilla", "Fecha de Ingreso",
+  "Banco Aceptante"
 ];
 
 // Si pdf.js no llegó a cargar (red, bloqueador, etc.) esto no debe cortar
@@ -4895,6 +4902,18 @@ function formChequeLeido(r) {
     const titulo = c[1] || (r.tipoCheque === "Emitido" ? "Destinatario" : "Librador");
     grid.append(campoForm(titulo, input, c[0] === "Importe" ? "cf-importe" : null));
   });
+  // A mano: concepto y banco aceptante (no se leen del comprobante).
+  if (!r.manualCheque) r.manualCheque = { "Concepto": "", "Banco Aceptante": "" };
+  [["Concepto", "Concepto", "Ej.: pago soja, anticipo, alquiler"], ["Banco Aceptante", "Banco aceptante", "Ej.: BBVA"]].forEach(c => {
+    const input = el("input");
+    input.type = "text";
+    input.value = r.manualCheque[c[0]] || "";
+    input.placeholder = c[2];
+    input.disabled = r.sent;
+    if (c[0] === "Banco Aceptante") input.setAttribute("list", "listaBancosCheque");
+    input.addEventListener("input", () => { r.manualCheque[c[0]] = input.value.trim(); });
+    grid.append(campoForm(c[1], input, c[0] === "Concepto" ? "cf-concepto" : null));
+  });
   return grid;
 }
 
@@ -5287,8 +5306,10 @@ function filaDesde(r, headers) {
     if (h === "N° Interno" || h === "Fecha de Carga") return "";
     if (h === "Archivo") return r.filename;
     if (terceros && (h === "Banco" || h === "N° de Cuenta" || h === "Tipo de Cuenta")) return "";
-    // Los cheques no llevan concepto (no aporta: el titular y el estado ya dicen qué es).
-    if (headers === HEADERS_CHEQUES && h === "Concepto") return "";
+    // Cheques: concepto y banco aceptante son los que se escriben a mano (nunca lo leído del
+    // comprobante) y el CUIT ya no se guarda.
+    if (headers === HEADERS_CHEQUES && (h === "Concepto" || h === "Banco Aceptante")) return (r.manualCheque || {})[h] || "";
+    if (headers === HEADERS_CHEQUES && h === "CUIT") return "";
     if (h === "Banco") return r.banco;
     if (h === "Tipo") return r.tipoCheque || "";
     if (h === "Origen") return r.origen || "Comprobante";
@@ -5563,6 +5584,18 @@ function pintarMontoManual() {
   $("manualMonto").classList.toggle("pos", !neg);
 }
 
+// Sugerencias para "Banco aceptante": los bancos del listado y los conocidos (se puede escribir otro).
+document.addEventListener("focusin", e => {
+  const t = e.target;
+  if (!t || t.getAttribute("list") !== "listaBancosCheque") return;
+  const dl = $("listaBancosCheque");
+  const nombres = {};
+  (catalogo.bancos || []).forEach(b => { if (b["Banco"]) nombres[b["Banco"]] = true; });
+  BANCOS_CONOCIDOS.forEach(b => { nombres[b.nombre] = true; });
+  dl.replaceChildren();
+  Object.keys(nombres).sort((a, b) => a.localeCompare(b)).forEach(n => dl.append(new Option(n, n)));
+});
+
 function limpiarCamposManual() {
   document.querySelectorAll("#modalManual [data-campo]").forEach(c => {
     if (c.tagName === "SELECT") c.selectedIndex = 0;
@@ -5625,6 +5658,7 @@ $("modalManualGuardar").addEventListener("click", async () => {
     cuentaId: $("manualCuenta").value,
     tipoCuenta: "",
     parsed: esCheque ? Object.keys(lookup).map(k => ({ Campo: k, Valor: lookup[k] })) : [],
+    manualCheque: esCheque ? { "Concepto": lookup["Concepto"] || "", "Banco Aceptante": lookup["Banco Aceptante"] || "" } : null,
     datos: esCheque ? null : lookup
   };
   const fila = filaDesde(rFalso, headers);
@@ -9609,10 +9643,10 @@ function filasExcelMovimientos(lista) {
 }
 
 function filasExcelCheques(lista) {
-  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Estado", "Fecha de Débito / Acreditación", "Concepto", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
+  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Estado", "Fecha de Débito / Acreditación", "Concepto", "Banco Aceptante", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
   const filas = [H];
   lista.forEach(c => filas.push([c["Banco"], c["Tipo"], c["N° de Cheque"], c["Titular"], c["CUIT"], c["Fecha de Emisión"], c["Fecha de Pago"], Math.abs(parseImporte(c["Importe"])),
-    estadoCheque(c).texto, c["Fecha de Débito"] || "", c["Concepto"], c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
+    estadoCheque(c).texto, c["Fecha de Débito"] || "", c["Concepto"], c["Banco Aceptante"] || "", c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
   return filas;
 }
 
@@ -9627,7 +9661,7 @@ $("repMovTodos").addEventListener("click", async () => {
 });
 $("repChequesTodos").addEventListener("click", async () => {
   await asegurarCheques();
-  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 36, 16, 16, 24, 18, 40] }]);
+  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 36, 18, 16, 16, 24, 18, 40] }]);
 });
 $("repLibroExcel").addEventListener("click", () => exportarLibroBanco("excel"));
 $("repLibroPdf").addEventListener("click", () => exportarLibroBanco("pdf"));
@@ -10387,7 +10421,8 @@ function renderDetalle(f, recargar) {
   if (esCheque) {
     secciones.push(seccionDetalle("Cheque", [
       ["N° de cheque", f["N° de Cheque"], "mono"], ["Tipo", f["Tipo"]], ["Fecha de emisión", f["Fecha de Emisión"]],
-      ["Fecha de pago", f["Fecha de Pago"]], ["Importe", textoImporte(Math.abs(parseImporte(f["Importe"])), monedaCheque(f))], ["Concepto", f["Concepto"]]
+      ["Fecha de pago", f["Fecha de Pago"]], ["Importe", textoImporte(Math.abs(parseImporte(f["Importe"])), monedaCheque(f))], ["Concepto", f["Concepto"]],
+      ["Banco aceptante", f["Banco Aceptante"]]
     ]));
     secciones.push(seccionDetalle(f["Tipo"] === "Emitido" ? "Beneficiario" : "Librador", [["Titular", f["Titular"]], ["CUIT", f["CUIT"], "mono"], ["Banco del cheque", f["Banco Emisor"]]]));
     secciones.push(seccionDetalle("Planilla de flujo", [
