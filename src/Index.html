@@ -1319,8 +1319,8 @@
     <button class="buscador" id="btnBuscar" type="button" aria-label="Buscar (Ctrl+K)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><span class="buscador-txt">Buscar movimientos, cheques, cuentas…</span><kbd>Ctrl K</kbd></button>
     <div class="masthead-der">
       <span class="fecha-hoy" id="fechaHoy"></span>
-      <!-- La app está dentro de bgpsammar.com: target _top vuelve al selector de secciones (como en Propiedades). -->
-      <a class="tema-btn volver-inicio" href="https://bgpsammar.com/index.html?v=8#elegir" target="_top" title="Volver al inicio de bgpsammar.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Volver al inicio</span></a>
+      <!-- Vuelve al selector de secciones de bgpsammar.com (como en Propiedades). Ver avisarSitio: dentro del sitio lo hace la página de afuera. -->
+      <a class="tema-btn volver-inicio" id="btnVolverInicio" href="https://bgpsammar.com/index.html?v=8#elegir" target="_top" title="Volver al inicio de bgpsammar.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Volver al inicio</span></a>
       <span class="usuario-actual" id="usuarioActual"></span>
       <button class="tema-btn" id="btnSalir" type="button">Salir</button>
       <button class="tema-btn" id="btnTema" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="panelTema">Apariencia</button>
@@ -7647,6 +7647,15 @@ window.addEventListener("message", e => {
 });
 // Por si la app terminó de cargar después de que la página de afuera mandó la sesión.
 avisarSitio({ tipo: "bgp-pide-sesion" });
+
+// "Volver al inicio": Google no deja que la app (en un iframe) cambie la página de arriba con
+// un enlace, así que dentro de bgpsammar.com se le pide a la página de afuera. Abierta sola,
+// el enlace funciona como siempre.
+$("btnVolverInicio").addEventListener("click", e => {
+  if (window.top === window) return;
+  e.preventDefault();
+  avisarSitio({ tipo: "bgp-inicio" });
+});
 
 // ---------------- Vista: Auditoría ----------------
 let auditoria = [];

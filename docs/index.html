@@ -358,6 +358,10 @@
         if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|google)\.com$/.test(e.origin) || !e.data) return;
         if (e.data.tipo === "bgp-pide-sesion" && BGPSesion.token()) {
           try { e.source.postMessage({ tipo: "bgp-sesion", token: BGPSesion.token() }, "*"); } catch (err) {}
+        } else if (e.data.tipo === "bgp-inicio") {
+          // "Volver al inicio" desde la app: el selector de secciones, sin cerrar la sesión.
+          history.replaceState(null, "", "#elegir");
+          location.reload();
         } else if (e.data.tipo === "bgp-salir") {
           // Salió desde la app: se cierra también acá y vuelve al ingreso.
           BGPSesion.salir().then(function () { history.replaceState(null, "", "#elegir"); location.reload(); });
