@@ -39,8 +39,14 @@
   var filtro = { texto: "", forma: "", lugar: "" };
   var hist = { texto: "", unidad: "" };  // Historial: búsqueda y unidad abierta
   // Lugares (pestañas dentro de Unidades). Las unidades sin lugar son del primero (Saavedra).
-  var LUGARES = ["Saavedra", "Polo 52", "Dario", "Esteban Porucini", "Casa Morón"];
-  function lugaresDe(d) { return d.lugares && d.lugares.length ? d.lugares : LUGARES; }
+  // Cada lugar es independiente: sus unidades, su resumen y su pin en el mapa. Mismo orden que
+  // LUGARES_PREDETERMINADOS_ en src/PropiedadesMapa.gs.
+  var LUGARES = ["Saavedra", "Polo 52", "Dario", "Esteban Porucini", "Casa Morón", "Oficina PEA"];
+  // Las liquidaciones guardan su lista de lugares: los que se agregaron después (Oficina PEA) se suman al final.
+  function lugaresDe(d) {
+    if (!d.lugares || !d.lugares.length) return LUGARES;
+    return d.lugares.concat(LUGARES.filter(function (l) { return d.lugares.indexOf(l) < 0; }));
+  }
   function lugarDe(d, u) { return u.lugar || lugaresDe(d)[0]; }
   try { pestana = sessionStorage.getItem("prop-pestana") || pestana; } catch (e) {}
 
