@@ -16,6 +16,10 @@
  *
  * Los contratos en dólares se muestran también en pesos con el Dólar Blue de El Cronista (venta),
  * y con el IVA si el contrato lo tiene (columna "IVA %").
+ *
+ * Participación: la parte del alquiler que cobra Andrés Sammartino (vacío = 50 %). En el cuadro de
+ * cuotas, por cada cuota se marca si se facturó: con factura se cobra sobre el total (con IVA) y sin
+ * factura, sobre el subtotal. Lo marcado queda en la columna "Facturación" ("9:SI;10:NO").
  * Los índices se leen de las APIs públicas del BCRA y de datos.gob.ar; si no responden,
  * el contrato muestra la fecha igual y se puede cargar el monto nuevo a mano.
  *
@@ -29,7 +33,9 @@ const HEADERS_CONTRATOS = [
   'ID', 'Edificio', 'Lugar', 'Unidad', 'Inquilino', 'Teléfono', 'Inicio', 'Fin', 'Monto', 'Moneda',
   'Índice', 'Cada (meses)', 'Porcentaje', 'Última actualización', 'Notas', 'Actualizado por', 'Fecha',
   // Contratos por m² (índice "Suma fija por m²") e IVA del alquiler, si lo tiene.
-  'Metros', 'Aumento por m²', 'IVA %'
+  'Metros', 'Aumento por m²', 'IVA %',
+  // Parte que cobra Andrés (%) y si se facturó cada cuota ("9:SI;10:NO").
+  'Participación %', 'Facturación'
 ];
 const INDICE_M2 = 'Suma fija por m²';
 const INDICES_CONTRATO = ['ICL', 'IPC', 'Porcentaje fijo', INDICE_M2, 'Sin actualización'];
@@ -226,6 +232,8 @@ function obtenerContratos_(d) {
 
 /** Alta o edición. d: {id?, edificio, lugar, unidad, inquilino, telefono, inicio, fin, monto, moneda, indice, cada, porcentaje, ultima, notas} (fechas aaaa-mm-dd) */
 function guardarContrato_(d, u) {
+  // La facturación de una cuota viaja por esta misma acción (así no hace falta otra en Código.gs).
+  if (d && d.facturaCuota) return guardarFacturacionCuota_(d, u);
   const edificio = String(d.edificio || '').trim(), unidad = String(d.unidad || '').trim();
   if (!edificio || !unidad) return { ok: false, error: 'Falta el edificio o la unidad.' };
   const inicio = asisIsoContrato_(d.inicio), fin = asisIsoContrato_(d.fin);
@@ -239,6 +247,8 @@ function guardarContrato_(d, u) {
     if (!(aumento > 0)) return { ok: false, error: 'Falta cuánto sube el precio por m² en cada actualización.' };
   }
   if (iva !== null && !(iva >= 0 && iva <= 50)) return { ok: false, error: 'El IVA tiene que ser un porcentaje de 0 a 50.' };
+  const participacion = String(d.participacion == null ? '' : d.participacion).trim() === '' ? null : numeroContrato_(d.participacion);
+  if (participacion !== null && !(participacion > 0 && participacion <= 100)) return { ok: false, error: 'La participación tiene que ser un porcentaje de 1 a 100.' };
   // Por m²: el monto es metros × precio por m² (si se cargó el precio).
   const monto = indice === INDICE_M2 && precioM2 > 0 ? Math.round(metros * precioM2 * 100) / 100 : montoContrato_(d.monto);
   if (!(monto > 0)) return { ok: false, error: indice === INDICE_M2 ? 'Falta el precio por m².' : 'Falta el monto del alquiler.' };
@@ -260,11 +270,35 @@ function guardarContrato_(d, u) {
       'Porcentaje': indice === 'Porcentaje fijo' ? String(d.porcentaje).trim() : '', 'Última actualización': isoAMostrar(ultima),
       'Notas': String(d.notas || '').trim().substring(0, 500), 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(),
       'Metros': indice === INDICE_M2 || metros > 0 ? String(metros || '').replace('.', ',') : '', 'Aumento por m²': indice === INDICE_M2 ? String(aumento).replace('.', ',') : '',
-      'IVA %': iva === null ? '' : String(iva).replace('.', ',')
+      'IVA %': iva === null ? '' : String(iva).replace('.', ','),
+      'Participación %': participacion === null ? '' : String(participacion).replace('.', ','),
+      // Lo marcado en el cuadro de cuotas no se toca al editar el contrato.
+      'Facturación': antes ? String(antes['Facturación'] || '') : ''
     };
     hoja.getRange(i >= 0 ? i + 2 : hoja.getLastRow() + 1, 1, 1, HEADERS_CONTRATOS.length).setNumberFormat('@').setValues([HEADERS_CONTRATOS.map(h => v[h])]);
     registrar_(u, antes ? 'Contrato modificado' : 'Contrato cargado', edificio + ' · ' + unidad + (v['Inquilino'] ? ' · ' + v['Inquilino'] : '') + ' · ' + montoTexto_(monto, v['Moneda']) + ' · ' + indice, v['ID'], antes, v);
     return { ok: true, id: v['ID'] };
+  });
+}
+
+/** Marca si se facturó una cuota del contrato. d: {facturaCuota: true, id, cuota, valor: 'SI' | 'NO' | ''} */
+function guardarFacturacionCuota_(d, u) {
+  const cuota = parseInt(d.cuota, 10);
+  const valor = d.valor === 'SI' || d.valor === 'NO' ? d.valor : '';
+  if (!(cuota >= 1 && cuota <= 600)) return { ok: false, error: 'Cuota inválida.' };
+  return conLock_(() => {
+    const hoja = obtenerHoja_(SHEET_CONTRATOS, HEADERS_CONTRATOS);
+    const filas = leerFilas_(SHEET_CONTRATOS, HEADERS_CONTRATOS);
+    const i = filas.findIndex(f => f['ID'] === String(d.id || ''));
+    if (i < 0) return { ok: false, error: 'No se encontró el contrato.' };
+    const mapa = {};
+    String(filas[i]['Facturación'] || '').split(';').forEach(x => { const p = x.split(':'); if (p.length === 2 && p[0].trim()) mapa[p[0].trim()] = p[1].trim(); });
+    const antes = mapa[cuota] || '';
+    if (valor) mapa[cuota] = valor; else delete mapa[cuota];
+    const texto = Object.keys(mapa).sort((a, b) => a - b).map(k => k + ':' + mapa[k]).join(';');
+    hoja.getRange(i + 2, HEADERS_CONTRATOS.indexOf('Facturación') + 1).setNumberFormat('@').setValue(texto);
+    registrar_(u, 'Contrato: facturación de cuota', filas[i]['Edificio'] + ' · ' + filas[i]['Unidad'] + ' · cuota ' + cuota + ': ' + (valor === 'SI' ? 'se facturó' : valor === 'NO' ? 'sin factura' : 'sin marcar'), filas[i]['ID'], antes, valor);
+    return { ok: true, facturacion: texto };
   });
 }
 

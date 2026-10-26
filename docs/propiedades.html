@@ -359,6 +359,13 @@
     table.cuotas tr.actual td { font-weight: 700; color: var(--verde); background: rgba(47, 107, 66, 0.08); }
     table.cuotas tr.sube td { box-shadow: inset 0 2px 0 var(--oro); }
     .cuotas-box .contr-sub { margin-top: 8px; }
+    table.cuotas td.fact { text-align: center; }
+    select.sel-fact { font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--campo-borde); background: var(--campo); color: var(--tinta); }
+    select.sel-fact.si { color: var(--verde-claro); border-color: rgba(47, 107, 66, 0.45); font-weight: 700; }
+    select.sel-fact.no { color: var(--oro); border-color: rgba(168, 122, 47, 0.45); font-weight: 700; }
+    table.cuotas td.cobrar { font-weight: 700; color: var(--verde); }
+    table.cuotas td.cobrar .contr-sub { font-weight: 400; margin-top: 0; }
+    table.cuotas td.vacio-cobrar { font-weight: 400; color: var(--tenue); font-size: 11.5px; }
     /* Rentabilidad */
     .rent-param { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; margin-bottom: 0; }
     .rent-param input { width: 100%; min-width: 0; }
@@ -405,8 +412,8 @@
 
   <script src="sesion.js?v=9"></script>
   <script src="propiedades-lector.js?v=7"></script>
-  <script src="propiedades-contratos.js?v=4"></script>
+  <script src="propiedades-contratos.js?v=5"></script>
   <script src="propiedades-valores.js?v=2"></script>
-  <script src="propiedades-vista.js?v=20"></script>
+  <script src="propiedades-vista.js?v=21"></script>
 </body>
 </html>

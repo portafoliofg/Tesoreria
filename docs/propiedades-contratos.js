@@ -224,16 +224,28 @@
     return f.getUTCFullYear() + "-" + ("0" + (f.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + Math.min(d, ult)).slice(-2);
   }
 
+  /** Parte que cobra Andrés (%): la del contrato o, si no está cargada, 50. */
+  function participacionDe(c) { var v = numero(c.datos["Participación %"]); return v > 0 ? v : 50; }
+  /** Lo marcado en el cuadro: {"9": "SI", "10": "NO"}. */
+  function facturacionDe(c) {
+    var m = {};
+    String(c.datos["Facturación"] || "").split(";").forEach(function (x) { var p = x.split(":"); if (p.length === 2 && p[0].trim()) m[p[0].trim()] = p[1].trim(); });
+    return m;
+  }
+
   // Cuadro de cuotas de un contrato por m², como el del contrato: fecha, cuota, metros, precio por
   // m², tipo de cambio, subtotal, IVA y total. Las que vienen se estiman con el Dólar Blue de hoy.
+  // "¿Se facturó?" por cuota: A cobrar es la participación sobre el total (con factura) o sobre el
+  // subtotal (sin factura).
   function cuadroCuotas(c) {
     var e = c.estado, mon = c.datos["Moneda"];
+    var part = participacionDe(c), fact = facturacionDe(c);
     var metros = numero(c.datos["Metros"]), aumento = numero(c.datos["Aumento por m²"]) || 0, cada = parseInt(c.datos["Cada (meses)"], 10) || 12;
     var precioHoy = e.monto / metros, ultima = e.ultima || e.inicio, iva = ivaDe(c);
     var box = el("div", "cuotas-box");
     var t = el("table", "cuotas");
     var trh = el("tr");
-    ["Fecha", "Cuota", "Metros", "Precio m²", mon === "USD" ? "Subtotal USD" : "Subtotal", mon === "USD" ? "TC (blue venta)" : "", "Subtotal $", "IVA", "Total $"].forEach(function (h, i) {
+    ["Fecha", "Cuota", "Metros", "Precio m²", mon === "USD" ? "Subtotal USD" : "Subtotal", mon === "USD" ? "TC (blue venta)" : "", "Subtotal $", "IVA", "Total $", "¿Se facturó?", "A cobrar (" + String(part).replace(".", ",") + " %)"].forEach(function (h, i) {
       if (h === "" ) return; trh.append(el("th", i ? "num" : null, h));
     });
     var thead = el("thead"); thead.append(trh);
@@ -252,14 +264,51 @@
       else tr.append(el("td", "num", pesos2(sub)));
       tr.append(el("td", "num", subPesos === null ? "—" : pesos2(subPesos)), el("td", "num", subPesos === null || !iva ? "—" : pesos2(subPesos * iva / 100)),
         el("td", "num", subPesos === null ? "—" : pesos2(subPesos * (1 + iva / 100))));
+      var tdF = el("td", "fact"), tdC = el("td", "num cobrar");
+      tdF.append(selectFacturado(c, k, fact[k] || "", subPesos, iva, part, tdC));
+      pintarCobrar(tdC, fact[k] || "", subPesos, iva, part);
+      tr.append(tdF, tdC);
       tbody.append(tr);
     }
     t.append(thead, tbody);
     var sc = el("div", "tabla-scroll"); sc.append(t);
     box.append(sc);
     box.append(el("p", "contr-sub", (mon === "USD" ? "En pesos, solo desde la cuota de este mes y con el Dólar Blue venta de hoy (es una estimación: se paga al del día). " : "") +
-      "En negrita, la cuota actual; resaltadas, las que suben el precio por m²."));
+      "En negrita, la cuota actual; resaltadas, las que suben el precio por m². A cobrar: el " + String(part).replace(".", ",") + " % del total si se facturó o del subtotal si no."));
     return box;
+  }
+
+  /** A cobrar de una cuota según si se facturó (sobre el total con IVA) o no (sobre el subtotal). */
+  function pintarCobrar(td, valor, subPesos, iva, part) {
+    td.classList.toggle("vacio-cobrar", !valor || subPesos === null);
+    if (!valor) { td.textContent = "Elegí SÍ o NO"; return; }
+    if (subPesos === null) { td.textContent = "—"; return; }
+    var base = valor === "SI" ? subPesos * (1 + iva / 100) : subPesos;
+    td.replaceChildren(el("div", null, pesos2(base * part / 100)), el("span", "contr-sub", valor === "SI" ? "sobre el total" : "sobre el subtotal"));
+  }
+
+  function selectFacturado(c, cuota, valor, subPesos, iva, part, tdC) {
+    var sel = el("select", "sel-fact");
+    sel.setAttribute("aria-label", "¿Se facturó la cuota " + cuota + "?");
+    [["", "—"], ["SI", "Sí"], ["NO", "No"]].forEach(function (o) { var x = el("option", null, o[1]); x.value = o[0]; sel.append(x); });
+    sel.value = valor;
+    sel.className = "sel-fact" + (valor ? " " + valor.toLowerCase() : "");
+    sel.addEventListener("change", function () {
+      var nuevo = sel.value, previo = valor;
+      sel.disabled = true;
+      pintarCobrar(tdC, nuevo, subPesos, iva, part);
+      BGPSesion.pedir("guardarContrato", { facturaCuota: true, id: c.datos["ID"], cuota: cuota, valor: nuevo }).then(function (r) {
+        c.datos["Facturación"] = r.facturacion || "";
+        valor = nuevo;
+        sel.className = "sel-fact" + (nuevo ? " " + nuevo.toLowerCase() : "");
+        sel.disabled = false;
+      }).catch(function (err) {
+        sel.value = previo; sel.disabled = false;
+        pintarCobrar(tdC, previo, subPesos, iva, part);
+        window.alert("No se pudo guardar: " + err.message);
+      });
+    });
+    return sel;
   }
 
   // ----- Formulario -----
@@ -301,6 +350,7 @@
     var cada = campo("cada", "Cada (meses)", "number", x["Cada (meses)"]);
     var pct = campo("porcentaje", "Porcentaje (%)", "text", x["Porcentaje"]);
     campo("iva", "IVA (%)", "text", x["IVA %"]);
+    campo("participacion", "Participación de Andrés (%)", "text", x["Participación %"] || "50");
     campo("ultima", "Última actualización", "date", dmaAIso(x["Última actualización"]));
     campo("notas", "Notas", "text", x["Notas"]);
     var ajustar = function () {
@@ -327,7 +377,7 @@
         id: editando.nuevo ? "" : x["ID"], edificio: edificio, lugar: refs.lugar ? refs.lugar.value : (x["Lugar"] || ""), unidad: refs.unidad.value,
         inquilino: refs.inquilino.value, telefono: refs.telefono.value, inicio: refs.inicio.value, fin: refs.fin.value,
         monto: refs.monto.value, moneda: refs.moneda.value, indice: refs.indice.value, cada: refs.cada.value, porcentaje: refs.porcentaje.value,
-        metros: refs.metros.value, precioM2: refs.precioM2.value, aumento: refs.aumento.value, iva: refs.iva.value,
+        metros: refs.metros.value, precioM2: refs.precioM2.value, aumento: refs.aumento.value, iva: refs.iva.value, participacion: refs.participacion.value,
         ultima: refs.ultima.value, notas: refs.notas.value
       }).then(function () { editando = null; return recargar(repintar); })
         .catch(function (err) { g.disabled = false; msg.textContent = err.message; });

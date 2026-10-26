@@ -318,7 +318,7 @@
     var d = datos();
     if (editando()) recalcularTotales(d);
     // Unidades usa todo el ancho de la pantalla: así entran todas las columnas sin deslizar.
-    document.body.classList.toggle("ancho", pestana === "unidades" || pestana === "rentabilidad");
+    document.body.classList.toggle("ancho", pestana === "unidades" || pestana === "rentabilidad" || pestana === "contratos");
     var previos = Array.prototype.slice.call(cuerpo.querySelectorAll("input, select, textarea, button"));
     var foco = previos.indexOf(document.activeElement);
     cuerpo.replaceChildren();
