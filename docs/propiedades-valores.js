@@ -54,6 +54,7 @@
       estado.valores = r.valores || [];
       estado.url = r.url || "";
       estado.parametros = r.parametros || null;
+      estado.unidadesMapa = r.unidadesMapa || [];
       if (r.destinos && r.destinos.length) DESTINOS = r.destinos;
       estado.listo = true;
     }).catch(function (err) {
@@ -236,7 +237,10 @@
 
   window.PropValores = {
     cargar: cargar, de: de, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
-    parametros: function () { return estado.parametros; }, guardarParametros: guardarParametros,
+    parametros: function () { return estado.parametros; },
+    // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
+    unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },
+    guardarParametros: guardarParametros,
     listo: function () { return estado.listo; },
     url: function () { return estado.url; }, error: function () { return estado.error; }
   };

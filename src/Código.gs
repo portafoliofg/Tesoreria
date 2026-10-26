@@ -2368,7 +2368,7 @@ function libro_() {
 
 // Las hojas de Propiedades viven en la planilla aparte de Propiedades, no en la de Tesorería
 // (ver PropiedadesValores.gs: la primera vez se mudan solas y se borran de acá).
-const HOJAS_PROPIEDADES_ = ['Propiedades', 'Contratos', 'Ubicaciones de propiedades'];
+const HOJAS_PROPIEDADES_ = ['Propiedades', 'Contratos', 'Ubicaciones de propiedades', 'Unidades en el mapa'];
 
 /**
  * El libro donde está (o va) la hoja: el de Propiedades para las suyas, el de Tesorería para el

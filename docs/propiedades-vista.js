@@ -696,13 +696,31 @@
    * Las unidades de la liquidación más las que tienen contrato pero todavía no figuran en ella
    * (por ejemplo un galpón nuevo de Polo 52): esas se ven en Unidades y en Rentabilidad, sin montos del mes.
    */
+  /** Nombre del lote en el mapa (KML) de una unidad cuyo nombre en la app es otro, o "". */
+  function loteDe(u) {
+    if (!window.PropValores || !PropValores.unidadesMapa) return "";
+    var k = LectorPropiedades.claveUnidad(u.unidad);
+    var x = PropValores.unidadesMapa().find(function (m) { return LectorPropiedades.claveUnidad(m.unidad) === k; });
+    return x && LectorPropiedades.claveUnidad(x.nombre) !== k ? x.nombre : "";
+  }
   function unidadesConContratos(d) {
     var extra = window.PropContratos && PropContratos.sinUnidad && actual ? PropContratos.sinUnidad(actual.edificio, d.unidades) : [];
+    // Las unidades del mapa (lotes importados de Google Earth) que no están ni en la liquidación ni en un contrato.
+    if (window.PropValores && PropValores.unidadesMapa) {
+      var ya = {};
+      d.unidades.concat(extra).forEach(function (u) { ya[LectorPropiedades.claveUnidad(u.unidad)] = true; });
+      PropValores.unidadesMapa().forEach(function (m) {
+        var k = LectorPropiedades.claveUnidad(m.unidad);
+        if (ya[k]) return;
+        ya[k] = true;
+        extra.push({ unidad: m.unidad, inquilino: "", lugar: m.lugar, soloMapa: true });
+      });
+    }
     // Montos del mes de la liquidación que se ve: Transferencia = lo que paga el inquilino (total con
     // IVA si se facturó, subtotal si no) y Total = lo que cobra Andrés. Sin marcar si se facturó, sin montos.
     var mes = d.orden ? String(d.orden).substring(0, 7) + "-01" : "";
     return d.unidades.concat(extra.map(function (x) {
-      var u = { unidad: x.unidad, clave: LectorPropiedades.claveUnidad(x.unidad), inquilino: x.inquilino, lugar: x.lugar || lugaresDe(d)[0], soloContrato: true };
+      var u = { unidad: x.unidad, clave: LectorPropiedades.claveUnidad(x.unidad), inquilino: x.inquilino, lugar: x.lugar || lugaresDe(d)[0], soloContrato: !x.soloMapa, soloMapa: !!x.soloMapa };
       var q = PropContratos.cuotaDe ? PropContratos.cuotaDe(actual.edificio, x.unidad, mes) : null;
       if (q) {
         u.cuota = q;
@@ -713,6 +731,7 @@
   }
   function pillEstado(u) {
     var f = el("div");
+    if (u.soloMapa) { f.append(el("span", "pill contrato", "En el mapa"), el("span", "sub", "Sin contrato ni liquidación todavía")); return f; }
     if (u.soloContrato) {
       f.append(el("span", "pill contrato", "Contrato"));
       var q = u.cuota;
@@ -812,7 +831,8 @@
       cu.append(m, document.createTextNode(u.unidad));
       var alq = conValores ? alquilerDe(u) : null;
       if (conValores) cu.append(PropValores.botonInfo(u, ctxUnidad(u, d)));
-      cu.append(el("span", "sub", u.inquilino || "—"));
+      var lote = loteDe(u);
+      cu.append(el("span", "sub", (u.inquilino || "—") + (lote ? " · " + lote : "")));
       var cp = el("td"); cp.append(pillEstado(u));
       // Unidad que no abonó: mensaje de WhatsApp listo para el inquilino (propiedades-contratos.js).
       if (u.estado === "no-abono" && window.PropContratos) cp.append(PropContratos.botonRecordar(u, d, actual.edificio));

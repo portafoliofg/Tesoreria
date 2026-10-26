@@ -247,7 +247,9 @@ function obtenerValoresPropiedades_(d) {
   const libro = libroValoresPropiedades_();
   const valores = leerValoresUnidades_().filter(f => !edificio || claveTexto(f['Edificio']) === claveTexto(edificio)).map(valorPublico_);
   const par = leerParametrosProp_().find(x => claveTexto(x.edificio) === claveTexto(edificio)) || null;
-  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl(), parametros: par };
+  let unidadesMapa = [];
+  try { unidadesMapa = unidadesMapaDeEdificio_(edificio); } catch (e) { console.log('Unidades del mapa: ' + e.message); }
+  return { ok: true, valores: valores, destinos: DESTINOS_UNIDAD, url: libro.getUrl(), parametros: par, unidadesMapa: unidadesMapa };
 }
 
 /**

@@ -13,11 +13,20 @@
  *
  * Propiedad del script opcional: PROPIEDADES_ZONA (por ejemplo "Córdoba, Argentina"),
  * que se agrega a las búsquedas que no la traen. Por defecto "Argentina".
+ *
+ * Unidades en el mapa (hoja "Unidades en el mapa", en la planilla de Propiedades): cada lote o
+ * galpón de un lugar con su punto y, si tiene, su contorno. Se cargan importando un KML de Google
+ * Earth desde el mapa (una carpeta por lugar, un marcador por unidad, polígonos para los contornos).
+ * "Unidad" es el nombre de la unidad en la app (puede ser distinto del de Google Earth: por
+ * ejemplo el lote "Lote 10 Mza. 48" es la unidad "Galpón chico"). Esas unidades también se ven
+ * en Propiedades aunque no estén en la liquidación.
  */
 
 const SHEET_UBICACIONES = 'Ubicaciones de propiedades';
 // Rumbo / Inclinación / Panorama: la vista de Street View de la entrada (el panorama sale del enlace que se pega).
 const HEADERS_UBICACIONES = ['Clave', 'Edificio', 'Lugar', 'Dirección', 'Lat', 'Lon', 'Precisión', 'Fuente', 'Actualizado por', 'Fecha', 'Rumbo', 'Inclinación', 'Panorama'];
+const SHEET_UNIDADES_MAPA = 'Unidades en el mapa';
+const HEADERS_UNIDADES_MAPA = ['Clave', 'Edificio', 'Lugar', 'Nombre', 'Unidad', 'Tipo', 'Lat', 'Lon', 'Contorno', 'Actualizado por', 'Fecha'];
 const UBIC_MAX_PERIODOS = 12;   // liquidaciones por lugar que se mandan al mapa
 const UBIC_MAX_BUSQUEDAS = 5;   // búsquedas automáticas por pedido (para no demorar)
 
@@ -41,6 +50,10 @@ function unidadesDelLugar_(d, lugar, primero) {
  * el historial resumido de sus liquidaciones (para el análisis desde el mapa).
  */
 function lugaresPropiedades_() {
+  // Lugares que tienen unidades en el mapa o contratos: se muestran aunque la liquidación no traiga unidades suyas.
+  const conAlgo = {};
+  leerUnidadesMapa_().forEach(f => { conAlgo[claveUbicacion_(f['Edificio'], f['Lugar'])] = true; });
+  try { leerContratos_().forEach(c => { if (c['Lugar']) conAlgo[claveUbicacion_(c['Edificio'], c['Lugar'])] = true; }); } catch (e) {}
   const ult = {}, todas = {};
   (obtenerPropiedades_().liquidaciones || []).forEach(x => {
     const k = claveTexto(x.edificio);
@@ -57,7 +70,7 @@ function lugaresPropiedades_() {
     nombres.forEach((lugar, i) => {
       // Las unidades sin lugar son del primero (igual que en la página de Propiedades).
       const suyas = unidades.filter(un => (un.lugar || nombres[0]) === lugar);
-      if (i > 0 && !suyas.length) return;
+      if (i > 0 && !suyas.length && !conAlgo[claveUbicacion_(x.edificio, lugar)]) return;
       const estados = {};
       suyas.forEach(un => { const e = un.estado || 'sin marca'; estados[e] = (estados[e] || 0) + 1; });
       const total = suyas.reduce((a, un) => a + (typeof un.total === 'number' ? un.total : 0), 0);
@@ -109,8 +122,16 @@ function ubicacionesPropiedades_(d, u) {
   if (nuevas.length) {
     conLock_(() => hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, HEADERS_UBICACIONES.length).setNumberFormat('@').setValues(nuevas));
   }
+  // Unidades del mapa (puntos y contornos), con la clave de su lugar.
+  const unidades = leerUnidadesMapa_().map(f => {
+    let contorno = null;
+    try { contorno = f['Contorno'] ? JSON.parse(f['Contorno']) : null; } catch (e) {}
+    const lat = parseFloat(f['Lat']), lon = parseFloat(f['Lon']);
+    return { clave: f['Clave'], lugarClave: claveUbicacion_(f['Edificio'], f['Lugar']), edificio: f['Edificio'], lugar: f['Lugar'], nombre: f['Nombre'],
+      unidad: f['Unidad'] || f['Nombre'], tipo: f['Tipo'] || 'punto', lat: isNaN(lat) ? null : lat, lon: isNaN(lon) ? null : lon, contorno: contorno };
+  });
   return {
-    ok: true,
+    ok: true, unidades: unidades,
     pendientes: lugares.filter(l => !porClave[l.clave]).length,
     lugares: lugares.map(l => {
       const f = (porClave[l.clave] || {}).f || {};
@@ -131,6 +152,8 @@ function ubicacionesPropiedades_(d, u) {
  * Con lat/lon (pin arrastrado) se guarda tal cual; con solo la dirección, se busca.
  */
 function guardarUbicacionPropiedad_(d, u) {
+  // La importación de un KML viaja por esta misma acción (así no hace falta otra en Código.gs).
+  if (d && d.kml) return importarKmlPropiedades_(d, u);
   const clave = String(d.clave || '');
   if (!clave) return { ok: false, error: 'Falta el lugar.' };
   let direccion = String(d.direccion || '').trim().substring(0, 200);
@@ -249,4 +272,96 @@ function geocodificar_(texto) {
     console.log('Nominatim: ' + e.message);
   }
   return null;
+}
+
+// ======================= Unidades en el mapa (KML de Google Earth) =======================
+
+function leerUnidadesMapa_() {
+  obtenerHoja_(SHEET_UNIDADES_MAPA, HEADERS_UNIDADES_MAPA);
+  return leerFilas_(SHEET_UNIDADES_MAPA, HEADERS_UNIDADES_MAPA).filter(f => f['Clave']);
+}
+
+/** Lugares de cada edificio según su última liquidación (todos, tengan o no unidades): {clave lugar: {edificio, lugar}}. */
+function lugaresConocidos_() {
+  const ult = {};
+  (obtenerPropiedades_().liquidaciones || []).forEach(x => {
+    const k = claveTexto(x.edificio);
+    if (!ult[k] || String(x.orden) > String(ult[k].orden)) ult[k] = x;
+  });
+  const out = {};
+  Object.keys(ult).forEach(k => {
+    const d = ult[k].datos || {};
+    (d.lugares || []).concat((d.unidades || []).map(un => un.lugar)).filter(Boolean).forEach(l => {
+      if (!out[claveTexto(l)]) out[claveTexto(l)] = { edificio: ult[k].edificio, lugar: l };
+    });
+  });
+  return out;
+}
+
+/**
+ * Guarda las unidades leídas de un KML. d: {kml: true, items: [{lugar, nombre, unidad, tipo: 'punto'|'poligono',
+ * lat, lon, contorno: [[lon, lat], …]}]}. Cada lugar tiene que ser uno de las liquidaciones (por nombre).
+ * Si el lugar todavía no está en el mapa, se ubica en el centro de sus unidades.
+ */
+function importarKmlPropiedades_(d, u) {
+  const items = Array.isArray(d.items) ? d.items.slice(0, 300) : [];
+  if (!items.length) return { ok: false, error: 'El archivo no trae unidades para importar.' };
+  const conocidos = lugaresConocidos_();
+  const errores = [], filas = [];
+  items.forEach((it, i) => {
+    const l = conocidos[claveTexto(it.lugar)];
+    if (!l) { errores.push('"' + it.lugar + '" no es un lugar de las liquidaciones'); return; }
+    const nombre = String(it.nombre || '').trim().substring(0, 120), unidad = String(it.unidad || nombre).trim().substring(0, 120);
+    if (!nombre) return;
+    const tipo = it.tipo === 'poligono' ? 'poligono' : 'punto';
+    let lat = parseFloat(it.lat), lon = parseFloat(it.lon), contorno = '';
+    if (tipo === 'poligono') {
+      const pts = (Array.isArray(it.contorno) ? it.contorno : []).map(p => [parseFloat(p[0]), parseFloat(p[1])]).filter(p => !isNaN(p[0]) && !isNaN(p[1]) && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90);
+      if (pts.length < 3) { errores.push('"' + nombre + '": el contorno no tiene puntos suficientes'); return; }
+      contorno = JSON.stringify(pts.slice(0, 500).map(p => [Math.round(p[0] * 1e7) / 1e7, Math.round(p[1] * 1e7) / 1e7]));
+      lon = pts.reduce((a, p) => a + p[0], 0) / pts.length; lat = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    }
+    if (isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) { errores.push('"' + nombre + '": coordenadas inválidas'); return; }
+    filas.push({
+      'Clave': claveUbicacion_(l.edificio, l.lugar) + '|' + claveTexto(nombre), 'Edificio': l.edificio, 'Lugar': l.lugar, 'Nombre': nombre,
+      'Unidad': unidad, 'Tipo': tipo, 'Lat': lat.toFixed(7), 'Lon': lon.toFixed(7), 'Contorno': contorno, 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_()
+    });
+  });
+  if (errores.length && !filas.length) return { ok: false, error: 'No se importó nada: ' + errores.join(' · ') + '.' };
+  return conLock_(() => {
+    const hoja = obtenerHoja_(SHEET_UNIDADES_MAPA, HEADERS_UNIDADES_MAPA);
+    const existentes = leerFilas_(SHEET_UNIDADES_MAPA, HEADERS_UNIDADES_MAPA);
+    let nuevas = 0, actualizadas = 0;
+    filas.forEach(f => {
+      const i = existentes.findIndex(x => x['Clave'] === f['Clave']);
+      const fila = [HEADERS_UNIDADES_MAPA.map(h => f[h])];
+      if (i >= 0) { hoja.getRange(i + 2, 1, 1, HEADERS_UNIDADES_MAPA.length).setNumberFormat('@').setValues(fila); existentes[i] = f; actualizadas++; }
+      else { hoja.getRange(hoja.getLastRow() + 1, 1, 1, HEADERS_UNIDADES_MAPA.length).setNumberFormat('@').setValues(fila); existentes.push(f); nuevas++; }
+    });
+    // Lugares sin ubicación: al centro de sus unidades.
+    const hojaU = obtenerHoja_(SHEET_UBICACIONES, HEADERS_UBICACIONES);
+    const ubic = leerFilas_(SHEET_UBICACIONES, HEADERS_UBICACIONES);
+    const porLugar = {};
+    filas.forEach(f => { const k = claveUbicacion_(f['Edificio'], f['Lugar']); (porLugar[k] = porLugar[k] || { e: f['Edificio'], l: f['Lugar'], pts: [] }).pts.push([parseFloat(f['Lon']), parseFloat(f['Lat'])]); });
+    const ubicados = [];
+    Object.keys(porLugar).forEach(k => {
+      const i = ubic.findIndex(x => x['Clave'] === k);
+      if (i >= 0 && String(ubic[i]['Lat'] || '').trim()) return;
+      const g = porLugar[k];
+      const lon = g.pts.reduce((a, p) => a + p[0], 0) / g.pts.length, lat = g.pts.reduce((a, p) => a + p[1], 0) / g.pts.length;
+      const f = { 'Clave': k, 'Edificio': g.e, 'Lugar': g.l, 'Dirección': i >= 0 ? ubic[i]['Dirección'] : '', 'Lat': lat.toFixed(6), 'Lon': lon.toFixed(6),
+        'Precisión': 'exacta', 'Fuente': 'KML de Google Earth', 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(), 'Rumbo': '', 'Inclinación': '', 'Panorama': '' };
+      hojaU.getRange(i >= 0 ? i + 2 : hojaU.getLastRow() + 1, 1, 1, HEADERS_UBICACIONES.length).setNumberFormat('@').setValues([HEADERS_UBICACIONES.map(h => f[h])]);
+      ubicados.push(g.l);
+    });
+    registrar_(u, 'Propiedades: unidades en el mapa', nuevas + ' nueva(s), ' + actualizadas + ' actualizada(s) desde un KML' + (ubicados.length ? ' · ubicado(s): ' + ubicados.join(', ') : '') + (errores.length ? ' · no se importó: ' + errores.join('; ') : ''),
+      String(d.archivo || ''), '', textoCorto_(filas.map(f => f['Lugar'] + ' · ' + f['Nombre'] + (f['Unidad'] !== f['Nombre'] ? ' = ' + f['Unidad'] : ''))));
+    return { ok: true, nuevas: nuevas, actualizadas: actualizadas, ubicados: ubicados, errores: errores };
+  });
+}
+
+/** Unidades del mapa de un edificio, para la página de Propiedades: [{lugar, nombre, unidad}] (sin los contornos). */
+function unidadesMapaDeEdificio_(edificio) {
+  return leerUnidadesMapa_().filter(f => claveTexto(f['Edificio']) === claveTexto(edificio) && (f['Tipo'] || 'punto') === 'punto')
+    .map(f => ({ lugar: f['Lugar'], nombre: f['Nombre'], unidad: f['Unidad'] || f['Nombre'] }));
 }

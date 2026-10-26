@@ -10,6 +10,10 @@
  * en 3D de OpenStreetMap (OpenFreeMap). Sin claves ni costo.
  * Al elegir un lugar: vuela hasta ahí inclinado y gira despacio alrededor, y el panel
  * muestra la entrada en Street View y la liquidación resumida (con selector de período).
+ *
+ * Unidades de un lugar (lotes, galpones): se importan de un KML de Google Earth ("Importar KML":
+ * una carpeta por lugar, un marcador por unidad y polígonos para los contornos, que se ven en 3D).
+ * Viven en la planilla (hoja "Unidades en el mapa"); en el listado van debajo de su lugar.
  */
 (function () {
   "use strict";
@@ -40,7 +44,9 @@
   }
   function chipsDe(l) {
     var c = el("div", "chips");
-    c.append(el("span", "chip", l.unidades + (l.unidades === 1 ? " unidad" : " unidades")));
+    // Las de la liquidación o, si no hay, las del mapa (lotes importados del KML).
+    var n = l.unidades || unidadesDe(l).length;
+    c.append(el("span", "chip", n + (n === 1 ? " unidad" : " unidades") + (!l.unidades && n ? " en el mapa" : "")));
     var e = l.estados || {};
     if (e["no-abono"]) c.append(el("span", "chip rojo", e["no-abono"] + " no abonó"));
     if (e.desocupado) c.append(el("span", "chip gris", e.desocupado + " desocupada" + (e.desocupado === 1 ? "" : "s")));
@@ -116,12 +122,16 @@
 
   // ----- Datos -----
   var lugares = [], pines = {}, seleccionado = null, arrastrando = null;
+  var unidadesMapa = [], pinesU = {}, unidadSel = null;
+  var ALTO_GALPON = 9;  // metros de los contornos en 3D
 
   function cargar(intento) {
     return BGPSesion.pedir("ubicacionesPropiedades").then(function (r) {
       lugares = r.lugares || [];
+      unidadesMapa = r.unidades || [];
       pintarLista();
       pintarPines();
+      pintarUnidades();
       if (intento === 0) verTodo(false);
       // La búsqueda automática va de a unas pocas: se repite hasta ubicar todo lo posible.
       if (r.pendientes && intento < 6) { $("resumen").textContent = "Ubicando propiedades… faltan " + r.pendientes + "."; return cargar(intento + 1); }
@@ -150,7 +160,227 @@
       b.append(t, el("span", "sub", (l.lugar ? l.edificio + " · " : "") + (l.direccion || "Sin dirección")), chipsDe(l));
       b.addEventListener("click", function () { elegir(l, true); });
       lista.append(b);
+      var suyas = unidadesDe(l);
+      if (suyas.length) {
+        var box = el("div", "unidades-lugar");
+        suyas.forEach(function (x) {
+          var ub = el("button", "unidad-mapa" + (unidadSel === x ? " sel" : ""));
+          ub.type = "button";
+          ub.append(document.createTextNode(x.unidad));
+          if (x.unidad !== x.nombre) ub.append(el("span", "alias", x.nombre));
+          ub.addEventListener("click", function () { elegirUnidad(x, l); });
+          box.append(ub);
+        });
+        lista.append(box);
+      }
     });
+  }
+
+  // ----- Unidades de cada lugar (KML) -----
+  /** Unidades con punto de un lugar (los contornos van con la unidad del mismo nombre). */
+  function unidadesDe(l) {
+    return unidadesMapa.filter(function (x) { return x.lugarClave === l.clave && x.tipo === "punto" && typeof x.lat === "number"; })
+      .sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true }); });
+  }
+
+  function geoContornos() {
+    return {
+      type: "FeatureCollection",
+      features: unidadesMapa.filter(function (x) { return x.tipo === "poligono" && x.contorno && x.contorno.length >= 3; }).map(function (x) {
+        var anillo = x.contorno.slice();
+        var a = anillo[0], z = anillo[anillo.length - 1];
+        if (a[0] !== z[0] || a[1] !== z[1]) anillo.push(a);
+        return { type: "Feature", properties: { nombre: x.nombre, unidad: x.unidad, alto: ALTO_GALPON }, geometry: { type: "Polygon", coordinates: [anillo] } };
+      })
+    };
+  }
+
+  /** Contornos en 3D (volumen y borde). Se vuelven a poner al cambiar entre satélite y mapa. */
+  // No espera a que bajen las imágenes (isStyleLoaded): basta con que el estilo esté armado; si
+  // todavía no lo está, se reintenta cuando avisa que cambió.
+  function capasContornos() {
+    var datos = geoContornos();
+    try {
+      if (mapa.getSource("contornos")) { mapa.getSource("contornos").setData(datos); return; }
+      mapa.addSource("contornos", { type: "geojson", data: datos });
+      mapa.addLayer({ id: "contornos-3d", type: "fill-extrusion", source: "contornos",
+        paint: { "fill-extrusion-color": "#d9b46a", "fill-extrusion-height": ["get", "alto"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.78 } });
+      mapa.addLayer({ id: "contornos-borde", type: "line", source: "contornos", paint: { "line-color": "#fbc02d", "line-width": 2.5 } });
+    } catch (e) {
+      mapa.once("styledata", capasContornos);
+    }
+  }
+  mapa.on("style.load", capasContornos);
+
+  function pintarUnidades() {
+    Object.keys(pinesU).forEach(function (k) { pinesU[k].remove(); });
+    pinesU = {};
+    unidadesMapa.filter(function (x) { return x.tipo === "punto" && typeof x.lat === "number"; }).forEach(function (x) {
+      var n = el("div", "pin-u" + (unidadSel === x ? " sel" : ""));
+      n.append(el("span", "etq", x.unidad), el("span", "pt"));
+      n.title = x.unidad + (x.unidad !== x.nombre ? " (" + x.nombre + ")" : "") + " · " + x.lugar;
+      n.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var l = lugares.find(function (y) { return y.clave === x.lugarClave; });
+        elegirUnidad(x, l);
+      });
+      pinesU[x.clave] = new maplibregl.Marker({ element: n, anchor: "bottom" }).setLngLat([x.lon, x.lat]).addTo(mapa);
+    });
+    capasContornos();
+    nombresSegunZoom();
+  }
+  // Los nombres de las unidades se ven de cerca (de lejos se amontonan).
+  function nombresSegunZoom() { $("mapa").classList.toggle("lejos", mapa.getZoom() < 15.5); }
+  mapa.on("zoom", nombresSegunZoom);
+
+  function elegirUnidad(x, l) {
+    unidadSel = x;
+    pararGiro(); pararRecorrido();
+    if (l && seleccionado !== l) { seleccionado = l; marcarPines(); }
+    pintarLista();
+    Object.keys(pinesU).forEach(function (k) { pinesU[k].getElement().classList.toggle("sel", k === x.clave); });
+    mapa.flyTo({ center: [x.lon, x.lat], zoom: 18.3, pitch: 62, bearing: mapa.getBearing() + 30, speed: 0.9, essential: true });
+    var f = $("ficha");
+    f.replaceChildren();
+    f.hidden = false;
+    document.querySelector(".cuerpo").classList.add("con-ficha");
+    var cerrar = el("button", "cerrar", "×");
+    cerrar.type = "button"; cerrar.setAttribute("aria-label", "Cerrar");
+    cerrar.addEventListener("click", cerrarFicha);
+    f.append(cerrar, el("h2", null, x.unidad), el("div", "dir", [x.unidad !== x.nombre ? x.nombre : "", x.lugar, x.edificio].filter(Boolean).join(" · ")));
+    var contorno = unidadesMapa.find(function (y) { return y.tipo === "poligono" && y.lugarClave === x.lugarClave && y.unidad === x.unidad; });
+    if (contorno) f.append(el("div", "nota", "Con su contorno en 3D (" + contorno.nombre + ")."));
+    var bs = el("div", "botones");
+    var ver = el("a", "boton chico", "Ver en Propiedades");
+    ver.href = "propiedades.html?edificio=" + encodeURIComponent(x.edificio) + "&lugar=" + encodeURIComponent(x.lugar);
+    var ge = el("a", "boton secundario chico", "Abrir en Google Earth");
+    ge.href = "https://earth.google.com/web/@" + x.lat + "," + x.lon + ",40a,300d,35y,0h,60t,0r";
+    ge.target = "_blank"; ge.rel = "noopener";
+    bs.append(ver, ge);
+    f.append(bs);
+  }
+
+  // ----- Importar KML (Google Earth) -----
+  $("importarKml").addEventListener("click", function () { $("archivoKml").click(); });
+  $("archivoKml").addEventListener("change", function () {
+    var file = $("archivoKml").files[0];
+    $("archivoKml").value = "";
+    if (!file) return;
+    file.text().then(function (txt) { revisarKml(leerKml(txt), file.name); }).catch(function (err) { window.alert("No se pudo leer el archivo: " + err.message); });
+  });
+
+  function norm(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim(); }
+  function hijos(n, nombre) { return Array.prototype.filter.call(n.children, function (c) { return c.localName === nombre; }); }
+  function texto(n, nombre) { var c = hijos(n, nombre)[0]; return c ? c.textContent.trim() : ""; }
+  function coords(t) {
+    return String(t || "").trim().split(/\s+/).map(function (p) { var v = p.split(","); return [parseFloat(v[0]), parseFloat(v[1])]; })
+      .filter(function (p) { return !isNaN(p[0]) && !isNaN(p[1]); });
+  }
+
+  /** [{carpeta, nombre, tipo, lat, lon, contorno}] de un KML: la carpeta es el lugar. */
+  function leerKml(txt) {
+    var doc = new DOMParser().parseFromString(txt, "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("El archivo no es un KML válido.");
+    var out = [];
+    Array.prototype.forEach.call(doc.getElementsByTagNameNS("*", "Placemark"), function (pm) {
+      var carpeta = "";
+      for (var p = pm.parentElement; p; p = p.parentElement) { if (p.localName === "Folder" || p.localName === "Document") { carpeta = texto(p, "name"); if (carpeta) break; } }
+      var nombre = texto(pm, "name");
+      var punto = pm.getElementsByTagNameNS("*", "Point")[0], poli = pm.getElementsByTagNameNS("*", "Polygon")[0];
+      if (punto) {
+        var c = coords((punto.getElementsByTagNameNS("*", "coordinates")[0] || {}).textContent)[0];
+        if (c) out.push({ carpeta: carpeta, nombre: nombre, tipo: "punto", lon: c[0], lat: c[1] });
+      } else if (poli) {
+        var ext = poli.getElementsByTagNameNS("*", "outerBoundaryIs")[0] || poli;
+        var cc = coords((ext.getElementsByTagNameNS("*", "coordinates")[0] || {}).textContent);
+        if (cc.length >= 3) out.push({ carpeta: carpeta, nombre: nombre, tipo: "poligono", contorno: cc });
+      }
+    });
+    return out;
+  }
+
+  /** Revisión antes de guardar: a qué lugar va cada carpeta y qué unidad de la app es cada marcador. */
+  function revisarKml(items, archivo) {
+    var dlg = $("dlgKml");
+    dlg.replaceChildren();
+    dlg.append(el("h2", null, "Importar " + archivo), el("div", "nota", "Revisá a qué lugar va cada carpeta y qué unidad de la app es cada marcador (si en la app tiene otro nombre, escribilo). Los contornos se ven en 3D con la unidad que elijas."));
+    if (!items.length) { dlg.append(el("p", "error", "El archivo no trae marcadores ni contornos.")); botonesDlg(dlg, null); dlg.showModal(); return; }
+    // Lugar de cada carpeta (por nombre).
+    var carpetas = [];
+    items.forEach(function (it) { if (carpetas.indexOf(it.carpeta) < 0) carpetas.push(it.carpeta); });
+    var lugarDe = {};
+    var tl = el("table"), trh = el("tr");
+    ["Carpeta del KML", "Lugar"].forEach(function (h) { trh.append(el("th", null, h)); });
+    tl.append(trh);
+    carpetas.forEach(function (c) {
+      var tr = el("tr"), sel = el("select");
+      sel.append(new Option("— No importar —", ""));
+      lugares.forEach(function (l) { sel.append(new Option(nombreDe(l) + (l.lugar ? " (" + l.edificio + ")" : ""), l.clave)); });
+      var igual = lugares.find(function (l) { return norm(nombreDe(l)) === norm(c); });
+      sel.value = igual ? igual.clave : "";
+      lugarDe[c] = sel;
+      tr.append(el("td", null, c || "(sin carpeta)"), el("td"));
+      tr.lastChild.append(sel);
+      tl.append(tr);
+    });
+    dlg.append(tl);
+    // Unidad de cada marcador o contorno.
+    var t = el("table"), th = el("tr");
+    ["En Google Earth", "Tipo", "Unidad en la app"].forEach(function (h) { th.append(el("th", null, h)); });
+    t.append(th);
+    var dl = el("datalist"); dl.id = "kmlUnidades";
+    var nombres = {};
+    lugares.forEach(function (l) { ((l.historial && l.historial[0] && l.historial[0].unidades) || []).forEach(function (u) { nombres[u.unidad] = true; }); });
+    unidadesMapa.forEach(function (x) { nombres[x.unidad] = true; });
+    Object.keys(nombres).sort().forEach(function (n) { dl.append(new Option(n, n)); });
+    var puntos = items.filter(function (it) { return it.tipo === "punto"; });
+    var campos = items.map(function (it) {
+      var tr = el("tr"), inp = el("input");
+      inp.setAttribute("list", "kmlUnidades");
+      // Ya importado antes: el mismo nombre de la app. Un contorno va con el punto cuyo nombre contiene.
+      var previo = unidadesMapa.find(function (x) { return norm(x.nombre) === norm(it.nombre); });
+      var dueño = it.tipo === "poligono" ? puntos.find(function (p) { return norm(it.nombre).indexOf(norm(p.nombre)) >= 0; }) : null;
+      var dueñoPrevio = dueño ? unidadesMapa.find(function (x) { return norm(x.nombre) === norm(dueño.nombre); }) : null;
+      inp.value = previo ? previo.unidad : dueñoPrevio ? dueñoPrevio.unidad : dueño ? dueño.nombre : it.nombre;
+      tr.append(el("td", null, it.nombre || "(sin nombre)"), el("td", null, it.tipo === "poligono" ? "Contorno (3D)" : "Punto"), el("td"));
+      tr.lastChild.append(inp);
+      t.append(tr);
+      return { it: it, inp: inp };
+    });
+    dlg.append(t, dl);
+    botonesDlg(dlg, function (boton, nota) {
+      var envio = campos.map(function (c) {
+        var lugar = lugares.find(function (l) { return l.clave === lugarDe[c.it.carpeta].value; });
+        if (!lugar) return null;
+        return { lugar: lugar.lugar || lugar.edificio, nombre: c.it.nombre, unidad: c.inp.value.trim() || c.it.nombre, tipo: c.it.tipo, lat: c.it.lat, lon: c.it.lon, contorno: c.it.contorno };
+      }).filter(Boolean);
+      if (!envio.length) { nota.textContent = "Elegí el lugar de al menos una carpeta."; return; }
+      boton.disabled = true; nota.textContent = "Guardando…";
+      BGPSesion.pedir("guardarUbicacionPropiedad", { kml: true, archivo: archivo, items: envio }).then(function (r) {
+        dlg.close();
+        window.alert("Listo: " + r.nuevas + " unidad(es) nueva(s) y " + r.actualizadas + " actualizada(s)." + (r.ubicados && r.ubicados.length ? " Se ubicó en el mapa: " + r.ubicados.join(", ") + "." : "") + (r.errores && r.errores.length ? " No se importó: " + r.errores.join("; ") + "." : ""));
+        return cargar(1);
+      }).catch(function (err) {
+        if (err && err.sesion === false) { irAlIngreso(); return; }
+        boton.disabled = false; nota.textContent = err.message || "No se pudo guardar.";
+      });
+    });
+    dlg.showModal();
+  }
+
+  function botonesDlg(dlg, alImportar) {
+    var pie = el("div", "pie"), nota = el("span", "nota");
+    var cancelar = el("button", "boton secundario chico", "Cancelar");
+    cancelar.type = "button";
+    cancelar.addEventListener("click", function () { dlg.close(); });
+    pie.append(nota, cancelar);
+    if (alImportar) {
+      var ok = el("button", "boton chico", "Importar");
+      ok.type = "button";
+      ok.addEventListener("click", function () { alImportar(ok, nota); });
+      pie.append(ok);
+    }
+    dlg.append(pie);
   }
 
   function pintarPines() {
@@ -468,6 +698,8 @@
   }
 
   function cerrarFicha() {
+    unidadSel = null;
+    Object.keys(pinesU).forEach(function (k) { pinesU[k].getElement().classList.remove("sel"); });
     $("ficha").hidden = true;
     document.querySelector(".cuerpo").classList.remove("con-ficha");
     terminarArrastre();

@@ -70,6 +70,27 @@
     .pin .base { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fffdf9; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6); }
     .pin.sel .etq { background: var(--verde); color: #fffaf0; border-color: var(--verde); }
     .pin.arrastrable .etq { background: var(--oro); color: #fff; }
+    /* Unidades de un lugar (lotes, galpones): pin chico con su nombre (el nombre se ve de cerca) */
+    .pin-u { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+    .pin-u .etq { font: 700 11px/1.2 var(--texto); color: #fffaf0; background: rgba(28, 74, 44, 0.92); padding: 3px 7px; border-radius: 7px; white-space: nowrap; margin-bottom: 3px; box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.6); }
+    .pin-u .pt { width: 11px; height: 11px; border-radius: 50%; background: #d9b46a; border: 2px solid #fffdf9; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+    .pin-u.sel .etq { background: var(--oro); }
+    #mapa.lejos .pin-u .etq { display: none; }
+    .unidades-lugar { margin: -2px 0 8px 22px; display: grid; gap: 2px; }
+    .unidad-mapa { display: flex; align-items: baseline; gap: 6px; width: 100%; text-align: left; font: inherit; font-size: 12.5px; color: var(--tinta); background: none; border: 0; border-radius: 8px; padding: 4px 8px; cursor: pointer; }
+    .unidad-mapa:hover, .unidad-mapa.sel { background: rgba(217, 180, 106, 0.18); }
+    .unidad-mapa::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #d9b46a; flex-shrink: 0; transform: translateY(1px); }
+    .unidad-mapa .alias { color: var(--tenue); font-size: 11.5px; }
+    /* Importar KML */
+    .dlg-kml { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 40px); border: 1px solid var(--borde); border-radius: 16px; background: #fbf8f3; color: var(--tinta); padding: 18px; font-family: var(--texto); }
+    .dlg-kml::backdrop { background: rgba(36, 50, 42, 0.4); }
+    .dlg-kml h2 { margin: 0 0 4px; font-family: var(--titulos); font-weight: 600; font-size: 18px; color: var(--verde); }
+    .dlg-kml table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+    .dlg-kml th { text-align: left; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--tenue); padding: 6px; border-bottom: 1px solid var(--borde); }
+    .dlg-kml td { padding: 6px; border-bottom: 1px solid rgba(28, 74, 44, 0.08); }
+    .dlg-kml input, .dlg-kml select { font: inherit; font-size: 13px; width: 100%; padding: 6px 8px; border: 1px solid rgba(28, 74, 44, 0.22); border-radius: 8px; background: #fffdfa; }
+    .dlg-kml .pie { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 14px; }
+    .dlg-kml .nota { font-size: 12.5px; color: var(--tenue); }
     /* Panel del lugar: Street View de la entrada + liquidación resumida */
     .ficha { position: absolute; right: 0; top: 0; bottom: 0; width: min(600px, 100%); overflow-y: auto; background: #fbf8f3;
       border-left: 1px solid var(--borde); box-shadow: -24px 0 50px -30px rgba(0, 0, 0, 0.55); padding: 16px 16px 24px; z-index: 2; }
@@ -161,6 +182,8 @@
             <button type="button" class="boton secundario" id="verTodo">Ver todas</button>
             <button type="button" class="boton secundario" id="recorrer">Recorrer</button>
             <button type="button" class="boton secundario" id="girar" aria-pressed="true">Girar</button>
+            <button type="button" class="boton secundario" id="importarKml" title="Lotes y galpones de un lugar desde Google Earth (archivo .kml)">Importar KML</button>
+            <input type="file" id="archivoKml" accept=".kml,application/vnd.google-earth.kml+xml" hidden>
           </div>
         </div>
         <div class="lista" id="lista" role="list"></div>
@@ -171,11 +194,12 @@
           <button type="button" data-capa="mapa">Mapa</button>
         </div>
         <section class="ficha" id="ficha" hidden aria-live="polite"></section>
+        <dialog class="dlg-kml" id="dlgKml" aria-labelledby="dlgKmlTit"></dialog>
       </div>
     </div>
   </div>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="sesion.js?v=9"></script>
-  <script src="propiedades-mapa.js?v=5"></script>
+  <script src="propiedades-mapa.js?v=6"></script>
 </body>
 </html>
