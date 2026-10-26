@@ -876,6 +876,44 @@
   .rf-card .pl-acciones select { width: auto; margin: 0; }
   .rf-kpis { margin: 4px 0 0; }
   .flch-resumen { margin: 12px 0 10px; }
+  /* Pagos mensuales y Tarjetas: grilla concepto × mes, como la planilla */
+  .nav-item.nav-sub { padding-left: 22px; }
+  table.pm-tabla { font-size: 12.5px; }
+  table.pm-tabla th, table.pm-tabla td { padding: 6px 7px; white-space: nowrap; }
+  table.pm-tabla .pm-concepto { position: sticky; left: 0; z-index: 2; background: var(--surface); min-width: 190px; max-width: 260px; white-space: normal; box-shadow: inset -1px 0 0 var(--border); }
+  table.pm-tabla th.pm-concepto { background: var(--surface-2); z-index: 3; }
+  table.pm-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.pm-celda { text-align: right; cursor: pointer; border-radius: 6px; }
+  td.pm-celda:hover, td.pm-celda:focus-visible { background: var(--primary-soft) !important; outline: none; }
+  .pm-imp { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .pm-imp.pm-estimado { font-style: italic; font-weight: 500; color: var(--muted); }
+  .pm-estado { font-size: 10.5px; color: var(--faint); }
+  td.pm-pagado .pm-estado { color: var(--ok); }
+  td.pm-vencido .pm-estado, td.pm-vencido .pm-imp { color: var(--bad); }
+  td.pm-pendiente .pm-estado { color: var(--warn); }
+  .pm-vacio { color: var(--faint); }
+  table.pm-tabla .pm-hoy { background: rgba(var(--primary-rgb), .05); }
+  table.pm-tabla .pm-total { font-weight: 700; }
+  table.pm-tabla tr.pm-sumada td { background: var(--surface-2); }
+  table.pm-tabla tr.pm-sumada .pm-concepto { background: var(--surface-2); }
+  table.pm-tabla tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); background: var(--surface-2); }
+  table.pm-tabla tfoot .pm-concepto { background: var(--surface-2); }
+  .pm-nota { margin: 0 0 8px; }
+  table.tj-tabla tr.tj-nombre td { border-top: 2px solid var(--border-strong); padding-top: 10px; }
+  table.tj-tabla tr.tj-nombre .pm-concepto { font-weight: 700; color: var(--text); }
+  table.tj-tabla td.tj-sub { color: var(--muted); padding-left: 18px; }
+  td.tj-fecha { color: var(--muted); font-size: 11.5px; }
+  /* Planes de pago */
+  .pl-plan { border-top: 1px solid var(--border); padding: 14px 4px; }
+  .pl-plan:first-of-type { border-top: 0; }
+  .pl-plan-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px; }
+  .pl-plan-izq { flex: 1 1 260px; min-width: 0; }
+  .pl-plan-der { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
+  .pl-plan-der button { margin-top: 6px; }
+  .pl-prox { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pl-prox.neg { color: var(--bad); }
+  .pl-barra { height: 6px; border-radius: 99px; background: var(--surface-3); margin-top: 8px; max-width: 360px; overflow: hidden; }
+  .pl-barra span { display: block; height: 100%; border-radius: 99px; background: var(--ok); }
   .flch-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .flch-tabla th { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); }
   .flch-tabla td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
@@ -1351,6 +1389,10 @@
     <button class="nav-item" data-vista="cheques" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h5M7 10h3"/><path d="M15 14h2"/></svg>Cheques</button>
     <button class="nav-item" data-vista="inversiones" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="M6 16v-5M10 16V8M14 16v-3M18 16V5"/></svg>FCI y Bolsa</button>
     <button class="nav-item" data-vista="compromisos" type="button" data-orden="despues-flujo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 15l2 2 4-4"/></svg>Compromisos</button>
+    <button class="nav-item nav-sub" data-vista="mensuales" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M12 14h2M16 14h1M8 17h2M12 17h2"/></svg>Pagos mensuales</button>
+    <button class="nav-item nav-sub" data-vista="tarjetas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>Tarjetas</button>
+    <button class="nav-item nav-sub" data-vista="planes" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14"/><circle cx="8" cy="5" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="19" r="1.5"/></svg>Planes de pago</button>
+    <button class="nav-item nav-sub" data-vista="efectivo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v.01M18 14.5v.01"/></svg>Efectivo</button>
     <button class="nav-item nav-restringido" data-vista="facturas" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L4 21V5a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg>Facturas</button>
     <button class="nav-item" data-vista="flujo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h18"/><path d="M5 15l4-5 4 3 6-7"/><path d="M15 6h4v4"/></svg>Saldos y flujo</button>
     <button class="nav-item" data-vista="cuentas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5L12 5l8 4.5"/><path d="M6 10v7M10 10v7M14 10v7M18 10v7"/><path d="M3.5 20h17"/></svg>Bancos y cuentas</button>
@@ -1668,6 +1710,64 @@
       </div>
       <div id="compromisosBox"></div>
     </div>
+  </section>
+
+  <section id="vista-mensuales" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Pagos mensuales</h1>
+        <p class="sub">Lo que se paga todos los meses, mes por mes, como en la planilla de flujo. Tocá un mes para ver o cambiar el pago.</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <select id="anio-mensuales" aria-label="Año"></select>
+        <button class="secondary" type="button" data-nuevo-comp="Pago mensual">Nuevo pago</button>
+        <button class="secondary" type="button" data-refrescar-planilla="mensuales">Actualizar</button>
+      </div>
+    </div>
+    <div id="kpis-mensuales" class="kpis"></div>
+    <div id="box-mensuales"></div>
+  </section>
+  <section id="vista-tarjetas" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Tarjetas</h1>
+        <p class="sub">Resumen de cada tarjeta por mes: estado, monto en pesos y en dólares y vencimiento. Tocá un mes para ver o cambiar el pago.</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <select id="anio-tarjetas" aria-label="Año"></select>
+        <button class="secondary" type="button" data-nuevo-comp="Tarjeta">Nuevo resumen</button>
+        <button class="secondary" type="button" data-refrescar-planilla="tarjetas">Actualizar</button>
+      </div>
+    </div>
+    <div id="kpis-tarjetas" class="kpis"></div>
+    <div id="box-tarjetas"></div>
+  </section>
+  <section id="vista-planes" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Planes de pago</h1>
+        <p class="sub">Cada plan con sus cuotas: cuántas se pagaron, la próxima y lo que falta pagar.</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button class="secondary" type="button" data-nuevo-comp="Plan de pago">Nueva cuota</button>
+        <button class="secondary" type="button" data-refrescar-planilla="planes">Actualizar</button>
+      </div>
+    </div>
+    <div id="kpis-planes" class="kpis"></div>
+    <div id="box-planes"></div>
+  </section>
+  <section id="vista-efectivo" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Efectivo</h1>
+        <p class="sub">La caja en efectivo de cada persona, en pesos y en dólares, con todos sus movimientos (pestaña EFT de la planilla).</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button class="secondary" type="button" data-refrescar-planilla="efectivo">Actualizar</button>
+      </div>
+    </div>
+    <div id="kpis-efectivo" class="kpis"></div>
+    <div id="box-efectivo"></div>
   </section>
 
   <section id="vista-facturas" class="view">
@@ -4116,7 +4216,7 @@ function setStatus(node, text, cls) {
 }
 
 // ---------------- Navegación ----------------
-const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "facturas", "flujo", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
+const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "flujo", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
 document.querySelectorAll(".nav-item").forEach(btn => {
   btn.addEventListener("click", () => mostrarVista(btn.dataset.vista));
 });
@@ -4141,6 +4241,7 @@ function mostrarVista(nombre) {
   if (nombre === "inicio") cargarInicio();
   if (nombre === "flujo") cargarFlujo();
   if (nombre === "compromisos") cargarCompromisos(false);
+  if (["mensuales", "tarjetas", "planes", "efectivo"].indexOf(nombre) >= 0) cargarVistaPlanilla(nombre, false);
   if (nombre === "facturas") cargarFacturas(false);
   if (nombre === "reportes") prepararVistaReportes();
   if (nombre === "usuarios") cargarUsuarios();
@@ -12210,7 +12311,7 @@ function cargarCompromisos(forzar) {
   if (forzar) compromisosCargados = false;
   const box = $("compromisosBox");
   if (!compromisosCargados) box.replaceChildren(nodoCargando());
-  asegurarCompromisos().then(() => { poblarFiltrosCompromisos(); renderCompromisos(); });
+  asegurarCompromisos().then(() => { poblarFiltrosCompromisos(); renderCompromisos(); renderVistaPlanillaActiva(); });
 }
 
 function montoCompromiso(c) {
@@ -12329,17 +12430,18 @@ async function cambiarEstadoCompromiso(c, estado, btn) {
     if (d.monto) c["Monto"] = d.monto;
     toast(c["Concepto"] + " marcado como " + estado.toLowerCase() + ".", "ok");
     renderCompromisos();
+    renderVistaPlanillaActiva();
   } catch (err) {
     toast("No se pudo cambiar: " + msgErr(err), "error");
     btn.disabled = false;
   }
 }
 
-function abrirModalCompromiso(c) {
+function abrirModalCompromiso(c, categoriaNueva) {
   compromisoEditando = c || null;
   $("modalCompromisoTitulo").textContent = c ? "Editar compromiso" : "Nuevo compromiso";
   $("compFecha").value = c ? fechaAOrden(c["Fecha de Vencimiento"]) : hoyIso();
-  $("compCategoria").value = c ? (c["Categoría"] || "Otro") : "Pago mensual";
+  $("compCategoria").value = c ? (c["Categoría"] || "Otro") : (categoriaNueva || "Pago mensual");
   $("compConcepto").value = c ? c["Concepto"] : "";
   $("compDetalle").value = c ? c["Detalle"] : "";
   $("compCuenta").value = c ? c["Cuenta"] : "";
@@ -12397,12 +12499,407 @@ $("compEliminar").addEventListener("click", async () => {
   }
 });
 
-// Efectivo en caja: movimientos de efectivo que entran o salen de "Caja", por persona y moneda.
+// ---------------- Pagos mensuales, Tarjetas, Planes de pago y Efectivo ----------------
+// Cada una con su pestaña, armada como su hoja de la planilla de flujo. Los datos son los de
+// Compromisos (Pagos mensuales, Tarjetas, Planes de pago) y Movimientos en efectivo (EFT):
+// los mismos que trae "Importar planilla de flujo de fondos", sin copias aparte.
+const NOMBRES_MESES = MESES_LARGOS.map(m => m.charAt(0) + m.substring(1).toLowerCase());
+const anioPlanilla = { mensuales: "", tarjetas: "" };
+
+/** Año y mes (0-11) del compromiso: el del ID de la planilla (PM-2026-…-03, TJ-2026-…-03-ARS) o el del vencimiento. */
+function mesCompromiso(c) {
+  const m = String(c["ID Planilla"] || "").match(/^(?:PM|TJ)-(\d{4})-.*-(\d{2})(?:-ARS|-USD)?$/);
+  if (m) return { anio: m[1], mes: parseInt(m[2], 10) - 1 };
+  const iso = fechaAOrden(c["Fecha de Vencimiento"]);
+  return iso ? { anio: iso.substring(0, 4), mes: parseInt(iso.substring(5, 7), 10) - 1 } : null;
+}
+
+function cargarVistaPlanilla(vista, forzar) {
+  if (vista === "efectivo") {
+    if (forzar) transferenciasCargadas = false;
+    if (!transferenciasCargadas) $("box-efectivo").replaceChildren(nodoCargando());
+    asegurarTransferencias().then(renderEfectivo);
+    return;
+  }
+  if (forzar) compromisosCargados = false;
+  if (!compromisosCargados) $("box-" + vista).replaceChildren(nodoCargando());
+  asegurarCompromisos().then(() => renderVistaPlanilla(vista));
+}
+
+function renderVistaPlanilla(vista) {
+  if (vista === "mensuales") renderMensuales();
+  else if (vista === "tarjetas") renderTarjetas();
+  else if (vista === "planes") renderPlanes();
+  else if (vista === "efectivo") renderEfectivo();
+}
+
+function renderVistaPlanillaActiva() {
+  ["mensuales", "tarjetas", "planes", "efectivo"].forEach(v => { if ($("vista-" + v).classList.contains("active")) renderVistaPlanilla(v); });
+}
+
+document.querySelectorAll("[data-refrescar-planilla]").forEach(b => b.addEventListener("click", () => cargarVistaPlanilla(b.dataset.refrescarPlanilla, true)));
+document.querySelectorAll("[data-nuevo-comp]").forEach(b => b.addEventListener("click", () => abrirModalCompromiso(null, b.dataset.nuevoComp)));
+["mensuales", "tarjetas"].forEach(v => $("anio-" + v).addEventListener("change", () => { anioPlanilla[v] = $("anio-" + v).value; renderVistaPlanilla(v); }));
+
+/** Llena el selector de año con los años que tienen datos; elige el actual (o el último). */
+function selectorAnioPlanilla(vista, lista) {
+  const anios = {};
+  lista.forEach(c => { const m = mesCompromiso(c); if (m) anios[m.anio] = true; });
+  const actual = String(new Date().getFullYear());
+  anios[actual] = true;
+  const orden = Object.keys(anios).sort().reverse();
+  const sel = $("anio-" + vista);
+  sel.replaceChildren();
+  orden.forEach(y => sel.append(new Option(y, y)));
+  if (orden.indexOf(anioPlanilla[vista]) < 0) anioPlanilla[vista] = orden.indexOf(actual) >= 0 ? actual : orden[0];
+  sel.value = anioPlanilla[vista];
+  return anioPlanilla[vista];
+}
+
+function importeCorto(n) {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function vacioPlanilla(vista, texto) {
+  const card = el("div", "card");
+  card.append(el("p", "hint", texto));
+  $("box-" + vista).replaceChildren(card);
+}
+
+/** Celda de un mes: importe, estado y clic para abrir el compromiso. */
+function celdaMesCompromiso(c, opciones) {
+  const td = el("td", "pm-celda");
+  if (!c) { td.append(el("span", "pm-vacio", "—")); return td; }
+  const hoy = hoyIso();
+  const pagado = c["Estado"] === "Pagado";
+  const vencido = !pagado && fechaAOrden(c["Fecha de Vencimiento"]) < hoy;
+  const m = montoCompromiso(c);
+  td.classList.add(pagado ? "pm-pagado" : vencido ? "pm-vencido" : "pm-pendiente");
+  const imp = el("div", "pm-imp" + (compromisoEstimado(c) ? " pm-estimado" : ""), m ? (opciones && opciones.usd ? "U$S " : "") + importeCorto(m) : "—");
+  td.append(imp, el("div", "pm-estado", pagado ? "Pagado" : vencido ? "Vencido" : compromisoEstimado(c) ? "Pendiente · estimado" : "Pendiente"));
+  td.tabIndex = 0;
+  td.setAttribute("role", "button");
+  td.title = c["Concepto"] + " · " + (c["Detalle"] || "") + " · vence " + c["Fecha de Vencimiento"] + " · tocá para ver o cambiar";
+  const abrir = () => abrirModalCompromiso(c);
+  td.addEventListener("click", abrir);
+  td.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrir(); } });
+  return td;
+}
+
+// ----- Pagos mensuales -----
+// Como la hoja: una fila por concepto y una columna por mes. Las tarjetas y los planes de pago
+// (que tienen su pestaña) suman su fila al final, para que el total sea el de la planilla.
+function renderMensuales() {
+  const pm = compromisosDatos.filter(c => c["Categoría"] === "Pago mensual" && c["Moneda"] !== "USD");
+  const tj = compromisosDatos.filter(c => c["Categoría"] === "Tarjeta" && c["Moneda"] !== "USD");
+  const pl = compromisosDatos.filter(c => c["Categoría"] === "Plan de pago" && c["Moneda"] !== "USD");
+  const anio = selectorAnioPlanilla("mensuales", pm.concat(tj, pl));
+  const delAnio = l => l.filter(c => { const m = mesCompromiso(c); return m && m.anio === anio; });
+  const conceptos = [];
+  const celdas = {};
+  delAnio(pm).forEach(c => {
+    const k = normalizar(c["Concepto"]);
+    if (!celdas[k]) { celdas[k] = { nombre: c["Concepto"], modo: c["Modo de Pago"], meses: {} }; conceptos.push(k); }
+    celdas[k].meses[mesCompromiso(c).mes] = c;
+  });
+  // Filas sumadas de Tarjetas (una por tarjeta) y de Planes de pago (todas las cuotas del mes).
+  const sumadas = [];
+  const tarjetas = {};
+  delAnio(tj).forEach(c => { const k = c["Concepto"]; (tarjetas[k] = tarjetas[k] || {})[mesCompromiso(c).mes] = (tarjetas[k][mesCompromiso(c).mes] || 0) + montoCompromiso(c); });
+  Object.keys(tarjetas).sort().forEach(k => sumadas.push({ nombre: "Tarjeta " + k, meses: tarjetas[k], vista: "tarjetas" }));
+  const planes = {};
+  delAnio(pl).forEach(c => { const m = mesCompromiso(c).mes; planes[m] = (planes[m] || 0) + montoCompromiso(c); });
+  if (Object.keys(planes).length) sumadas.push({ nombre: "Planes de pago", meses: planes, vista: "planes" });
+
+  const hoy = hoyIso(), mesHoy = hoy.substring(0, 4) === anio ? parseInt(hoy.substring(5, 7), 10) - 1 : -1;
+  const totMes = Array(12).fill(0), pendMes = Array(12).fill(0);
+  conceptos.forEach(k => Object.keys(celdas[k].meses).forEach(m => { const c = celdas[k].meses[m]; totMes[m] += montoCompromiso(c); if (c["Estado"] !== "Pagado") pendMes[m] += montoCompromiso(c); }));
+  sumadas.forEach(r => Object.keys(r.meses).forEach(m => { totMes[m] += r.meses[m]; }));
+  const lista = delAnio(pm);
+  const pagado = lista.filter(c => c["Estado"] === "Pagado").reduce((a, c) => a + montoCompromiso(c), 0);
+  const pendiente = lista.filter(c => c["Estado"] !== "Pagado").reduce((a, c) => a + montoCompromiso(c), 0);
+  renderKpis($("kpis-mensuales"), [
+    { label: "Total " + anio, valor: -totMes.reduce((a, x) => a + x, 0), formato: formatImporte, sub: "Con tarjetas y planes de pago", tono: "var(--primary)" },
+    { label: "Pagado " + anio, valor: -pagado, formato: formatImporte, sub: "Pagos mensuales marcados pagados", tono: "var(--ok)" },
+    { label: "Pendiente " + anio, valor: -pendiente, formato: formatImporte, sub: "Incluye los estimados", tono: "var(--warn)" },
+    { label: mesHoy >= 0 ? NOMBRES_MESES[mesHoy] : "Conceptos", valor: mesHoy >= 0 ? -totMes[mesHoy] : conceptos.length, formato: mesHoy >= 0 ? formatImporte : formatEntero, sub: mesHoy >= 0 ? "Total del mes" : "Pagos mensuales del año", tono: "var(--accent)" }
+  ]);
+  if (!conceptos.length && !sumadas.length) { vacioPlanilla("mensuales", "No hay pagos mensuales en " + anio + ". Importá la planilla de flujo de fondos desde Carga o agregá uno con “Nuevo pago”."); return; }
+
+  const t = el("table", "pm-tabla");
+  const trh = el("tr");
+  trh.append(el("th", "pm-concepto", "Concepto"));
+  NOMBRES_MESES.forEach((m, i) => trh.append(el("th", "num" + (i === mesHoy ? " pm-hoy" : ""), m)));
+  trh.append(el("th", "num", "Total"));
+  const thead = el("thead"); thead.append(trh);
+  const tbody = el("tbody");
+  conceptos.forEach(k => {
+    const r = celdas[k];
+    const tr = el("tr");
+    const tdC = el("td", "pm-concepto");
+    tdC.append(el("div", "dt-principal", r.nombre));
+    if (r.modo) tdC.append(el("div", "dt-sub", r.modo));
+    tr.append(tdC);
+    let tot = 0;
+    for (let m = 0; m < 12; m++) { const c = r.meses[m]; if (c) tot += montoCompromiso(c); const td = celdaMesCompromiso(c); if (m === mesHoy) td.classList.add("pm-hoy"); tr.append(td); }
+    tr.append(el("td", "num pm-total", importeCorto(tot)));
+    tbody.append(tr);
+  });
+  sumadas.forEach(r => {
+    const tr = el("tr", "pm-sumada");
+    const tdC = el("td", "pm-concepto");
+    const ir = el("button", "link-btn", r.nombre);
+    ir.type = "button";
+    ir.title = "Ver en " + (r.vista === "tarjetas" ? "Tarjetas" : "Planes de pago");
+    ir.addEventListener("click", () => mostrarVista(r.vista));
+    tdC.append(ir, el("div", "dt-sub", "Suma de " + (r.vista === "tarjetas" ? "la pestaña Tarjetas" : "las cuotas del mes")));
+    tr.append(tdC);
+    let tot = 0;
+    for (let m = 0; m < 12; m++) { const v = r.meses[m] || 0; tot += v; tr.append(el("td", "num" + (m === mesHoy ? " pm-hoy" : ""), v ? importeCorto(v) : "—")); }
+    tr.append(el("td", "num pm-total", importeCorto(tot)));
+    tbody.append(tr);
+  });
+  const tfoot = el("tfoot");
+  [["TOTAL", totMes], ["A PAGAR", pendMes]].forEach(f => {
+    const tr = el("tr");
+    tr.append(el("td", "pm-concepto", f[0]));
+    f[1].forEach((v, m) => tr.append(el("td", "num" + (m === mesHoy ? " pm-hoy" : ""), v ? importeCorto(v) : "—")));
+    tr.append(el("td", "num", importeCorto(f[1].reduce((a, x) => a + x, 0))));
+    tfoot.append(tr);
+  });
+  t.append(thead, tbody, tfoot);
+  const card = el("div", "card tabla-card");
+  card.append(el("p", "hint pm-nota", "Importes en pesos, sin centavos. En cursiva, los estimados (el último importe conocido). “A pagar” suma solo los pagos mensuales pendientes."));
+  card.append(envolverTabla(t));
+  $("box-mensuales").replaceChildren(card);
+}
+
+// ----- Tarjetas -----
+// Un bloque por tarjeta, como la hoja: estado, monto en pesos, en dólares y vencimiento de cada mes.
+function renderTarjetas() {
+  const tj = compromisosDatos.filter(c => c["Categoría"] === "Tarjeta");
+  const anio = selectorAnioPlanilla("tarjetas", tj);
+  const delAnio = tj.filter(c => { const m = mesCompromiso(c); return m && m.anio === anio; });
+  const porTarjeta = {};
+  delAnio.forEach(c => {
+    const k = c["Concepto"] || "Tarjeta";
+    const m = mesCompromiso(c).mes;
+    const t = porTarjeta[k] || (porTarjeta[k] = {});
+    const x = t[m] || (t[m] = {});
+    x[c["Moneda"] === "USD" ? "usd" : "ars"] = c;
+  });
+  const nombres = Object.keys(porTarjeta).sort();
+  const hoy = hoyIso(), mesHoy = hoy.substring(0, 4) === anio ? parseInt(hoy.substring(5, 7), 10) - 1 : -1;
+  const totPesos = Array(12).fill(0), totUsd = Array(12).fill(0);
+  delAnio.forEach(c => { const m = mesCompromiso(c).mes; if (c["Moneda"] === "USD") totUsd[m] += montoCompromiso(c); else totPesos[m] += montoCompromiso(c); });
+  const pendientes = delAnio.filter(c => c["Estado"] !== "Pagado" && c["Moneda"] !== "USD").sort((a, b) => fechaAOrden(a["Fecha de Vencimiento"]).localeCompare(fechaAOrden(b["Fecha de Vencimiento"])));
+  const prox = pendientes.find(c => fechaAOrden(c["Fecha de Vencimiento"]) >= hoy) || pendientes[0];
+  renderKpis($("kpis-tarjetas"), [
+    { label: "Total pesos " + anio, valor: -totPesos.reduce((a, x) => a + x, 0), formato: formatImporte, sub: nombres.length + " tarjeta(s)", tono: "var(--primary)" },
+    { label: "Total dólares " + anio, valor: -totUsd.reduce((a, x) => a + x, 0), formato: formatUsd, sub: "Consumos en USD", tono: "var(--accent)" },
+    { label: "Pendiente", valor: -pendientes.reduce((a, c) => a + montoCompromiso(c), 0), formato: formatImporte, sub: pendientes.length + " resumen(es) sin pagar", tono: "var(--warn)" },
+    { label: "Próximo vencimiento", valor: prox ? -montoCompromiso(prox) : 0, formato: formatImporte, sub: prox ? prox["Concepto"] + " · " + prox["Fecha de Vencimiento"] : "Nada pendiente", tono: "var(--bad)" }
+  ]);
+  if (!nombres.length) { vacioPlanilla("tarjetas", "No hay resúmenes de tarjetas en " + anio + ". Importá la planilla de flujo de fondos desde Carga o agregá uno con “Nuevo resumen”."); return; }
+
+  const t = el("table", "pm-tabla tj-tabla");
+  const trh = el("tr");
+  trh.append(el("th", "pm-concepto", "Tarjeta"));
+  NOMBRES_MESES.forEach((m, i) => trh.append(el("th", "num" + (i === mesHoy ? " pm-hoy" : ""), m)));
+  const thead = el("thead"); thead.append(trh);
+  const tbody = el("tbody");
+  nombres.forEach(n => {
+    const meses = porTarjeta[n];
+    const fila = (titulo, cls, celda) => {
+      const tr = el("tr", cls);
+      tr.append(el("td", "pm-concepto" + (cls === "tj-nombre" ? "" : " tj-sub"), titulo));
+      for (let m = 0; m < 12; m++) { const td = celda(meses[m] || {}, m); if (m === mesHoy) td.classList.add("pm-hoy"); tr.append(td); }
+      tbody.append(tr);
+    };
+    fila(n, "tj-nombre", x => {
+      const c = x.ars || x.usd;
+      if (!c) return el("td", "pm-celda", "");
+      const pagado = c["Estado"] === "Pagado", vencido = !pagado && fechaAOrden(c["Fecha de Vencimiento"]) < hoyIso();
+      const td = el("td", "pm-celda");
+      td.append(pill(pagado ? "Pagado" : vencido ? "Vencido" : "Pendiente", pagado ? "pill-ing" : vencido ? "pill-egr" : "pill-alerta"));
+      return td;
+    });
+    fila("Monto pesos", "", x => x.ars ? celdaMesCompromiso(x.ars) : el("td", "num pm-vacio", "—"));
+    fila("Monto USD", "", x => x.usd ? celdaMesCompromiso(x.usd, { usd: true }) : el("td", "num pm-vacio", "—"));
+    fila("Vencimiento", "tj-ult", x => { const c = x.ars || x.usd; return el("td", "num tj-fecha", c ? c["Fecha de Vencimiento"] : ""); });
+  });
+  const tfoot = el("tfoot");
+  [["TOTAL PESOS", totPesos, importeCorto], ["TOTAL USD", totUsd, v => "U$S " + importeCorto(v)]].forEach(f => {
+    const tr = el("tr");
+    tr.append(el("td", "pm-concepto", f[0]));
+    f[1].forEach((v, m) => tr.append(el("td", "num" + (m === mesHoy ? " pm-hoy" : ""), v ? f[2](v) : "—")));
+    tfoot.append(tr);
+  });
+  t.append(thead, tbody, tfoot);
+  const card = el("div", "card tabla-card");
+  card.append(el("p", "hint pm-nota", "Importes sin centavos. Tocá un monto para ver o cambiar ese resumen (por ejemplo, marcarlo pagado)."));
+  card.append(envolverTabla(t));
+  $("box-tarjetas").replaceChildren(card);
+}
+
+// ----- Planes de pago -----
+// Un bloque por plan: cuotas pagadas sobre el total, la próxima y lo que falta; "Ver cuotas"
+// abre la lista como en la hoja (vencimiento, cuota, total de cuotas, cuenta, condición y monto).
+const planesAbiertos = {};
+let filtroPlanes = "activos";
+
+function renderPlanes() {
+  const pl = compromisosDatos.filter(c => c["Categoría"] === "Plan de pago");
+  const hoy = hoyIso();
+  const porPlan = {};
+  pl.forEach(c => { const k = c["Concepto"] || "Plan"; (porPlan[k] = porPlan[k] || []).push(c); });
+  const planes = Object.keys(porPlan).map(k => {
+    const cuotas = porPlan[k].sort((a, b) => fechaAOrden(a["Fecha de Vencimiento"]).localeCompare(fechaAOrden(b["Fecha de Vencimiento"])));
+    const nro = c => { const m = String(c["Detalle"] || "").match(/(\d+)\s*de\s*(\d+)/i); return m ? { n: parseInt(m[1], 10), de: parseInt(m[2], 10) } : null; };
+    const pend = cuotas.filter(c => c["Estado"] !== "Pagado");
+    const totalCuotas = cuotas.reduce((a, c) => Math.max(a, (nro(c) || {}).de || 0), 0) || cuotas.length;
+    const pagadas = cuotas.filter(c => c["Estado"] === "Pagado").length;
+    return { nombre: k, cuotas: cuotas, nro: nro, pend: pend, prox: pend[0] || null, vencidas: pend.filter(c => fechaAOrden(c["Fecha de Vencimiento"]) < hoy).length,
+      pagadas: pagadas, total: totalCuotas, saldo: pend.reduce((a, c) => a + montoCompromiso(c), 0), cuenta: (cuotas[cuotas.length - 1] || {})["Cuenta"] || "" };
+  }).sort((a, b) => (a.prox ? fechaAOrden(a.prox["Fecha de Vencimiento"]) : "9999").localeCompare(b.prox ? fechaAOrden(b.prox["Fecha de Vencimiento"]) : "9999") || a.nombre.localeCompare(b.nombre));
+  const activos = planes.filter(p => p.pend.length);
+  const prox = activos.filter(p => p.prox)[0];
+  const mes = hoy.substring(0, 7);
+  const delMes = pl.filter(c => fechaAOrden(c["Fecha de Vencimiento"]).substring(0, 7) === mes);
+  renderKpis($("kpis-planes"), [
+    { label: "Planes activos", valor: activos.length, formato: formatEntero, sub: (planes.length - activos.length) + " terminado(s)", tono: "var(--primary)" },
+    { label: "Falta pagar", valor: -activos.reduce((a, p) => a + p.saldo, 0), formato: formatImporte, sub: activos.reduce((a, p) => a + p.pend.length, 0) + " cuota(s) pendientes", tono: "var(--warn)" },
+    { label: "Este mes", valor: -delMes.reduce((a, c) => a + montoCompromiso(c), 0), formato: formatImporte, sub: delMes.length + " cuota(s)", tono: "var(--accent)" },
+    { label: "Próxima cuota", valor: prox ? -montoCompromiso(prox.prox) : 0, formato: formatImporte, sub: prox ? prox.nombre + " · " + prox.prox["Fecha de Vencimiento"] : "Ninguna", tono: "var(--bad)" }
+  ]);
+  if (!planes.length) { vacioPlanilla("planes", "No hay planes de pago. Importá la planilla de flujo de fondos desde Carga o agregá una cuota con “Nueva cuota”."); return; }
+  const card = el("div", "card tabla-card");
+  const rap = el("div", "rapidas");
+  [["activos", "Activos", activos.length], ["terminados", "Terminados", planes.length - activos.length], ["todos", "Todos", planes.length]].forEach(r => {
+    const b = el("button", "rapida" + (filtroPlanes === r[0] ? " activa" : ""));
+    b.type = "button";
+    b.append(document.createTextNode(r[1] + " "), el("span", "rapida-n", String(r[2])));
+    b.addEventListener("click", () => { filtroPlanes = r[0]; renderPlanes(); });
+    rap.append(b);
+  });
+  card.append(rap);
+  const visibles = planes.filter(p => filtroPlanes === "todos" || (filtroPlanes === "activos" ? p.pend.length : !p.pend.length));
+  if (!visibles.length) card.append(el("p", "hint", filtroPlanes === "activos" ? "No hay planes con cuotas pendientes." : "No hay planes terminados."));
+  visibles.forEach(p => {
+    const bloque = el("div", "pl-plan");
+    const cab = el("div", "pl-plan-cab");
+    const izq = el("div", "pl-plan-izq");
+    izq.append(el("div", "dt-principal", p.nombre), el("div", "dt-sub", [p.cuenta, p.pagadas + " de " + p.total + " cuota(s) pagada(s)"].filter(Boolean).join(" · ")));
+    const barra = el("div", "pl-barra");
+    const lleno = el("span");
+    lleno.style.width = Math.min(100, Math.round(p.pagadas / Math.max(1, p.total) * 100)) + "%";
+    barra.append(lleno);
+    izq.append(barra);
+    const der = el("div", "pl-plan-der");
+    if (p.prox) {
+      const v = fechaAOrden(p.prox["Fecha de Vencimiento"]) < hoy;
+      der.append(el("div", "dt-sub", v ? "Cuota vencida" : "Próxima cuota"), el("div", "pl-prox" + (v ? " neg" : ""), formatImporte(montoCompromiso(p.prox)) + " · " + p.prox["Fecha de Vencimiento"]),
+        el("div", "dt-sub", "Falta pagar " + formatImporte(p.saldo) + (p.vencidas ? " · " + p.vencidas + " vencida(s)" : "")));
+    } else der.append(pill("Terminado", "pill-ing"));
+    const ver = el("button", "secondary small", planesAbiertos[p.nombre] ? "Ocultar cuotas" : "Ver cuotas");
+    ver.type = "button";
+    ver.addEventListener("click", () => { planesAbiertos[p.nombre] = !planesAbiertos[p.nombre]; renderPlanes(); });
+    der.append(ver);
+    cab.append(izq, der);
+    bloque.append(cab);
+    if (planesAbiertos[p.nombre]) {
+      bloque.append(tablaDetalle(["Fecha vto.", "Cuota", "Total cuotas", "Cuenta", "Condición", "Monto"], p.cuotas.map(c => {
+        const n = p.nro(c) || {};
+        const pagado = c["Estado"] === "Pagado", vencido = !pagado && fechaAOrden(c["Fecha de Vencimiento"]) < hoy;
+        const est = el("span");
+        est.append(pill(pagado ? "Pagado" : vencido ? "Vencido" : "Pendiente", pagado ? "pill-ing" : vencido ? "pill-egr" : "pill-alerta"));
+        const t = el("button", "link-btn comp-toggle", pagado ? "Marcar pendiente" : "Marcar pagado");
+        t.type = "button";
+        t.addEventListener("click", () => cambiarEstadoCompromiso(c, pagado ? "Pendiente" : "Pagado", t));
+        est.append(" ", t);
+        const fecha = el("button", "link-btn", c["Fecha de Vencimiento"]);
+        fecha.type = "button";
+        fecha.title = "Ver o cambiar la cuota";
+        fecha.addEventListener("click", () => abrirModalCompromiso(c));
+        return [fecha, n.n ? String(n.n) : "—", n.de ? String(n.de) : "—", c["Cuenta"] || "—", est, formatImporte(-montoCompromiso(c))];
+      }), [1, 2, 5]));
+    }
+    card.append(bloque);
+  });
+  $("box-planes").replaceChildren(card);
+}
+
+// ----- Efectivo -----
+// Como la hoja EFT: la caja de cada persona por moneda y todos los movimientos en efectivo.
+let filtroEfectivo = { persona: "", moneda: "", texto: "" };
+
+function renderEfectivo() {
+  const movs = transferenciasDatos.filter(f => f["Instrumento"] === "Efectivo");
+  const cajas = efectivoEnCaja();
+  renderKpis($("kpis-efectivo"), cajas.length ? cajas.slice(0, 6).map((x, i) => ({
+    label: x.persona + " · " + (x.moneda === "USD" ? "Dólares" : "Pesos"), valor: x.saldo, formato: x.moneda === "USD" ? formatUsd : formatImporte,
+    sub: "En caja", tono: ["var(--primary)", "var(--accent)", "var(--ok)", "var(--warn)", "var(--bad)", "var(--muted)"][i]
+  })) : [{ label: "Efectivo en caja", valor: 0, formato: formatImporte, sub: "Sin movimientos de caja", tono: "var(--muted)" }]);
+  const personas = {};
+  movs.forEach(f => { if (f["Persona"]) personas[f["Persona"]] = true; });
+  const card = el("div", "card tabla-card");
+  const tb = el("div", "toolbar");
+  const lb = el("label", "tb-buscar");
+  const ico = el("span", "ico");
+  ico.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+  const inp = el("input");
+  inp.type = "text"; inp.placeholder = "Buscar por concepto, origen o destino"; inp.setAttribute("aria-label", "Buscar"); inp.value = filtroEfectivo.texto;
+  lb.append(ico, inp);
+  const selP = el("select"); selP.setAttribute("aria-label", "Persona");
+  selP.append(new Option("Todas las personas", ""));
+  Object.keys(personas).sort().forEach(p => selP.append(new Option(p, p)));
+  selP.value = filtroEfectivo.persona;
+  const selM = el("select"); selM.setAttribute("aria-label", "Moneda");
+  [["", "Pesos y dólares"], ["Pesos", "Pesos"], ["USD", "Dólares"]].forEach(o => selM.append(new Option(o[1], o[0])));
+  selM.value = filtroEfectivo.moneda;
+  tb.append(lb, selP, selM);
+  const caja = el("div");
+  card.append(tb, caja);
+  $("box-efectivo").replaceChildren(card);
+  const pintar = () => {
+    const q = normalizar(filtroEfectivo.texto).trim();
+    const filas = movs.filter(f => (!filtroEfectivo.persona || f["Persona"] === filtroEfectivo.persona) &&
+      (!filtroEfectivo.moneda || (f["Moneda"] === "USD" ? "USD" : "Pesos") === filtroEfectivo.moneda) &&
+      (!q || normalizar([f["Concepto"], f["Ordenante"], f["Destinatario"], f["Persona"]].join(" ")).indexOf(q) >= 0));
+    renderTabla(caja, {
+      id: "efectivo",
+      filas: filas,
+      orden: { clave: "fecha", dir: "desc" },
+      alClic: f => abrirDetalle("transferencias", f),
+      vacio: movs.length ? "Ningún movimiento coincide con los filtros." : "Todavía no hay movimientos en efectivo. Importá la planilla de flujo de fondos (pestaña EFT) o cargalos con Entrada manual → Efectivo.",
+      columnas: [
+        { clave: "n", titulo: "N°", clase: "nowrap", orden: f => parseInt(soloDigitos(String(f["ID Planilla"] || "").split("-").pop()) || f["N° Interno"] || 0, 10), celda: f => String(f["ID Planilla"] || "").indexOf("EFT") === 0 ? String(f["ID Planilla"]).split("-").pop() : (f["N° Interno"] || "—") },
+        { clave: "persona", titulo: "Persona", orden: f => normalizar(f["Persona"]), celda: f => f["Persona"] || "—" },
+        { clave: "fecha", titulo: "Fecha", clase: "nowrap", orden: f => fechaAOrden(fechaMov(f)), celda: f => fechaMov(f) },
+        { clave: "moneda", titulo: "Moneda", orden: f => f["Moneda"] || "", celda: f => f["Moneda"] === "USD" ? "Dólares" : "Pesos" },
+        { clave: "condicion", titulo: "Condición", orden: f => f["Condición"] || "", celda: f => pill(f["Estado"] || f["Condición"] || "—", f["Condición"] === "Ingreso" ? "pill-ing" : f["Condición"] === "Egreso" ? "pill-egr" : "pill-neutro") },
+        { clave: "origen", titulo: "Origen", orden: f => normalizar(f["Ordenante"]), celda: f => f["Ordenante"] || "—" },
+        { clave: "destino", titulo: "Destino", orden: f => normalizar(f["Destinatario"]), celda: f => f["Destinatario"] || "—" },
+        { clave: "concepto", titulo: "Concepto", clase: "dt-concepto", orden: f => normalizar(f["Concepto"]), celda: f => f["Concepto"] || "—" },
+        { clave: "importe", titulo: "Monto", clase: "num", dirInicial: "desc", orden: f => parseImporte(f["Monto"]), celda: f => celdaImporteNodo(parseImporte(f["Monto"]), f["Moneda"]) }
+      ]
+    });
+  };
+  inp.addEventListener("input", () => { filtroEfectivo.texto = inp.value; pintar(); });
+  selP.addEventListener("change", () => { filtroEfectivo.persona = selP.value; pintar(); });
+  selM.addEventListener("change", () => { filtroEfectivo.moneda = selM.value; pintar(); });
+  pintar();
+}
+
+// Efectivo en caja de cada persona y moneda (como los totales de la hoja EFT de la planilla).
 function efectivoEnCaja() {
   const acc = {};
   transferenciasDatos.forEach(f => {
     if (f["Instrumento"] !== "Efectivo") return;
-    if (normalizar(f["Ordenante"]) !== "CAJA" && normalizar(f["Destinatario"]) !== "CAJA") return;
+    // Como la hoja EFT (SUMIFS por persona y moneda): todo el efectivo de cada persona, haya pasado
+    // o no por "Caja" (un retiro del banco directo a la persona también es su efectivo). Las hojas
+    // de años anteriores ("EFT 2025": ID EFT2025-…) son un registro de extracciones con otro signo.
+    if (/^EFT\d{4}-/.test(String(f["ID Planilla"] || ""))) return;
     const k = (f["Persona"] || "Caja") + "|" + (f["Moneda"] === "USD" ? "USD" : "Pesos");
     acc[k] = (acc[k] || 0) + parseImporte(f["Monto"]);
   });

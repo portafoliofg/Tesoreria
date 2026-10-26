@@ -2763,7 +2763,19 @@ function importarSaldos_(filas, d, u) {
 
 function importarCompromisos_(filas, d, u) {
   const H = HEADERS_COMPROMISOS;
+  const iCat = H.indexOf('Categoría'), iCon = H.indexOf('Concepto'), iFec = H.indexOf('Fecha de Vencimiento'), iMon = H.indexOf('Moneda'), iId = H.indexOf('ID Planilla');
   return upsertPlanilla_(SHEET_COMPROMISOS, H, filas, {
+    // Un compromiso cargado a mano (sin ID Planilla) con la misma categoría, concepto, mes y
+    // moneda es el mismo: se actualiza ese en vez de duplicarlo. En los planes, también la cuota.
+    alternativa: (o, datos) => {
+      const mes = String(dmaAIso_(o['Fecha de Vencimiento']) || '').substring(0, 7);
+      if (!mes || !o['Concepto']) return -1;
+      const cat = claveTexto(o['Categoría']), con = claveTexto(o['Concepto']), mon = o['Moneda'] === 'USD' ? 'USD' : 'Pesos';
+      const iDet = H.indexOf('Detalle');
+      return datos.findIndex(f => !String(f[iId] || '').trim() && claveTexto(f[iCat]) === cat && claveTexto(f[iCon]) === con &&
+        String(dmaAIso_(f[iFec]) || '').substring(0, 7) === mes && (f[iMon] === 'USD' ? 'USD' : 'Pesos') === mon &&
+        (cat !== claveTexto('Plan de pago') || claveTexto(f[iDet]) === claveTexto(o['Detalle'])));
+    },
     nueva: fila => {
       fila[H.indexOf('ID')] = Utilities.getUuid();
       fila[H.indexOf('Cargado por')] = nombreDe_(u);
