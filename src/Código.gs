@@ -3388,8 +3388,39 @@ function importarInversiones_(nombreHoja, H, filas, d, u) {
   const res = upsertPlanilla_(nombreHoja, H, filas, {
     nueva: fila => { fila[iPor] = nombreDe_(u); fila[iFecha] = ahoraTexto_(); }
   });
+  if (nombreHoja === SHEET_FCI) res.manualesRepetidos = quitarFciManualesRepetidos_(filas, u);
   if (String(d.lote || 1) === '1') res.quitados = quitarCopiasViejas_(nombreHoja === SHEET_FCI ? 'fci' : 'bolsa', u);
   return res;
+}
+
+/**
+ * Rescates y suscripciones cargados en la app (FCIM-…) que la planilla también trae: mismo día,
+ * banco, moneda e importe. Queda el de la planilla (la que se sigue importando) y se borra el
+ * cargado a mano, así no se cuenta dos veces.
+ */
+function quitarFciManualesRepetidos_(filas, u) {
+  const H = HEADERS_FCI;
+  const clave = (fecha, banco, moneda, monto) => dmaAIso_(fecha) + '|' + bancoCanon_(banco) + '|' + (claveTexto(moneda).indexOf('usd') >= 0 || claveTexto(moneda).indexOf('dolar') >= 0 ? 'USD' : 'Pesos') + '|' + importeANumero(monto).toFixed(2);
+  const dePlanilla = {};
+  filas.forEach(o => {
+    if (claveTexto(o['Movimiento']) === 'saldo' || !importeANumero(o['Monto'])) return;
+    const k = clave(o['Fecha'], o['Banco'], o['Moneda'], o['Monto']);
+    dePlanilla[k] = (dePlanilla[k] || 0) + 1;
+  });
+  if (!Object.keys(dePlanilla).length) return 0;
+  const iId = H.indexOf('ID Planilla'), iF = H.indexOf('Fecha'), iB = H.indexOf('Banco'), iMon = H.indexOf('Moneda'), iM = H.indexOf('Monto');
+  const salen = eliminarFilasDonde_(SHEET_FCI, H, f => {
+    if (String(f[iId] || '').indexOf('FCIM-') !== 0) return false;
+    const k = clave(f[iF], f[iB], f[iMon], f[iM]);
+    if (!dePlanilla[k]) return false;
+    dePlanilla[k]--;
+    return true;
+  });
+  if (salen.length) {
+    registrar_(u, 'FCI: rescates y suscripciones', salen.length + ' cargado(s) en la app quitado(s) porque la planilla trae el mismo movimiento',
+      '', textoCorto_(salen.map(f => filaComoObjeto_(H, f))), '');
+  }
+  return salen.length;
 }
 
 // ======================= Importe recibido en Bolsa =======================

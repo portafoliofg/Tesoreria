@@ -13675,12 +13675,12 @@ async function depurarImportacion(destino, filas, campoFecha) {
 }
 
 async function enviarPorLotes(destino, filas, tam, avance) {
-  const total = { nuevos: 0, actualizados: 0, conciliados: 0, sinCambios: 0 };
+  const total = { nuevos: 0, actualizados: 0, conciliados: 0, sinCambios: 0, manualesRepetidos: 0 };
   const lotes = Math.max(1, Math.ceil(filas.length / tam));
   for (let i = 0; i < lotes; i++) {
     avance(i, lotes);
     const res = await runJson("importarPlanilla", { destino: destino, filas: filas.slice(i * tam, (i + 1) * tam), archivo: planillaFlujo.archivo, lote: i + 1, lotes: lotes });
-    ["nuevos", "actualizados", "conciliados", "sinCambios"].forEach(k => { total[k] += res[k] || 0; });
+    ["nuevos", "actualizados", "conciliados", "sinCambios", "manualesRepetidos"].forEach(k => { total[k] += res[k] || 0; });
   }
   return total;
 }
@@ -13743,7 +13743,7 @@ $("impImportar").addEventListener("click", async () => {
       const rf = await enviarPorLotes("fci", p.fci, 600, (i, n) => avisar("Guardando FCI: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * 0.7 * i / n));
       const rb = await enviarPorLotes("bolsa", p.bolsa, 600, (i, n) => avisar("Guardando Bolsa: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * (0.7 + 0.3 * i / n)));
       const qf = await depurarImportacion("fci", p.fci, "Fecha");
-      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s)" + (qf ? ", " + qf + " reemplazado(s) por su versión corregida" : "") + " · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)"]);
+      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s)" + (qf ? ", " + qf + " reemplazado(s) por su versión corregida" : "") + (rf.manualesRepetidos ? ", " + rf.manualesRepetidos + " cargado(s) a mano quitado(s) porque la planilla trae el mismo" : "") + " · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)"]);
       base += pesoPaso;
     }
     // 6. Compromisos.
@@ -15242,7 +15242,7 @@ function inputPlanilla(item, alCambiar) {
 }
 
 // ----- Rendimiento del FCI (cuadro de Inicio) -----
-// Solo los bancos que tienen FCI (último saldo de FCI mayor a cero). Por banco: el saldo al
+// Solo los bancos que tienen FCI (último saldo de FCI mayor a cero y reciente). Por banco: el saldo al
 // cierre (el informado anterior), el actual (el último) y lo ganado entre los dos, sin contar
 // rescates ni suscripciones del medio. Abajo, lo ganado por todos los fondos en pesos en el
 // período elegido (se recuerda en las preferencias).
@@ -15252,7 +15252,9 @@ function renderRendFciInicio() {
   const box = $("inicioRendFci");
   if (!box) return;
   const hoy = hoyIso();
-  const fondos = calcularRendimientoFciSaldos().filter(f => f.ultimo && f.ultimo.saldo > 0);
+  // Bancos con FCI hoy: último saldo mayor a cero e informado en los últimos 30 días (uno viejo
+  // que nunca se informó en cero ya no cuenta).
+  const fondos = calcularRendimientoFciSaldos().filter(f => f.ultimo && f.ultimo.saldo > 0 && f.ultimo.iso >= sumarDiasIso(hoy, -30));
   const pref = preferencias.rendFci || {};
   const card = el("div", "card rf-card");
   const head = el("div", "pl-head");
@@ -16129,7 +16131,11 @@ async function eliminarMovFci(f) {
 // base. Entre dos saldos seguidos de un banco:
 //   rendimiento = saldo nuevo − saldo anterior − suscripciones − rescates del medio
 // (las suscripciones en positivo y los rescates en negativo, de la pestaña FCI).
-// Un movimiento del mismo día que el saldo nuevo se toma como incluido en ese saldo.
+// Como en la hoja FCI de la planilla, el saldo de un día es el de apertura: los movimientos
+// de ese mismo día van después (entran en el período siguiente). Así cierra la planilla:
+// saldo(día 2) = saldo(día 1) + movimientos desde el día 1 hasta el anterior al día 2 + rendimiento.
+// Un rescate o suscripción cargado en la app (FCIM-…) que la planilla también trae (mismo
+// banco, día, moneda e importe) se cuenta una sola vez.
 let memoRendSaldos = { saldos: null, fci: null, res: null };
 
 function calcularRendimientoFciSaldos() {
@@ -16145,10 +16151,19 @@ function calcularRendimientoFciSaldos() {
     const prev = g.porFecha[iso];
     if (!prev || String(s["Fecha de Carga"]) > String(prev["Fecha de Carga"])) g.porFecha[iso] = s;
   });
-  const movs = fciDatos.filter(f => tipoMovFci(f) !== "SALDO").map(f => ({
-    iso: fechaAOrden(f["Fecha"]), monto: parseImporte(f["Monto"]),
+  const todos = fciDatos.filter(f => tipoMovFci(f) !== "SALDO").map(f => ({
+    iso: fechaAOrden(f["Fecha"]), monto: parseImporte(f["Monto"]), manual: String(f["ID Planilla"] || "").indexOf("FCIM-") === 0,
     k: claveBanco(interpretarEtiqueta(f["Banco"]).bancoTexto || f["Banco"], monedaDeTexto(f["Moneda"]))
   })).filter(m => m.iso && m.monto);
+  const dePlanilla = {};
+  todos.forEach(m => { if (!m.manual) { const c = m.k + "|" + m.iso + "|" + m.monto.toFixed(2); dePlanilla[c] = (dePlanilla[c] || 0) + 1; } });
+  const movs = todos.filter(m => {
+    if (!m.manual) return true;
+    const c = m.k + "|" + m.iso + "|" + m.monto.toFixed(2);
+    if (!dePlanilla[c]) return true;
+    dePlanilla[c]--;
+    return false;
+  });
   const res = Object.keys(grupos).map(k => {
     const g = grupos[k];
     const fechas = Object.keys(g.porFecha).sort();
@@ -16158,7 +16173,7 @@ function calcularRendimientoFciSaldos() {
       const desde = fechas[i - 1], hasta = fechas[i];
       const ini = parseImporte(g.porFecha[desde]["Saldo"]), fin = parseImporte(g.porFecha[hasta]["Saldo"]);
       let susc = 0, resc = 0;
-      delBanco.forEach(m => { if (m.iso > desde && m.iso <= hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
+      delBanco.forEach(m => { if (m.iso >= desde && m.iso < hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
       const capital = ini + susc + resc;
       const d = Math.max(1, diasEntre(desde, hasta));
       const rend = fin - capital;
@@ -16168,7 +16183,7 @@ function calcularRendimientoFciSaldos() {
     const ultima = fechas[fechas.length - 1];
     return {
       k: k, banco: g.banco, moneda: g.moneda, periodos: periodos, ultimo: { iso: ultima, saldo: parseImporte(g.porFecha[ultima]["Saldo"]) },
-      posteriores: delBanco.filter(m => m.iso > ultima).reduce((a, m) => a + m.monto, 0)
+      posteriores: delBanco.filter(m => m.iso >= ultima).reduce((a, m) => a + m.monto, 0)
     };
   }).sort((a, b) => (a.moneda + a.banco).localeCompare(b.moneda + b.banco));
   memoRendSaldos = { saldos: saldosGuardados, fci: fciDatos, res: res };
