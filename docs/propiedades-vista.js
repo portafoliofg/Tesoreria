@@ -252,8 +252,19 @@
       // Cuentas de municipalidad y rentas de Saavedra: se guardan solas la primera vez.
       var d = actual && actual.datos;
       if (!d || !PropValores.sembrarCuentas) return;
+      // Cochera: la unidad figura en la pestaña Cocheras (por unidad o por nombre del inquilino) o paga cochera en la liquidación.
+      var conCochera = {};
+      var nombre = function (t) { return normalizarTxt(t).replace(/[^A-Z ]/g, " ").replace(/\s+/g, " ").trim(); };
+      (d.cocheras || []).forEach(function (c) {
+        if (c.clave) conCochera[c.clave] = true;
+        var n = nombre(c.inquilino);
+        if (n.length >= 5) d.unidades.forEach(function (u) { var ni = nombre(u.inquilino); if (ni.length >= 5 && (ni.indexOf(n) >= 0 || n.indexOf(ni) >= 0)) conCochera[u.clave || LectorPropiedades.claveUnidad(u.unidad)] = true; });
+      });
       var deSaavedra = unidadesConContratos(d).filter(function (u) { return lugarDe(d, u) === "Saavedra"; })
-        .map(function (u) { return { unidad: u.unidad, clave: u.clave, lugar: "Saavedra" }; });
+        .map(function (u) {
+          var k = u.clave || LectorPropiedades.claveUnidad(u.unidad);
+          return { unidad: u.unidad, clave: u.clave, lugar: "Saavedra", cochera: conCochera[k] || u.cochera > 0 ? "Sí" : "No" };
+        });
       PropValores.sembrarCuentas(actual.edificio, deSaavedra).then(function (n) { if (n && pestana === "unidades" && !editando()) repintarPestana(); });
     }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
     var caja = $("contenido");
