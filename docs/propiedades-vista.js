@@ -976,6 +976,28 @@
   // qué deja por año seguir alquilando contra vender al valor estimado (menos los costos de
   // venta) e invertir lo cobrado a la tasa alternativa. Usa los valores de la "i" de cada unidad.
   var COSTOS_VENTA_DEF = 5;
+  // Rentabilidad por portafolio: "" = todos, o el nombre de un lugar.
+  var filtroRent = "";
+  try { filtroRent = sessionStorage.getItem("prop-rent-lugar") || ""; } catch (e) {}
+  function pestanasPortafolio(d, filas) {
+    var subs = el("div", "pestanas sub");
+    subs.setAttribute("role", "tablist");
+    subs.setAttribute("aria-label", "Portafolios");
+    [["", "Todos", filas.length]].concat(lugaresDe(d).map(function (l) {
+      return [l, l, filas.filter(function (x) { return x.lugar === l; }).length];
+    })).forEach(function (x) {
+      var b = el("button", "pestana" + (filtroRent === x[0] ? " activa" : ""));
+      b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", filtroRent === x[0] ? "true" : "false");
+      b.append(document.createTextNode(x[1] + " "), el("span", "cuenta", String(x[2])));
+      b.addEventListener("click", function () {
+        filtroRent = x[0];
+        try { sessionStorage.setItem("prop-rent-lugar", filtroRent); } catch (e) {}
+        repintarPestana();
+      });
+      subs.append(b);
+    });
+    return subs;
+  }
   // Rentabilidad en dólares: prendido o no y la cotización elegida (si no, la del Dólar Blue venta).
   var rentUSD = { on: false, tc: null };
   try { rentUSD.on = localStorage.getItem("prop-rent-usd") === "1"; rentUSD.tc = numeroDe(localStorage.getItem("prop-rent-tc")) || null; } catch (e) {}
@@ -1030,6 +1052,9 @@
     box.append(barraMoneda(tc));
     var aCargo = ((d.expensas || {}).aCargo || {}).valores || {};
     var impEdificio = (aCargo.rentas || 0) + (aCargo.municipalidad || 0);
+    // Portafolio elegido (un lugar o todos). Los impuestos a cargo son del edificio entero: solo se descuentan en Todos.
+    if (filtroRent && lugaresDe(d).indexOf(filtroRent) < 0) filtroRent = "";
+    if (filtroRent) impEdificio = 0;
 
     // Una fila por unidad con todo calculado (también las que solo tienen contrato).
     var filas = unidadesConContratos(d).map(function (u) {
@@ -1040,6 +1065,8 @@
       return { u: u, lugar: lugarDe(d, u), v: v, c: c, ctx: ctx, ventaNeta: ventaNeta, netoAnual: netoAnual, vendiendo: vendiendo,
         sobreVenta: netoAnual !== null && ventaNeta ? netoAnual / ventaNeta : null };
     });
+    box.insertBefore(pestanasPortafolio(d, filas), box.firstChild);
+    if (filtroRent) filas = filas.filter(function (x) { return x.lugar === filtroRent; });
     function sumar(lista, f) { return lista.reduce(function (a, x) { var n = f(x); return a + (typeof n === "number" ? n : 0); }, 0); }
     function variacion(lista, k) {
       var con = lista.filter(function (x) { return x.v.precioCompra > 0 && x.v[k] > 0; });
@@ -1131,7 +1158,7 @@
       if (del.length) tb.append(filaResumen(l, resumen(del)));
     });
     var tf = el("tfoot");
-    tf.append(filaResumen("Total", tot, impEdificio * 12));
+    tf.append(filaResumen(filtroRent ? "Total · " + filtroRent : "Total", tot, impEdificio * 12));
     tl.append(th, tb, tf);
     var wl = el("div", "tabla-scroll"); wl.append(tl); pl.append(wl);
 
