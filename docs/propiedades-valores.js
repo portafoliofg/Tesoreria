@@ -325,6 +325,7 @@
 
   // ----- Cuentas de impuestos y dormitorios de Saavedra (listados del Excel) -----
   // [PH, MUNI, RENTAS, dormitorios (null = local comercial), otro nombre de la unidad].
+  // La cochera (Sí / No) sale de la liquidación: la pasa propiedades-vista.js en cada unidad.
   // Se cargan solos una vez en las unidades de Saavedra que todavía no los tienen. Para no
   // tocar otro edificio con unidades de igual nombre, solo si coinciden al menos 20 de las 27.
   var CUENTAS_SAAVEDRA = [
@@ -370,6 +371,7 @@
         if (x.c[3] !== null) { item.dormitorios = x.c[3]; algo = true; }
         else if (!v.destino) { item.destino = "Comercial"; algo = true; }
       }
+      if (!v.cochera && (x.u.cochera === "Sí" || x.u.cochera === "No")) { item.cochera = x.u.cochera; algo = true; }
       if (algo) lista.push(item);
     });
     if (!lista.length) return Promise.resolve(0);
