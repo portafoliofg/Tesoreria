@@ -792,7 +792,17 @@
     return td;
   }
 
+  // Compra total de Saavedra (USD) repartida entre sus unidades, para los valores estimados.
+  function prepararEstimados(d) {
+    if (!window.PropValores || !PropValores.configurarZona) return;
+    var us = unidadesConContratos(d);
+    lugaresDe(d).forEach(function (l) {
+      PropValores.configurarZona(l, us.filter(function (u) { return lugarDe(d, u) === l; }), cotizacionRent());
+    });
+  }
+
   function panelUnidades(d) {
+    prepararEstimados(d);
     var ed = editando();
     var p = panel("Unidades", ed ? "Al cambiar efectivo o cochera de una unidad que paga en efectivo, la administración (6 %) y el total se calculan solos." : "Cada unidad con su inquilino, cómo pagó, la liquidación de los que pagan en efectivo y sus valores (importes en pesos). Tocá la “i” para ver y cargar el detalle y los valores.");
     var conValores = !ed && !!window.PropValores;
@@ -1036,6 +1046,7 @@
     return bar;
   }
   function vistaRentabilidad(d) {
+    prepararEstimados(d);
     var box = el("div", "columna");
     if (!window.PropValores || !PropValores.listo()) { box.append(el("p", "cargando", "Cargando valores de las unidades…")); return box; }
     if (PropValores.error()) box.append(el("div", "alerta error", PropValores.error()));

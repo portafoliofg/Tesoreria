@@ -10,6 +10,7 @@
  * PropValores.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
  * PropValores.de(u, lugar) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, estimados, ...} o null
  * PropValores.esEstimado(v, campo) → true si ese importe es el estimado de la zona
+ * PropValores.configurarZona(lugar, unidades, tc) → reparte la compra total del lugar (Saavedra: USD 750.000)
  * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
  * PropValores.calculo(v, ctx) → {alquiler, gastos, neto, bruto, rendNeto} por mes (rendimientos anuales sobre la compra)
  * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle.
@@ -41,8 +42,14 @@
     cochera: 32000000,
     comercial: 175000000,
     gastosVivienda: 90000, gastosCochera: 25000, gastosComercial: 120000,
-    compra: 0.88, venta: 0.95
+    compra: 0.88, venta: 0.95,
+    // Compra real de todo el lugar, en dólares: se reparte entre sus unidades según el valor
+    // genérico de cada una (una cochera recibe menos que un departamento). Valor real y venta
+    // salen de esa compra con las mismas proporciones (compra = 88 % del valor real).
+    compraTotalUSD: { saavedra: 750000 },
+    dolar: 1450  // si no hay cotización del Dólar Blue
   };
+  var zonas = {};  // clave(lugar) → {total en pesos, peso: suma de valores genéricos de sus unidades}
 
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
   var fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -93,17 +100,36 @@
   }
 
   // Valores genéricos de la zona para una unidad, o null si su lugar no tiene estimados.
-  function estimadoPara(u, v, lugar) {
-    if (ESTIMADOS.lugares.indexOf(clave(lugar || u.lugar)) < 0) return null;
+  /**
+   * Reparte la compra total del lugar entre sus unidades. unidades: todas las del lugar;
+   * tc: pesos por dólar. Lo llama propiedades-vista.js antes de mostrar Unidades o Rentabilidad.
+   */
+  function configurarZona(lugar, unidades, tc) {
+    var k = clave(lugar), usd = ESTIMADOS.compraTotalUSD[k];
+    if (!usd) return;
+    var peso = 0;
+    (unidades || []).forEach(function (u) { peso += generico(u, cargado(u)).real; });
+    zonas[k] = { total: usd * (tc > 0 ? tc : ESTIMADOS.dolar), peso: peso };
+  }
+
+  // Valor genérico de mercado y gastos de la unidad según su tipo.
+  function generico(u, v) {
     var nombre = clave(u.unidad), destino = (v && v.destino) || "";
-    var real, gastos;
-    if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) { real = ESTIMADOS.cochera; gastos = ESTIMADOS.gastosCochera; }
-    else if (destino === "Comercial" || (!destino && /local/.test(nombre))) { real = ESTIMADOS.comercial; gastos = ESTIMADOS.gastosComercial; }
-    else {
-      var dorm = v && typeof v.dormitorios === "number" && !isNaN(v.dormitorios) ? v.dormitorios : 1;
-      real = ESTIMADOS.vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.vivienda.length - 1)];
-      gastos = ESTIMADOS.gastosVivienda;
+    if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) return { real: ESTIMADOS.cochera, gastos: ESTIMADOS.gastosCochera };
+    if (destino === "Comercial" || (!destino && /local/.test(nombre))) return { real: ESTIMADOS.comercial, gastos: ESTIMADOS.gastosComercial };
+    var dorm = v && typeof v.dormitorios === "number" && !isNaN(v.dormitorios) ? v.dormitorios : 1;
+    return { real: ESTIMADOS.vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.vivienda.length - 1)], gastos: ESTIMADOS.gastosVivienda };
+  }
+
+  function estimadoPara(u, v, lugar) {
+    var kz = clave(lugar || u.lugar);
+    if (ESTIMADOS.lugares.indexOf(kz) < 0) return null;
+    var g = generico(u, v), z = zonas[kz];
+    if (z && z.peso > 0) {
+      var compra = Math.round(z.total * g.real / z.peso), realZ = Math.round(compra / ESTIMADOS.compra);
+      return { valorReal: realZ, precioCompra: compra, ventaEstimada: Math.round(realZ * ESTIMADOS.venta), gastosMensuales: g.gastos };
     }
+    var real = g.real, gastos = g.gastos;
     return { valorReal: real, precioCompra: Math.round(real * ESTIMADOS.compra), ventaEstimada: Math.round(real * ESTIMADOS.venta), gastosMensuales: gastos };
   }
 
@@ -296,7 +322,7 @@
   }
 
   window.PropValores = {
-    cargar: cargar, de: de, esEstimado: esEstimado, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
+    cargar: cargar, de: de, esEstimado: esEstimado, configurarZona: configurarZona, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
     parametros: function () { return estado.parametros; },
     // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
     unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },
