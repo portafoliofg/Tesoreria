@@ -13,7 +13,8 @@
  * PropValores.configurarZona(lugar, unidades, tc) → reparte la compra total del lugar (Saavedra: USD 780.000)
  * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
  * PropValores.calculo(v, ctx) → {alquiler, gastos, neto, bruto, rendNeto} por mes (rendimientos anuales sobre la compra)
- * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle.
+ * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle (con las cuentas de municipalidad, aguas y rentas).
+ * PropValores.botonCuentas({edificio, unidades, alGuardar}) → botón para pegar el listado de cuentas de impuestos.
  *   ctx: {edificio, lugar, alquiler, fuente, adm, arreglosMes, alGuardar}
  *   adm: administración del mes y arreglosMes: promedio mensual de arreglos (los descuenta la liquidación).
  * PropValores.parametros() / guardarParametros(edificio, {costosVenta, tasaAlternativa}) → para Rentabilidad
@@ -225,6 +226,13 @@
     var sCoch = selectDe([["", "Sin dato"], ["Sí", "Sí"], ["No", "No"]], v.cochera, "Cochera");
     c1.append(campo("Dormitorios", iDorm), campo("Destino", sDest), campo("Cochera", sCoch));
     form.append(c1);
+    // Cuentas de impuestos
+    form.append(el("h4", null, "Cuentas de impuestos"));
+    var c0 = el("div", "campos ficha-campos");
+    function inputTxt(valor, titulo) { var i = el("input"); i.type = "text"; i.placeholder = "Sin cargar"; i.value = valor || ""; i.setAttribute("aria-label", titulo); return i; }
+    var iMuni = inputTxt(v.muni, "Cuenta municipal"), iAguas = inputTxt(v.aguas, "Cuenta de aguas"), iRentas = inputTxt(v.rentas, "Cuenta de rentas");
+    c0.append(campo("Municipalidad", iMuni), campo("Aguas", iAguas), campo("Rentas", iRentas));
+    form.append(c0);
     // Valores
     form.append(el("h4", null, "Valores"));
     var c2 = el("div", "campos ficha-campos");
@@ -296,6 +304,7 @@
         edificio: ctx.edificio, lugar: ctx.lugar || "", unidad: u.unidad, clave: claveDe(u),
         valorReal: numero(iReal.value), precioCompra: numero(iCompra.value), ventaEstimada: numero(iVenta.value),
         gastosMensuales: numero(iGastos.value),
+        muni: iMuni.value.trim(), aguas: iAguas.value.trim(), rentas: iRentas.value.trim(),
         dormitorios: dorm, destino: sDest.value, cochera: sCoch.value, alquiler: ctx.alquiler || null
       }).then(function (r) {
         var k = clave(claveDe(u));
@@ -314,6 +323,125 @@
     iDorm.focus();
   }
 
+  // ----- Cuentas de impuestos de muchas unidades (pegadas del Excel) -----
+  // Columnas PH (unidad), MUNI, AGUAS y RENTAS; con o sin la fila de títulos.
+  function leerListadoCuentas(txt) {
+    var filas = String(txt || "").replace(/\r/g, "").split("\n").map(function (l) { return l.split("\t").map(function (c) { return c.trim(); }); })
+      .filter(function (f) { return f.some(Boolean); });
+    var col = { unidad: 0, muni: 1, aguas: 2, rentas: 3 };
+    if (filas.length && filas[0].some(function (c) { return /^(PH|MUNI|AGUAS?|RENTAS?|UNIDAD)$/i.test(c); })) {
+      var cab = filas.shift().map(function (c) { return clave(c); });
+      var busca = function (re, def) { var i = cab.findIndex(function (c) { return re.test(c); }); return i < 0 ? def : i; };
+      col = { unidad: busca(/^(ph|unidad|depto|dpto)/, 0), muni: busca(/muni/, -1), aguas: busca(/agua/, -1), rentas: busca(/renta/, -1) };
+    }
+    return filas.map(function (f) {
+      return { ph: f[col.unidad] || "", muni: col.muni < 0 ? "" : f[col.muni] || "", aguas: col.aguas < 0 ? "" : f[col.aguas] || "", rentas: col.rentas < 0 ? "" : f[col.rentas] || "" };
+    }).filter(function (x) { return x.ph && (x.muni || x.aguas || x.rentas); });
+  }
+
+  // La unidad del listado: misma clave ("1° A" = "1A"); si no, la única que empieza igual.
+  function unidadDeListado(ph, unidades) {
+    var k = LectorPropiedades.claveUnidad(ph);
+    var ku = function (u) { return LectorPropiedades.claveUnidad(u.unidad); };
+    var igual = unidades.filter(function (u) { return ku(u) === k; });
+    if (igual.length === 1) return igual[0];
+    var parecida = unidades.filter(function (u) { var x = ku(u); return x && (k.indexOf(x) === 0 || x.indexOf(k) === 0); });
+    return parecida.length === 1 ? parecida[0] : null;
+  }
+
+  /** Botón "Cargar cuentas de impuestos". ctx: {edificio, unidades: [{unidad, clave, lugar}], alGuardar} */
+  function botonCuentas(ctx) {
+    var b = el("button", "boton secundario chico", "Cargar cuentas de impuestos");
+    b.type = "button";
+    b.title = "Pegá el listado del Excel (PH, MUNI, AGUAS, RENTAS) y se carga en cada unidad";
+    b.addEventListener("click", function () { abrirCuentas(ctx); });
+    return b;
+  }
+
+  function abrirCuentas(ctx) {
+    var dlg = armarDialogo();
+    dlg.replaceChildren();
+    var cab = el("div", "ficha-cab");
+    var tit = el("div");
+    var h = el("h3", null, "Cuentas de impuestos"); h.id = "fichaTitulo";
+    tit.append(h, el("span", "sub", "Copiá en el Excel las columnas PH, MUNI, AGUAS y RENTAS (con los títulos) y pegalas acá."));
+    var cerrar = el("button", "quitar", "×");
+    cerrar.type = "button"; cerrar.setAttribute("aria-label", "Cerrar");
+    cerrar.addEventListener("click", function () { dlg.close(); });
+    cab.append(tit, cerrar);
+    var area = el("textarea", "cuentas-pegar");
+    area.rows = 6; area.placeholder = "PH\tMUNI\tAGUAS\tRENTAS\nLOCAL 1 A\t03-1103001800001\t\t110144639901\n…";
+    area.setAttribute("aria-label", "Listado pegado");
+    var vista = el("div", "cuentas-vista");
+    var msg = el("div", "alerta error"); msg.hidden = true;
+    var pie = el("div", "ficha-pie");
+    var estadoTxt = el("span", "estado-guardado", "");
+    var botones = el("div", "barra-acciones");
+    var bc = el("button", "boton secundario", "Cancelar"); bc.type = "button";
+    bc.addEventListener("click", function () { dlg.close(); });
+    var bg = el("button", "boton", "Guardar"); bg.type = "button"; bg.disabled = true;
+    botones.append(bc, bg);
+    pie.append(estadoTxt, botones);
+    dlg.append(cab, area, vista, msg, pie);
+
+    var filas = [];
+    function revisar() {
+      filas = leerListadoCuentas(area.value).map(function (x) { return { x: x, u: unidadDeListado(x.ph, ctx.unidades) }; });
+      vista.replaceChildren();
+      if (!filas.length) { bg.disabled = true; estadoTxt.textContent = area.value.trim() ? "No se encontraron filas con unidad y cuentas." : ""; return; }
+      var t = el("table"), th = el("tr");
+      ["Listado", "Unidad", "Municipalidad", "Aguas", "Rentas"].forEach(function (x) { th.append(el("th", null, x)); });
+      var thead = el("thead"); thead.append(th);
+      var tb = el("tbody");
+      filas.forEach(function (f) {
+        var tr = el("tr");
+        var sel = el("select");
+        sel.setAttribute("aria-label", "Unidad de " + f.x.ph);
+        var o0 = el("option", null, "— Elegí la unidad —"); o0.value = ""; sel.append(o0);
+        ctx.unidades.forEach(function (u, i) { var o = el("option", null, u.unidad + (u.lugar ? " · " + u.lugar : "")); o.value = String(i); sel.append(o); });
+        sel.value = f.u ? String(ctx.unidades.indexOf(f.u)) : "";
+        sel.addEventListener("change", function () { f.u = sel.value === "" ? null : ctx.unidades[+sel.value]; contar(); });
+        var tdU = el("td"); tdU.append(sel);
+        tr.append(el("td", null, f.x.ph), tdU, el("td", null, f.x.muni || "—"), el("td", null, f.x.aguas || "—"), el("td", null, f.x.rentas || "—"));
+        tb.append(tr);
+      });
+      t.append(thead, tb);
+      var w = el("div", "tabla-scroll"); w.append(t);
+      vista.append(w);
+      contar();
+    }
+    function contar() {
+      var ok = filas.filter(function (f) { return f.u; }).length;
+      estadoTxt.textContent = ok + " de " + filas.length + " con unidad" + (ok < filas.length ? ": elegí las que faltan o se saltean" : "");
+      bg.disabled = !ok;
+    }
+    area.addEventListener("input", revisar);
+
+    bg.addEventListener("click", function () {
+      var lista = filas.filter(function (f) { return f.u; }).map(function (f) {
+        return { unidad: f.u.unidad, clave: claveDe(f.u), lugar: f.u.lugar || "", muni: f.x.muni, aguas: f.x.aguas, rentas: f.x.rentas };
+      });
+      msg.hidden = true;
+      bg.disabled = true; bg.textContent = "Guardando…";
+      BGPSesion.pedir("guardarValorPropiedad", { cuentas: lista, edificio: ctx.edificio }).then(function (r) {
+        (r.valores || []).forEach(function (nv) {
+          var k = clave(nv.clave);
+          estado.valores = estado.valores.filter(function (x) { return clave(x.clave) !== k; });
+          estado.valores.push(nv);
+        });
+        dlg.close();
+        if (ctx.alGuardar) ctx.alGuardar();
+      }).catch(function (err) {
+        if (err && err.sesion === false) { location.replace("index.html?v=7#elegir"); return; }
+        msg.textContent = "No se pudo guardar: " + ((err && err.message) || err);
+        msg.hidden = false;
+        bg.disabled = false; bg.textContent = "Guardar";
+      });
+    });
+    dlg.showModal();
+    area.focus();
+  }
+
   function botonInfo(u, ctx) {
     var b = el("button", "info", "i");
     b.type = "button";
@@ -324,7 +452,7 @@
   }
 
   window.PropValores = {
-    cargar: cargar, de: de, esEstimado: esEstimado, configurarZona: configurarZona, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
+    cargar: cargar, de: de, esEstimado: esEstimado, configurarZona: configurarZona, botonCuentas: botonCuentas, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
     parametros: function () { return estado.parametros; },
     // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
     unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },

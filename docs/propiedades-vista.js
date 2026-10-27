@@ -834,6 +834,8 @@
       lp.title = "Abre la planilla de Google de Propiedades (liquidaciones, contratos, ubicaciones y valores; aparte de la de Tesorería)";
       herr.append(lp);
     }
+    if (conValores) herr.append(PropValores.botonCuentas({ edificio: actual.edificio, alGuardar: repintarPestana,
+      unidades: unidadesConContratos(d).map(function (u) { return { unidad: u.unidad, clave: u.clave, lugar: lugarDe(d, u) }; }) }));
     p.append(herr);
     var cols = ed ? COLS : COLS.filter(function (c) { return hay(d.unidades, c[0]); });
     // Encabezado (y totales) fijos: la tabla se desplaza dentro de su caja.

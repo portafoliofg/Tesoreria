@@ -33,8 +33,11 @@ const PROP_HOJAS_MIGRADAS = 'PROPIEDADES_HOJAS_MIGRADAS';
 const SHEET_VALORES_UNIDADES = 'Unidades';
 const HEADERS_VALORES_UNIDADES = [
   'Edificio', 'Lugar', 'Unidad', 'Clave', 'Valor real', 'Precio de compra', 'Alquiler mensual', 'Rendimiento anual',
-  'Valor de venta estimado', 'Dormitorios', 'Destino', 'Cochera', 'Actualizado por', 'Fecha', 'Gastos mensuales'
+  'Valor de venta estimado', 'Dormitorios', 'Destino', 'Cochera', 'Actualizado por', 'Fecha', 'Gastos mensuales',
+  // Cuentas de impuestos de la unidad (texto): municipalidad, aguas y rentas.
+  'Cuenta municipal', 'Cuenta de aguas', 'Cuenta de rentas'
 ];
+const CUENTAS_UNIDAD = { muni: 'Cuenta municipal', aguas: 'Cuenta de aguas', rentas: 'Cuenta de rentas' };
 const SHEET_PARAMETROS_PROP = 'Parámetros';
 const HEADERS_PARAMETROS_PROP = ['Edificio', 'Costos de venta %', 'Tasa alternativa %', 'Actualizado por', 'Fecha'];
 const DESTINOS_UNIDAD = ['Vivienda', 'Comercial', 'Oficina', 'Cochera', 'Depósito', 'Otro'];
@@ -237,6 +240,7 @@ function valorPublico_(f) {
     dormitorios: f['Dormitorios'] === '' || f['Dormitorios'] === null ? null : Number(f['Dormitorios']),
     destino: String(f['Destino'] || ''), cochera: String(f['Cochera'] || ''),
     gastosMensuales: num(f['Gastos mensuales']),
+    muni: String(f['Cuenta municipal'] || ''), aguas: String(f['Cuenta de aguas'] || ''), rentas: String(f['Cuenta de rentas'] || ''),
     actualizadoPor: String(f['Actualizado por'] || ''), fecha: fecha
   };
 }
@@ -259,6 +263,8 @@ function obtenerValoresPropiedades_(d) {
 function guardarValorPropiedad_(d, u) {
   // Los parámetros de Rentabilidad viajan por esta misma acción (así no hace falta otra en Código.gs).
   if (d && d.parametros) return guardarParametrosPropiedades_(d, u);
+  // Lo mismo con las cuentas de impuestos cargadas de a muchas (pegadas de un listado).
+  if (d && d.cuentas) return guardarCuentasPropiedades_(d, u);
   const edificio = String((d && d.edificio) || '').trim(), unidad = String((d && d.unidad) || '').trim();
   if (!edificio || !unidad) return { ok: false, error: 'Falta el edificio o la unidad.' };
   const clave = String(d.clave || unidad).trim();
@@ -284,11 +290,17 @@ function guardarValorPropiedad_(d, u) {
       'Dormitorios': dorm, 'Destino': destino, 'Cochera': cochera, 'Actualizado por': nombreDe_(u), 'Fecha': ahoraTexto_(),
       'Gastos mensuales': vacio(numeroValor_(d.gastosMensuales))
     };
+    // Cuentas de impuestos: las que no vienen en el pedido quedan como estaban.
+    Object.keys(CUENTAS_UNIDAD).forEach(k => {
+      const h = CUENTAS_UNIDAD[k];
+      v[h] = d[k] !== undefined && d[k] !== null ? textoCuenta_(d[k]) : (previa ? String(previa[h] || '') : '');
+    });
     const rango = hoja.getRange(nro, 1, 1, HEADERS_VALORES_UNIDADES.length);
     rango.setValues([HEADERS_VALORES_UNIDADES.map(h => v[h])]);
     COL_VALORES_IMPORTES.forEach(c => hoja.getRange(nro, c).setNumberFormat('$ #,##0.00'));
     hoja.getRange(nro, COL_VALORES_RENDIMIENTO).setNumberFormat('0.00%');
     hoja.getRange(nro, 14).setNumberFormat('@').setValue(v['Fecha']);
+    formatoCuentas_(hoja, nro, v);
     const resumen = ['Valor real', 'Precio de compra', 'Valor de venta estimado'].filter(h => v[h] !== '').map(h => h + ' ' + formatoPesos(v[h])).join(' · ');
     registrar_(u, previa ? 'Propiedades: valores modificados' : 'Propiedades: valores cargados', edificio + ' · ' + unidad + (resumen ? ' · ' + resumen : ''), edificio + ' · ' + unidad,
       previa ? JSON.stringify(valorPublico_(previa)) : '', JSON.stringify(v));
@@ -312,5 +324,64 @@ function guardarParametrosPropiedades_(d, u) {
     registrar_(u, 'Propiedades: parámetros de rentabilidad', edificio + ' · costos de venta ' + (costos === null ? '—' : costos + ' %') + ' · tasa alternativa ' + (tasa === null ? '—' : tasa + ' %'), edificio,
       previa ? JSON.stringify(previa) : '', JSON.stringify(fila));
     return { ok: true, parametros: { edificio: edificio, costosVenta: costos, tasaAlternativa: tasa, actualizadoPor: nombreDe_(u), fecha: ahoraTexto_() } };
+  });
+}
+
+/** Número de cuenta como texto, sin espacios de más (máx. 60 caracteres). */
+function textoCuenta_(x) {
+  return String(x == null ? '' : x).replace(/\s+/g, ' ').trim().substring(0, 60);
+}
+
+/** Las columnas de cuentas en texto, así los números largos no se vuelven 1,1E+11. */
+function formatoCuentas_(hoja, nro, v) {
+  Object.keys(CUENTAS_UNIDAD).forEach(k => {
+    const col = HEADERS_VALORES_UNIDADES.indexOf(CUENTAS_UNIDAD[k]) + 1;
+    hoja.getRange(nro, col).setNumberFormat('@').setValue(v[CUENTAS_UNIDAD[k]]);
+  });
+}
+
+/**
+ * Cuentas de impuestos de muchas unidades de un edificio a la vez.
+ * d: {cuentas: [{unidad, clave, lugar, muni, aguas, rentas}], edificio}
+ * Solo escribe las cuentas (y crea la fila de la unidad si no tenía); los valores no se tocan.
+ */
+function guardarCuentasPropiedades_(d, u) {
+  const edificio = String(d.edificio || '').trim();
+  const lista = (d.cuentas || []).filter(x => x && String(x.unidad || '').trim());
+  if (!edificio) return { ok: false, error: 'Falta el edificio.' };
+  if (!lista.length) return { ok: false, error: 'No hay cuentas para guardar.' };
+  if (lista.length > 300) return { ok: false, error: 'Son demasiadas unidades de una vez (máx. 300).' };
+  libroValoresPropiedades_();
+  return conLock_(() => {
+    const hoja = hojaValoresUnidades_();
+    const filas = leerValoresUnidades_();
+    const cols = HEADERS_VALORES_UNIDADES.length;
+    const guardadas = [];
+    lista.forEach(x => {
+      const unidad = String(x.unidad).trim(), clave = String(x.clave || unidad).trim();
+      let previa = filas.find(f => claveTexto(f['Edificio']) === claveTexto(edificio) && claveTexto(f['Clave'] || f['Unidad']) === claveTexto(clave));
+      let nro;
+      if (previa) nro = previa.fila;
+      else {
+        nro = hoja.getLastRow() + 1;
+        const nueva = HEADERS_VALORES_UNIDADES.map(h => ({ 'Edificio': edificio, 'Lugar': String(x.lugar || '').trim(), 'Unidad': unidad, 'Clave': clave })[h] || '');
+        hoja.getRange(nro, 1, 1, cols).setValues([nueva]);
+        previa = { fila: nro };
+        HEADERS_VALORES_UNIDADES.forEach((h, i) => { previa[h] = nueva[i]; });
+        filas.push(previa);
+      }
+      const v = {};
+      Object.keys(CUENTAS_UNIDAD).forEach(k => {
+        const h = CUENTAS_UNIDAD[k];
+        v[h] = x[k] !== undefined && x[k] !== null ? textoCuenta_(x[k]) : String(previa[h] || '');
+        previa[h] = v[h];
+      });
+      formatoCuentas_(hoja, nro, v);
+      hoja.getRange(nro, HEADERS_VALORES_UNIDADES.indexOf('Actualizado por') + 1, 1, 2).setNumberFormat('@').setValues([[nombreDe_(u), ahoraTexto_()]]);
+      previa['Actualizado por'] = nombreDe_(u); previa['Fecha'] = ahoraTexto_();
+      guardadas.push(valorPublico_(previa));
+    });
+    registrar_(u, 'Propiedades: cuentas de impuestos', edificio + ' · ' + guardadas.length + ' unidad(es)', edificio, '', JSON.stringify(lista));
+    return { ok: true, valores: guardadas };
   });
 }
