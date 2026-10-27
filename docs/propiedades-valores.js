@@ -8,7 +8,8 @@
  * Los datos viven en una planilla de Google aparte (PropiedadesValores.gs), nunca en esta página.
  *
  * PropValores.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
- * PropValores.de(u) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, ...} o null
+ * PropValores.de(u, lugar) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, estimados, ...} o null
+ * PropValores.esEstimado(v, campo) → true si ese importe es el estimado de la zona
  * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
  * PropValores.calculo(v, ctx) → {alquiler, gastos, neto, bruto, rendNeto} por mes (rendimientos anuales sobre la compra)
  * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle.
@@ -18,12 +19,30 @@
  * PropValores.url() → enlace a la planilla de valores
  *
  * Rendimiento neto: (alquiler − administración − arreglos − gastos mensuales del dueño) × 12 / compra.
+ *
+ * Valores estimados: las unidades de Saavedra que todavía no tienen un importe cargado usan
+ * valores genéricos de la zona (ESTIMADOS), marcados como estimados. No se guardan en la
+ * planilla: en cuanto se carga el valor real en la ficha, ese reemplaza al estimado.
+ * PropValores.de(u, lugar) los incluye (v.estimados = campos estimados); la ficha los muestra
+ * como sugerencia.
  */
 (function () {
   "use strict";
   var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
   var estado = { edificio: null, valores: [], url: "", parametros: null, cargando: null, listo: false, error: "" };
   var dialogo = null;
+  // Valores genéricos para Saavedra (CABA, octubre de 2026), en pesos: departamento usado a
+  // ~USD 2.400 el m², dólar ~$ 1.450. Por tipo de unidad; la vivienda según los dormitorios
+  // (sin dato, 1 dormitorio · 2 ambientes, ~45 m²). Compra ≈ 88 % y venta ≈ 95 % del valor real.
+  // Gastos mensuales: ABL, expensas a cargo del dueño y seguro.
+  var ESTIMADOS = {
+    lugares: ["saavedra"],
+    vivienda: [110000000, 150000000, 205000000, 265000000],  // 0, 1, 2 y 3 o más dormitorios
+    cochera: 32000000,
+    comercial: 175000000,
+    gastosVivienda: 90000, gastosCochera: 25000, gastosComercial: 120000,
+    compra: 0.88, venta: 0.95
+  };
 
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
   var fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -65,12 +84,44 @@
     return estado.cargando;
   }
 
-  function de(u) {
+  // Lo cargado en la planilla para la unidad (sin estimados).
+  function cargado(u) {
     if (!estado.listo) return null;
     var k = clave(claveDe(u)), n = clave(u.unidad);
     return estado.valores.find(function (v) { return clave(v.clave) === k; }) ||
       estado.valores.find(function (v) { return clave(v.unidad) === n; }) || null;
   }
+
+  // Valores genéricos de la zona para una unidad, o null si su lugar no tiene estimados.
+  function estimadoPara(u, v, lugar) {
+    if (ESTIMADOS.lugares.indexOf(clave(lugar || u.lugar)) < 0) return null;
+    var nombre = clave(u.unidad), destino = (v && v.destino) || "";
+    var real, gastos;
+    if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) { real = ESTIMADOS.cochera; gastos = ESTIMADOS.gastosCochera; }
+    else if (destino === "Comercial" || (!destino && /local/.test(nombre))) { real = ESTIMADOS.comercial; gastos = ESTIMADOS.gastosComercial; }
+    else {
+      var dorm = v && typeof v.dormitorios === "number" && !isNaN(v.dormitorios) ? v.dormitorios : 1;
+      real = ESTIMADOS.vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.vivienda.length - 1)];
+      gastos = ESTIMADOS.gastosVivienda;
+    }
+    return { valorReal: real, precioCompra: Math.round(real * ESTIMADOS.compra), ventaEstimada: Math.round(real * ESTIMADOS.venta), gastosMensuales: gastos };
+  }
+
+  // Lo cargado, completado con los estimados de la zona en los importes que falten.
+  function de(u, lugar) {
+    if (!estado.listo) return null;
+    var v = cargado(u), est = estimadoPara(u, v, lugar);
+    if (!est) return v;
+    var r = {}, estimados = [];
+    Object.keys(v || {}).forEach(function (k) { r[k] = v[k]; });
+    Object.keys(est).forEach(function (k) {
+      if (typeof r[k] === "number" && !(k !== "gastosMensuales" && r[k] <= 0)) return;
+      r[k] = est[k]; estimados.push(k);
+    });
+    r.estimados = estimados;
+    return r;
+  }
+  function esEstimado(v, k) { return !!(v && v.estimados && v.estimados.indexOf(k) >= 0); }
 
   function rendimiento(v, alquiler) {
     return v && typeof v.precioCompra === "number" && v.precioCompra > 0 && typeof alquiler === "number" && alquiler > 0 ? alquiler * 12 / v.precioCompra : null;
@@ -123,7 +174,8 @@
 
   function abrir(u, ctx) {
     var dlg = armarDialogo();
-    var v = de(u) || {};
+    var v = cargado(u) || {};
+    var est = estimadoPara(u, v, ctx.lugar);
     dlg.replaceChildren();
     var cab = el("div", "ficha-cab");
     var tit = el("div");
@@ -155,6 +207,14 @@
     c2.append(campo("Valor real", iReal), campo("Precio de compra", iCompra), campo("Venta estimada", iVenta),
       campo("Gastos mensuales", iGastos, "Impuestos, expensas, seguro… a cargo del dueño"));
     form.append(c2);
+    // Saavedra: lo que falta se muestra con el estimado de la zona (se usa en los cálculos hasta cargar el real).
+    var conEst = [[iReal, "valorReal"], [iCompra, "precioCompra"], [iVenta, "ventaEstimada"], [iGastos, "gastosMensuales"]];
+    if (est) {
+      conEst.forEach(function (x) { x[0].placeholder = "Estimado " + numTxt(est[x[1]]); });
+      form.append(el("p", "ficha-estimado", "Los importes vacíos usan valores estimados para la zona de " + (ctx.lugar || "Saavedra") +
+        " (en gris). Cargá los reales y reemplazan a los estimados."));
+    }
+    function valorO(i, k) { var n = numero(i.value); return n === null && est && !i.value.trim() ? est[k] : n; }
     // Lo calculado: rendimientos y diferencia entre la venta estimada y la compra.
     var calc = el("div", "ficha-calc");
     var kAlq = el("div", "kpi"), kRend = el("div", "kpi"), kNeto = el("div", "kpi"), kVta = el("div", "kpi");
@@ -162,8 +222,8 @@
     form.append(calc);
     function kpi(k, titulo, valor, pie) { k.replaceChildren(el("small", null, titulo), el("b", null, valor), el("span", null, pie)); }
     function recalcular() {
-      var compra = numero(iCompra.value), venta = numero(iVenta.value);
-      var c = calculo({ precioCompra: compra, gastosMensuales: numero(iGastos.value) }, ctx);
+      var compra = valorO(iCompra, "precioCompra"), venta = valorO(iVenta, "ventaEstimada");
+      var c = calculo({ precioCompra: compra, gastosMensuales: valorO(iGastos, "gastosMensuales") }, ctx);
       kpi(kAlq, "Alquiler mensual", pesos(ctx.alquiler), ctx.alquiler ? ctx.fuente : "Sin alquiler cargado");
       kpi(kRend, "Rendimiento bruto", pct(c.bruto), c.bruto === null ? (compra ? "Falta el alquiler" : "Cargá el precio de compra") : "Alquiler × 12 sobre la compra");
       var partes = [];
@@ -236,7 +296,7 @@
   }
 
   window.PropValores = {
-    cargar: cargar, de: de, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
+    cargar: cargar, de: de, esEstimado: esEstimado, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
     parametros: function () { return estado.parametros; },
     // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
     unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },

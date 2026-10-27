@@ -485,6 +485,13 @@
   .mas-filtros { position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; width: 330px; max-width: calc(100vw - 32px); padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
   .mas-filtros .row { margin-top: 12px; }
   .mas-filtros .actions { margin-top: 14px; }
+  .mas-filtros.ancho { width: 480px; max-height: min(78vh, 720px); overflow-y: auto; }
+  .mas-filtros h5 { margin: 14px 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .mas-filtros h5:first-child { margin-top: 0; }
+  .mas-filtros .mf-ayuda { margin: 0 0 8px; font-size: 12px; color: var(--faint); }
+  .rango-fecha { display: grid; grid-template-columns: 128px 1fr 1fr; gap: 6px; align-items: center; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+  .rango-fecha input { margin-top: 0; height: 34px; font-size: 13px; min-width: 0; }
+  .tb-fechas select { margin-top: 0; width: auto; max-width: 170px; }
   .chips-filtros { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; align-items: center; }
   .chip-filtro { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 3px 0 11px; border-radius: 99px; background: var(--primary-soft); color: var(--primary); font-size: 12.5px; font-weight: 500; }
   .chip-x { width: 22px; height: 22px; padding: 0; border-radius: 50%; background: transparent; color: inherit; border: none; box-shadow: none; font-size: 16px; font-weight: 400; }
@@ -709,7 +716,9 @@
   @media (max-width: 760px) {
     .toolbar > select { flex: 1 1 45%; max-width: none; }
     .tb-fechas { flex: 1 1 100%; }
-    .tb-fechas input { flex: 1; width: auto; }
+    .tb-fechas input { flex: 1; width: auto; min-width: 0; }
+    .rango-fecha { grid-template-columns: 1fr 1fr; }
+    .rango-fecha span { grid-column: 1 / -1; }
     .det-dl { grid-template-columns: 110px minmax(0, 1fr); }
     .drawer-monto { font-size: 26px; }
   }
@@ -1635,25 +1644,97 @@
         <label class="tb-buscar"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span><input type="text" id="filtro-cheques-texto" placeholder="Buscar por N° de cheque, titular, destino o concepto" aria-label="Buscar"></label>
         <select id="filtro-cheques-banco" aria-label="Banco"></select>
         <select id="filtro-cheques-cuenta" aria-label="Cuenta"></select>
-        <div class="tb-fechas" title="Rango de fechas de pago"><input type="date" id="filtro-cheques-desde" aria-label="Pago desde" title="Pago desde"><span class="tb-guion">–</span><input type="date" id="filtro-cheques-hasta" aria-label="Pago hasta" title="Pago hasta"></div>
+        <div class="tb-fechas" title="Rango de fechas: elegí qué fecha del cheque se filtra">
+          <select id="filtro-cheques-campoFecha" aria-label="Fecha que se filtra">
+            <option value="">Vencimiento (pago)</option>
+            <option value="emision">Emisión</option>
+            <option value="debito">Débito / acreditación</option>
+            <option value="ingreso">Ingreso (carga)</option>
+          </select>
+          <input type="date" id="filtro-cheques-desde" aria-label="Desde" title="Desde"><span class="tb-guion">–</span><input type="date" id="filtro-cheques-hasta" aria-label="Hasta" title="Hasta">
+        </div>
         <button class="secondary" id="btnAgruparCheques" type="button" aria-pressed="false" title="Ver los cheques separados por chequera, con su rango de números y los que faltan">Agrupar por chequera</button>
         <div class="tb-mas">
           <button class="secondary" id="btnMas-cheques" type="button">Más filtros</button>
-          <div class="mas-filtros" id="mas-cheques" hidden>
-            <label>Tipo de cuenta
-              <select id="filtro-cheques-tipoCuenta">
-                <option value="">Todas</option>
-                <option>Cuenta corriente</option>
-                <option>Caja de ahorros</option>
-              </select>
-            </label>
+          <div class="mas-filtros ancho" id="mas-cheques" hidden>
+            <h5>Fechas</h5>
+            <p class="mf-ayuda">Se combinan entre sí y con el rango de arriba. Vencimiento es la fecha de pago del cheque; débito / acreditación, el día en que realmente se pagó, depositó o endosó.</p>
+            <div class="rango-fecha"><span>Emisión</span><input type="date" id="filtro-cheques-emisionDesde" aria-label="Emisión desde" title="Emisión desde"><input type="date" id="filtro-cheques-emisionHasta" aria-label="Emisión hasta" title="Emisión hasta"></div>
+            <div class="rango-fecha"><span>Vencimiento (pago)</span><input type="date" id="filtro-cheques-pagoDesde" aria-label="Vencimiento desde" title="Vencimiento desde"><input type="date" id="filtro-cheques-pagoHasta" aria-label="Vencimiento hasta" title="Vencimiento hasta"></div>
+            <div class="rango-fecha"><span>Débito / acreditación</span><input type="date" id="filtro-cheques-debitoDesde" aria-label="Débito desde" title="Débito o acreditación desde"><input type="date" id="filtro-cheques-debitoHasta" aria-label="Débito hasta" title="Débito o acreditación hasta"></div>
+            <div class="rango-fecha"><span>Ingreso (carga)</span><input type="date" id="filtro-cheques-ingresoDesde" aria-label="Ingreso desde" title="Cargado en la app desde"><input type="date" id="filtro-cheques-ingresoHasta" aria-label="Ingreso hasta" title="Cargado en la app hasta"></div>
+            <div class="row">
+              <label>Vencimiento
+                <select id="filtro-cheques-vence">
+                  <option value="">Cualquiera</option>
+                  <option value="vencidos">Ya vencidos</option>
+                  <option value="hoy">Vencen hoy</option>
+                  <option value="7">Próximos 7 días</option>
+                  <option value="15">Próximos 15 días</option>
+                  <option value="30">Próximos 30 días</option>
+                  <option value="mes">Este mes</option>
+                  <option value="mesProximo">Mes próximo</option>
+                  <option value="sinFecha">Sin fecha de pago</option>
+                </select>
+              </label>
+              <label>Emitido
+                <select id="filtro-cheques-emitido">
+                  <option value="">Cualquier fecha</option>
+                  <option value="hoy">Hoy</option>
+                  <option value="7">Últimos 7 días</option>
+                  <option value="30">Últimos 30 días</option>
+                  <option value="mes">Este mes</option>
+                  <option value="mesAnterior">Mes anterior</option>
+                </select>
+              </label>
+            </div>
+            <h5>Cheque</h5>
+            <div class="row">
+              <label>Tipo
+                <select id="filtro-cheques-tipo">
+                  <option value="">Todos</option>
+                  <option>Emitido</option>
+                  <option>De terceros</option>
+                </select>
+              </label>
+              <label>Moneda
+                <select id="filtro-cheques-moneda">
+                  <option value="">Todas</option>
+                  <option>Pesos</option>
+                  <option>USD</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label>Estado en la planilla<select id="filtro-cheques-estado"></select></label>
+              <label>Conciliación
+                <select id="filtro-cheques-conciliacion">
+                  <option value="">Todos</option>
+                  <option value="si">Conciliados</option>
+                  <option value="no">Sin conciliar</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label>Persona<select id="filtro-cheques-persona"></select></label>
+              <label>Chequera<select id="filtro-cheques-chequera"></select></label>
+            </div>
+            <div class="row">
+              <label>Banco emisor<select id="filtro-cheques-bancoEmisor"></select></label>
+              <label>Canal<select id="filtro-cheques-canal"></select></label>
+            </div>
             <div class="row">
               <label>Importe mínimo<input type="number" id="filtro-cheques-importeMin" placeholder="0"></label>
               <label>Importe máximo<input type="number" id="filtro-cheques-importeMax" placeholder="Sin límite"></label>
             </div>
             <div class="row">
-              <label>Estado en la planilla<select id="filtro-cheques-estado"></select></label>
-              <label>Persona<select id="filtro-cheques-persona"></select></label>
+              <label>Tipo de cuenta
+                <select id="filtro-cheques-tipoCuenta">
+                  <option value="">Todas</option>
+                  <option>Cuenta corriente</option>
+                  <option>Caja de ahorros</option>
+                </select>
+              </label>
             </div>
             <div class="actions"><button class="secondary small" id="btnLimpiarFiltroCheques" type="button">Limpiar todos los filtros</button></div>
           </div>
@@ -5720,7 +5801,13 @@ function ordenarPorFecha(filas, campoFecha) {
   return filas.slice().sort((a, b) => fechaAOrden(a[campoFecha]).localeCompare(fechaAOrden(b[campoFecha])));
 }
 
-const CAMPOS_FILTRO = ["banco", "cuenta", "tipoCuenta", "condicion", "texto", "desde", "hasta", "importeMin", "importeMax", "instrumento", "persona", "estado"];
+const CAMPOS_FILTRO = ["banco", "cuenta", "tipoCuenta", "condicion", "texto", "desde", "hasta", "importeMin", "importeMax", "instrumento", "persona", "estado"].concat(CAMPOS_FILTRO_CHEQUES());
+
+// Filtros que existen solo en Cheques (ver FECHAS_CHEQUE y cumpleFiltroCheque).
+function CAMPOS_FILTRO_CHEQUES() {
+  return ["campoFecha", "emisionDesde", "emisionHasta", "pagoDesde", "pagoHasta", "debitoDesde", "debitoHasta", "ingresoDesde", "ingresoHasta",
+    "vence", "emitido", "tipo", "moneda", "conciliacion", "chequera", "bancoEmisor", "canal"];
+}
 
 function filtroEl(prefijo, campo) {
   return $("filtro-" + prefijo + "-" + campo);
@@ -5735,7 +5822,7 @@ function valorFiltro(prefijo, campo) {
 function leerFiltros(prefijo) {
   const importeMinTxt = valorFiltro(prefijo, "importeMin");
   const importeMaxTxt = valorFiltro(prefijo, "importeMax");
-  return {
+  const r = {
     banco: valorFiltro(prefijo, "banco"),
     cuenta: valorFiltro(prefijo, "cuenta"),
     tipoCuenta: valorFiltro(prefijo, "tipoCuenta"),
@@ -5749,6 +5836,8 @@ function leerFiltros(prefijo) {
     persona: valorFiltro(prefijo, "persona"),
     estado: valorFiltro(prefijo, "estado")
   };
+  CAMPOS_FILTRO_CHEQUES().forEach(c => { r[c] = valorFiltro(prefijo, c); });
+  return r;
 }
 
 // Transferencias guardan "Monto" (con signo); cheques, "Importe".
@@ -6121,12 +6210,80 @@ function cargarCheques(forzar) {
     });
 }
 
+// Fechas del cheque que se pueden filtrar: clave del filtro → columna y nombre.
+// "pago" es la fecha de pago del cheque (su vencimiento); "debito", el día en que se pagó, depositó o endosó.
+const FECHAS_CHEQUE = {
+  pago: { campo: "Fecha de Pago", titulo: "Vencimiento" },
+  emision: { campo: "Fecha de Emisión", titulo: "Emisión" },
+  debito: { campo: "Fecha de Débito", titulo: "Débito / acreditación" },
+  ingreso: { campo: "Fecha de Ingreso", titulo: "Ingreso" }
+};
+
+function fechaChequeElegida() {
+  return FECHAS_CHEQUE[valorFiltro("cheques", "campoFecha")] || FECHAS_CHEQUE.pago;
+}
+
+// Días desde hoy hasta la fecha ("aaaa-mm-dd") de la columna; null si no tiene.
+function diasFechaCheque(c, campo) {
+  return diasHasta(fechaAOrden(c[campo] || ""));
+}
+
+// Primer y último día ("aaaa-mm-dd") del mes de hoy corrido en `delta` meses.
+function rangoMes(delta) {
+  const h = new Date();
+  const a = new Date(h.getFullYear(), h.getMonth() + delta, 1), b = new Date(h.getFullYear(), h.getMonth() + delta + 1, 0);
+  const iso = d => d.getFullYear() + "-" + dosDigitos(d.getMonth() + 1) + "-" + dosDigitos(d.getDate());
+  return [iso(a), iso(b)];
+}
+
+function enRango(iso, r) { return !!iso && iso >= r[0] && iso <= r[1]; }
+
+function cumpleFiltroCheque(c, f) {
+  for (const k in FECHAS_CHEQUE) {
+    const desde = f[k + "Desde"], hasta = f[k + "Hasta"];
+    if (!desde && !hasta) continue;
+    const iso = fechaAOrden(c[FECHAS_CHEQUE[k].campo] || "");
+    if (!iso || (desde && iso < desde) || (hasta && iso > hasta)) return false;
+  }
+  if (f.vence) {
+    const iso = fechaAOrden(c["Fecha de Pago"] || ""), d = diasHasta(iso);
+    if (f.vence === "sinFecha") { if (iso) return false; }
+    else if (d === null) return false;
+    else if (f.vence === "vencidos") { if (d >= 0) return false; }
+    else if (f.vence === "hoy") { if (d !== 0) return false; }
+    else if (f.vence === "mes") { if (!enRango(iso, rangoMes(0))) return false; }
+    else if (f.vence === "mesProximo") { if (!enRango(iso, rangoMes(1))) return false; }
+    else if (d < 0 || d > +f.vence) return false;
+  }
+  if (f.emitido) {
+    const iso = fechaAOrden(c["Fecha de Emisión"] || ""), d = diasHasta(iso);
+    if (d === null) return false;
+    if (f.emitido === "hoy") { if (d !== 0) return false; }
+    else if (f.emitido === "mes") { if (!enRango(iso, rangoMes(0))) return false; }
+    else if (f.emitido === "mesAnterior") { if (!enRango(iso, rangoMes(-1))) return false; }
+    else if (d > 0 || d < -(+f.emitido)) return false;
+  }
+  if (f.tipo && c["Tipo"] !== f.tipo) return false;
+  if (f.moneda && monedaCheque(c) !== f.moneda) return false;
+  if (f.conciliacion === "si" && !c["Conciliación"]) return false;
+  if (f.conciliacion === "no" && c["Conciliación"]) return false;
+  if (f.chequera && (c["Chequera"] || "Sin chequera") !== f.chequera) return false;
+  if (f.bancoEmisor && (c["Banco Emisor"] || "Sin banco emisor") !== f.bancoEmisor) return false;
+  if (f.canal && (c["Canal"] || "Sin canal") !== f.canal) return false;
+  return true;
+}
+
 function aplicarFiltrosCheques() {
   poblarFiltroValores("filtro-cheques-persona", chequesDatos, "Persona", "Todas");
   poblarFiltroValores("filtro-cheques-estado", chequesDatos, "Estado", "Todos", "Sin estado");
+  poblarFiltroValores("filtro-cheques-chequera", chequesDatos, "Chequera", "Todas", "Sin chequera");
+  poblarFiltroValores("filtro-cheques-bancoEmisor", chequesDatos, "Banco Emisor", "Todos", "Sin banco emisor");
+  poblarFiltroValores("filtro-cheques-canal", chequesDatos, "Canal", "Todos", "Sin canal");
   const filtro = leerFiltros("cheques");
+  const campoFecha = fechaChequeElegida().campo;
   const filtradas = chequesDatos.filter(f =>
-    cumpleFiltro(f, filtro, ["N° de Cheque", "Titular", "N° de Cuenta", "Destino", "Concepto", "Banco Emisor", "ALYC", "SGR / Emisor", "Chequera", "ID Planilla"], "Fecha de Pago")
+    cumpleFiltro(f, filtro, ["N° de Cheque", "Titular", "N° de Cuenta", "Destino", "Concepto", "Banco Emisor", "ALYC", "SGR / Emisor", "Chequera", "ID Planilla"], campoFecha) &&
+    cumpleFiltroCheque(f, filtro)
   );
   renderCheques(filtradas);
 }
@@ -9916,11 +10073,29 @@ function renderChipsFiltros(prefijo, aplicar) {
   if (f.cuenta) { const c = cuentaPorId(f.cuenta); chips.push({ t: "Cuenta: " + (c ? c["N° de Cuenta"] : f.cuenta), campos: ["cuenta"] }); }
   if (f.tipoCuenta) chips.push({ t: f.tipoCuenta, campos: ["tipoCuenta"] });
   if (f.texto) chips.push({ t: "“" + valorFiltro(prefijo, "texto").trim() + "”", campos: ["texto"] });
-  if (f.desde || f.hasta) chips.push({ t: (f.desde ? "Desde " + isoADma(f.desde) : "") + (f.desde && f.hasta ? " · " : "") + (f.hasta ? "Hasta " + isoADma(f.hasta) : ""), campos: ["desde", "hasta"] });
+  const rango = (d, h) => (d ? "desde " + isoADma(d) : "") + (d && h ? " · " : "") + (h ? "hasta " + isoADma(h) : "");
+  if (f.desde || f.hasta) chips.push({ t: (prefijo === "cheques" ? fechaChequeElegida().titulo + " " : "") + rango(f.desde, f.hasta), campos: ["desde", "hasta"] });
+  if (prefijo === "cheques") {
+    Object.keys(FECHAS_CHEQUE).forEach(k => {
+      if (f[k + "Desde"] || f[k + "Hasta"]) chips.push({ t: FECHAS_CHEQUE[k].titulo + " " + rango(f[k + "Desde"], f[k + "Hasta"]), campos: [k + "Desde", k + "Hasta"] });
+    });
+    const textoSel = c => { const n = filtroEl(prefijo, c); return n && n.selectedIndex >= 0 ? n.options[n.selectedIndex].text.replace(/ \(\d+\)$/, "") : ""; };
+    if (f.vence) chips.push({ t: "Vencimiento: " + textoSel("vence").toLowerCase(), campos: ["vence"] });
+    if (f.emitido) chips.push({ t: "Emitido: " + textoSel("emitido").toLowerCase(), campos: ["emitido"] });
+    if (f.tipo) chips.push({ t: f.tipo, campos: ["tipo"] });
+    if (f.moneda) chips.push({ t: f.moneda, campos: ["moneda"] });
+    if (f.estado) chips.push({ t: "Estado: " + f.estado, campos: ["estado"] });
+    if (f.conciliacion) chips.push({ t: textoSel("conciliacion"), campos: ["conciliacion"] });
+    if (f.persona) chips.push({ t: "Persona: " + f.persona, campos: ["persona"] });
+    if (f.chequera) chips.push({ t: "Chequera: " + f.chequera, campos: ["chequera"] });
+    if (f.bancoEmisor) chips.push({ t: "Banco emisor: " + f.bancoEmisor, campos: ["bancoEmisor"] });
+    if (f.canal) chips.push({ t: "Canal: " + f.canal, campos: ["canal"] });
+  }
   if (f.importeMin !== null || f.importeMax !== null) {
     chips.push({ t: "Importe " + (f.importeMin !== null ? "≥ " + formatImporte(f.importeMin) : "") + (f.importeMin !== null && f.importeMax !== null ? " y " : "") + (f.importeMax !== null ? "≤ " + formatImporte(f.importeMax) : ""), campos: ["importeMin", "importeMax"] });
   }
-  const avanzados = ["tipoCuenta", "importeMin", "importeMax"].filter(c => valorFiltro(prefijo, c)).length;
+  const avanzados = ["tipoCuenta", "importeMin", "importeMax"].concat(prefijo === "cheques" ? CAMPOS_FILTRO_CHEQUES().filter(c => c !== "campoFecha").concat(["estado", "persona"]) : [])
+    .filter(c => valorFiltro(prefijo, c)).length;
   const btnMas = $("btnMas-" + prefijo);
   if (btnMas) btnMas.dataset.n = avanzados ? String(avanzados) : "";
   box.hidden = !chips.length;
