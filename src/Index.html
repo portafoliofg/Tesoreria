@@ -15393,7 +15393,8 @@ let planillaFecha = "";
 // Se respeta el tipo de cada cuenta (CC o CA) tal como está cargado en la app.
 // Lo que no está en la lista va al final de su grupo, ordenado como antes.
 const ORDEN_PLANILLA = {
-  Pesos: ["BANCOR", "CIUDAD", "NACION", "GALICIA", "BBVA", "MACRO", "SUPERVIELLE", "CREDICOOP"],
+  // "SUPERV": el banco puede estar cargado como "Superville".
+  Pesos: ["BANCOR", "CIUDAD", "NACION", "GALICIA", "BBVA", "MACRO", "SUPERV", "CREDICOOP"],
   USD: ["GALICIA", "BBVA", "MACRO", "BANCOR"],
   cuentas: [
     "9150005140406", "9150005173907",                       // Bancor CC, CA
@@ -15589,7 +15590,7 @@ function renderPlanillaInicio() {
   const head = el("div", "pl-head");
   const tit = el("div");
   tit.append(el("div", "card-title", "Saldos"),
-    el("div", "dt-sub", "Escribí los saldos del día y guardá. En gris, el último informado: se guarda igual si no lo cambiás."));
+    el("div", "dt-sub", "Escribí los saldos del día y guardá. En gris, el último informado: se guarda igual si no lo cambiás. También podés copiar en el Excel las columnas Cuentas y FCI y pegarlas en el primer saldo: se cargan en orden."));
   const acc = el("div", "pl-acciones");
   const fecha = el("input");
   fecha.type = "date";
@@ -15641,6 +15642,7 @@ function renderPlanillaInicio() {
       estado.textContent = cambios ? cambios + " cambio(s) sin guardar" : "";
     };
     recalculos.push(recalcular);
+    const filasPegar = [];
     gs.forEach(g => {
       const filas = Math.max(1, g.cuentas.length);
       for (let i = 0; i < filas; i++) {
@@ -15649,14 +15651,21 @@ function renderPlanillaInicio() {
         const tdC = el("td", "pl-cta");
         tdC.append(el("span", "strong", g.banco), document.createTextNode(x ? " " + [siglaTipo(x.c["Tipo de Cuenta"]), x.c["N° de Cuenta"]].filter(Boolean).join(" ") : ""));
         const tdS = el("td");
-        if (x) tdS.append(inputPlanilla(x, () => recalculos.forEach(r => r())));
-        else tdS.append(el("span", "dt-sub", "Sin cuentas"));
+        const fila = { x: x || null, g: g, inpC: null };
+        const idx = filasPegar.push(fila) - 1;
+        if (x) {
+          fila.inpC = inputPlanilla(x, () => recalculos.forEach(r => r()));
+          fila.inpC.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, false));
+          tdS.append(fila.inpC);
+        } else tdS.append(el("span", "dt-sub", "Sin cuentas"));
         tr.append(tdC, tdS);
         if (i === 0) {
           // FCI y TOTAL: una celda por banco, como las combinadas de la planilla.
           const tdF = el("td", "pl-grupo");
           tdF.rowSpan = filas;
-          tdF.append(inputPlanilla(g.fci, () => recalculos.forEach(r => r())));
+          g.inpF = inputPlanilla(g.fci, () => recalculos.forEach(r => r()));
+          g.inpF.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, true));
+          tdF.append(g.inpF);
           g.tdTotal = el("td", "pl-grupo pl-total");
           g.tdTotal.rowSpan = filas;
           tr.append(tdF, g.tdTotal);
@@ -15691,6 +15700,33 @@ function renderPlanillaInicio() {
     }
   });
   box.replaceChildren(card);
+}
+
+// Pegar columnas copiadas del Excel en la planilla de Saldos: cada renglón va a la fila que le toca,
+// en el orden de la pantalla (el mismo del Excel). filas: [{x: cuenta o null, g: grupo, inpC, inpF}].
+// Pegado en una celda de Saldos: 1ª columna → saldos, 2ª → FCI. Pegado en una de FCI: 1ª → FCI.
+// El FCI del Excel es una celda combinada: de los renglones de cada banco se toma el primero con dato.
+function pegarColumnasPlanilla(e, filas, desde, esFci) {
+  const t = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
+  if (!t || (t.indexOf("\n") < 0 && t.indexOf("\t") < 0)) return;
+  e.preventDefault();
+  const renglones = t.replace(/\r/g, "").replace(/\n+$/, "").split("\n").map(l => l.split("\t"));
+  const poner = (inp, txt) => {
+    if (!inp || !String(txt || "").trim()) return;
+    inp.value = String(txt).trim();
+    inp.dispatchEvent(new Event("input"));
+    inp.dispatchEvent(new Event("blur"));
+  };
+  const colFci = esFci ? 0 : 1;
+  const fciPuesto = new Set();
+  renglones.forEach((r, i) => {
+    const f = filas[desde + i];
+    if (!f) return;
+    if (!esFci) poner(f.inpC, r[0]);
+    if (r.length > colFci && !fciPuesto.has(f.g) && String(r[colFci] || "").trim()) { poner(f.g.inpF, r[colFci]); fciPuesto.add(f.g); }
+  });
+  const sobran = renglones.length - (filas.length - desde);
+  toast(sobran > 0 ? "Pegado en orden. Sobraron " + sobran + " renglón(es): revisá que la planilla tenga las mismas cuentas." : "Pegado en orden. Revisá y tocá Guardar saldos.", sobran > 0 ? "error" : "ok");
 }
 
 // ---------------- Planilla como imagen (para WhatsApp) ----------------
