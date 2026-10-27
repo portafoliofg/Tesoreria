@@ -32,24 +32,29 @@
   var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
   var estado = { edificio: null, valores: [], url: "", parametros: null, cargando: null, listo: false, error: "" };
   var dialogo = null;
-  // Valores genéricos para Saavedra (CABA, octubre de 2026), en pesos: departamento usado a
-  // ~USD 2.400 el m², dólar ~$ 1.450. Por tipo de unidad; la vivienda según los dormitorios
-  // (sin dato, 1 dormitorio · 2 ambientes, ~45 m²). Compra ≈ 88 % y venta ≈ 95 % del valor real.
-  // Gastos mensuales: ABL, expensas a cargo del dueño y seguro.
+  // Valores genéricos para Saavedra (CABA, octubre de 2026), en dólares de mercado: departamento
+  // usado a ~USD 2.700 el m² (informes de Zonaprop, Mercado Libre/UdeSA y portales de 2026:
+  // entre USD 2.600 y 2.900). Valor real = precio de mercado de la unidad; venta estimada = 95 %
+  // (lo que suele cerrarse por debajo del aviso). Se pasan a pesos con el Dólar Blue.
+  // La compra NO sale de acá: es lo que se invirtió (compraTotalUSD), repartido entre las unidades.
+  // Vivienda según los dormitorios (sin dato, 1 dormitorio · 2 ambientes).
+  // Gastos mensuales (en pesos): ABL, expensas a cargo del dueño y seguro.
   var ESTIMADOS = {
     lugares: ["saavedra"],
-    vivienda: [110000000, 150000000, 205000000, 265000000],  // 0, 1, 2 y 3 o más dormitorios
-    cochera: 32000000,
-    comercial: 175000000,
+    usdM2: 2700,
+    m2Vivienda: [32, 45, 65, 85],  // 0, 1, 2 y 3 o más dormitorios
+    cocheraUSD: 25000,
+    comercialUSD: 130000,
     gastosVivienda: 90000, gastosCochera: 25000, gastosComercial: 120000,
-    compra: 0.88, venta: 0.95,
+    venta: 0.95,
     // Compra real de todo el lugar, en dólares: se reparte entre sus unidades según el valor
-    // genérico de cada una (una cochera recibe menos que un departamento). Valor real y venta
-    // salen de esa compra con las mismas proporciones (compra = 88 % del valor real).
+    // de mercado de cada una (una cochera recibe menos que un departamento).
     compraTotalUSD: { saavedra: 780000 },
+    compraSinTotal: 0.88,  // lugares sin compra total: compra ≈ 88 % del valor de mercado
     dolar: 1450  // si no hay cotización del Dólar Blue
   };
-  var zonas = {};  // clave(lugar) → {total en pesos, peso: suma de valores genéricos de sus unidades}
+  var zonas = {};  // clave(lugar) → {total en pesos, peso: suma de valores de mercado (USD) de sus unidades}
+  var cotiz = ESTIMADOS.dolar;  // pesos por dólar para los estimados
 
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
   var fmt = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -107,30 +112,28 @@
   function configurarZona(lugar, unidades, tc) {
     var k = clave(lugar), usd = ESTIMADOS.compraTotalUSD[k];
     if (!usd) return;
+    if (tc > 0) cotiz = tc;
     var peso = 0;
-    (unidades || []).forEach(function (u) { peso += generico(u, cargado(u)).real; });
-    zonas[k] = { total: usd * (tc > 0 ? tc : ESTIMADOS.dolar), peso: peso };
+    (unidades || []).forEach(function (u) { peso += generico(u, cargado(u)).usd; });
+    zonas[k] = { total: usd * cotiz, peso: peso };
   }
 
-  // Valor genérico de mercado y gastos de la unidad según su tipo.
+  // Valor de mercado (en dólares) y gastos de la unidad según su tipo.
   function generico(u, v) {
     var nombre = clave(u.unidad), destino = (v && v.destino) || "";
-    if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) return { real: ESTIMADOS.cochera, gastos: ESTIMADOS.gastosCochera };
-    if (destino === "Comercial" || (!destino && /local/.test(nombre))) return { real: ESTIMADOS.comercial, gastos: ESTIMADOS.gastosComercial };
+    if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) return { usd: ESTIMADOS.cocheraUSD, gastos: ESTIMADOS.gastosCochera };
+    if (destino === "Comercial" || (!destino && /local/.test(nombre))) return { usd: ESTIMADOS.comercialUSD, gastos: ESTIMADOS.gastosComercial };
     var dorm = v && typeof v.dormitorios === "number" && !isNaN(v.dormitorios) ? v.dormitorios : 1;
-    return { real: ESTIMADOS.vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.vivienda.length - 1)], gastos: ESTIMADOS.gastosVivienda };
+    return { usd: ESTIMADOS.usdM2 * ESTIMADOS.m2Vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.m2Vivienda.length - 1)], gastos: ESTIMADOS.gastosVivienda };
   }
 
+  // Valor real y venta: los de mercado de la zona. Compra: la parte de la inversión total que le toca.
   function estimadoPara(u, v, lugar) {
     var kz = clave(lugar || u.lugar);
     if (ESTIMADOS.lugares.indexOf(kz) < 0) return null;
-    var g = generico(u, v), z = zonas[kz];
-    if (z && z.peso > 0) {
-      var compra = Math.round(z.total * g.real / z.peso), realZ = Math.round(compra / ESTIMADOS.compra);
-      return { valorReal: realZ, precioCompra: compra, ventaEstimada: Math.round(realZ * ESTIMADOS.venta), gastosMensuales: g.gastos };
-    }
-    var real = g.real, gastos = g.gastos;
-    return { valorReal: real, precioCompra: Math.round(real * ESTIMADOS.compra), ventaEstimada: Math.round(real * ESTIMADOS.venta), gastosMensuales: gastos };
+    var g = generico(u, v), z = zonas[kz], real = Math.round(g.usd * cotiz);
+    var compra = z && z.peso > 0 ? Math.round(z.total * g.usd / z.peso) : Math.round(real * ESTIMADOS.compraSinTotal);
+    return { valorReal: real, precioCompra: compra, ventaEstimada: Math.round(real * ESTIMADOS.venta), gastosMensuales: g.gastos };
   }
 
   // Lo cargado, completado con los estimados de la zona en los importes que falten.
