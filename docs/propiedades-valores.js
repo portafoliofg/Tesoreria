@@ -32,21 +32,20 @@
   var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
   var estado = { edificio: null, valores: [], url: "", parametros: null, cargando: null, listo: false, error: "" };
   var dialogo = null;
-  // Valores genéricos para Saavedra (CABA, octubre de 2026), en dólares de mercado: departamento
-  // usado a ~USD 2.700 el m² (informes de Zonaprop, Mercado Libre/UdeSA y portales de 2026:
-  // entre USD 2.600 y 2.900). Valor real = precio de mercado de la unidad; venta estimada = 95 %
-  // (lo que suele cerrarse por debajo del aviso). Se pasan a pesos con el Dólar Blue.
+  // Valores genéricos para Saavedra (octubre de 2026), en dólares, con el rango de la zona del
+  // edificio: USD 1.100 a 1.250 el m². Valor real = el techo (USD 1.250); venta estimada = el
+  // piso (USD 1.100), lo que se cerraría al vender. Se pasan a pesos con el Dólar Blue.
   // La compra NO sale de acá: es lo que se invirtió (compraTotalUSD), repartido entre las unidades.
   // Vivienda según los dormitorios (sin dato, 1 dormitorio · 2 ambientes).
   // Gastos mensuales (en pesos): ABL, expensas a cargo del dueño y seguro.
   var ESTIMADOS = {
     lugares: ["saavedra"],
-    usdM2: 2700,
+    usdM2: 1250,
     m2Vivienda: [32, 45, 65, 85],  // 0, 1, 2 y 3 o más dormitorios
-    cocheraUSD: 25000,
-    comercialUSD: 130000,
+    cocheraUSD: 12000,
+    comercialUSD: 60000,
     gastosVivienda: 90000, gastosCochera: 25000, gastosComercial: 120000,
-    venta: 0.95,
+    venta: 1100 / 1250,  // venta estimada sobre el valor real (piso / techo del m²)
     // Compra real de todo el lugar, en dólares: se reparte entre sus unidades según el valor
     // de mercado de cada una (una cochera recibe menos que un departamento).
     compraTotalUSD: { saavedra: 780000 },
