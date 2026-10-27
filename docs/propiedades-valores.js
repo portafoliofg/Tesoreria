@@ -10,7 +10,7 @@
  * PropValores.cargar(edificio) → Promise   (lo llama propiedades-vista.js al mostrar un edificio)
  * PropValores.de(u, lugar) → {valorReal, precioCompra, ventaEstimada, dormitorios, destino, cochera, estimados, ...} o null
  * PropValores.esEstimado(v, campo) → true si ese importe es el estimado de la zona
- * PropValores.configurarZona(lugar, unidades, tc) → reparte la compra total del lugar (Saavedra: USD 750.000)
+ * PropValores.configurarZona(lugar, unidades, tc) → reparte la compra total del lugar (Saavedra: USD 780.000)
  * PropValores.rendimiento(v, alquiler) → número (0,062 = 6,2 % anual) o null
  * PropValores.calculo(v, ctx) → {alquiler, gastos, neto, bruto, rendNeto} por mes (rendimientos anuales sobre la compra)
  * PropValores.botonInfo(u, ctx) → botón "i" que abre el detalle.
@@ -46,7 +46,7 @@
     // Compra real de todo el lugar, en dólares: se reparte entre sus unidades según el valor
     // genérico de cada una (una cochera recibe menos que un departamento). Valor real y venta
     // salen de esa compra con las mismas proporciones (compra = 88 % del valor real).
-    compraTotalUSD: { saavedra: 750000 },
+    compraTotalUSD: { saavedra: 780000 },
     dolar: 1450  // si no hay cotización del Dólar Blue
   };
   var zonas = {};  // clave(lugar) → {total en pesos, peso: suma de valores genéricos de sus unidades}
