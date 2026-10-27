@@ -341,9 +341,9 @@ function formatoCuentas_(hoja, nro, v) {
 }
 
 /**
- * Cuentas de impuestos de muchas unidades de un edificio a la vez.
- * d: {cuentas: [{unidad, clave, lugar, muni, aguas, rentas}], edificio}
- * Solo escribe las cuentas (y crea la fila de la unidad si no tenía); los valores no se tocan.
+ * Cuentas de impuestos (y, si vienen, dormitorios y destino) de muchas unidades de un edificio a la vez.
+ * d: {cuentas: [{unidad, clave, lugar, muni, aguas, rentas, dormitorios, destino}], edificio}
+ * Solo escribe esos datos (y crea la fila de la unidad si no tenía); los valores no se tocan.
  */
 function guardarCuentasPropiedades_(d, u) {
   const edificio = String(d.edificio || '').trim();
@@ -377,6 +377,10 @@ function guardarCuentasPropiedades_(d, u) {
         previa[h] = v[h];
       });
       formatoCuentas_(hoja, nro, v);
+      // Dormitorios y destino, si vienen (de 0 a 20 y uno de la lista).
+      const dorm = x.dormitorios === undefined || x.dormitorios === null || x.dormitorios === '' ? null : parseInt(x.dormitorios, 10);
+      if (dorm !== null && dorm >= 0 && dorm <= 20) { hoja.getRange(nro, HEADERS_VALORES_UNIDADES.indexOf('Dormitorios') + 1).setValue(dorm); previa['Dormitorios'] = dorm; }
+      if (x.destino && DESTINOS_UNIDAD.indexOf(x.destino) >= 0) { hoja.getRange(nro, HEADERS_VALORES_UNIDADES.indexOf('Destino') + 1).setValue(x.destino); previa['Destino'] = x.destino; }
       hoja.getRange(nro, HEADERS_VALORES_UNIDADES.indexOf('Actualizado por') + 1, 1, 2).setNumberFormat('@').setValues([[nombreDe_(u), ahoraTexto_()]]);
       previa['Actualizado por'] = nombreDe_(u); previa['Fecha'] = ahoraTexto_();
       guardadas.push(valorPublico_(previa));
