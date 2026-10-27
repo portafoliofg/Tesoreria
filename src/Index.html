@@ -15390,12 +15390,13 @@ let planillaFecha = "";
 
 // Orden de la planilla de Saldos: el mismo de la planilla de Excel de Sammartino. Bancos por
 // moneda (por parte del nombre) y, dentro de cada banco, las cuentas por número (solo dígitos).
+// Se respeta el tipo de cada cuenta (CC o CA) tal como está cargado en la app.
 // Lo que no está en la lista va al final de su grupo, ordenado como antes.
 const ORDEN_PLANILLA = {
   Pesos: ["BANCOR", "CIUDAD", "NACION", "GALICIA", "BBVA", "MACRO", "SUPERVIELLE", "CREDICOOP"],
   USD: ["GALICIA", "BBVA", "MACRO", "BANCOR"],
   cuentas: [
-    "9150005173907", "9150005140406",                       // Bancor CC, CA
+    "9150005140406", "9150005173907",                       // Bancor CC, CA
     "94960739", "400455613556", "400853753558",             // Galicia CC, CA 6, CA 8
     "2910205616", "2910189282", "2910209076", "2913400652", // BBVA CC 166, CC 820, CC 766, CA
     "430009557869773", "330009421343525"                    // Macro CA, CC
