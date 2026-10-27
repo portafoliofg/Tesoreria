@@ -457,5 +457,7 @@
       .map(function (c) { return { unidad: c.datos["Unidad"], inquilino: c.datos["Inquilino"] || "", lugar: c.datos["Lugar"] || "" }; });
   }
 
-  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar, montoDe: montoDe, fuenteDe: fuenteDe, sinUnidad: sinUnidad, cuotaDe: cuotaDe };
+  window.PropContratos = { cargar: cargar, panel: panel, botonRecordar: botonRecordar, montoDe: montoDe, fuenteDe: fuenteDe, sinUnidad: sinUnidad, cuotaDe: cuotaDe,
+    // Dólar Blue {compra, venta, fecha, fuente} o null (lo usa Rentabilidad para ver en dólares).
+    dolar: function () { return estado.dolar; } };
 })();

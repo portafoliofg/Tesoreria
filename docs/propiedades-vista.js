@@ -785,9 +785,9 @@
   var MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   // Importe de PropValores en una celda; si es el estimado de la zona, en gris y con aviso.
-  function celdaValor(v, k, cls) {
+  function celdaValor(v, k, cls, formato) {
     var est = PropValores.esEstimado(v, k);
-    var td = el("td", cls + (est ? " estimado" : ""), (est ? "≈ " : "") + pesos0(v[k]));
+    var td = el("td", cls + (est ? " estimado" : ""), (est ? "≈ " : "") + (formato || pesos0)(v[k]));
     if (est) td.title = "Estimado para la zona. Cargá el valor real con la “i”.";
     return td;
   }
@@ -976,6 +976,43 @@
   // qué deja por año seguir alquilando contra vender al valor estimado (menos los costos de
   // venta) e invertir lo cobrado a la tasa alternativa. Usa los valores de la "i" de cada unidad.
   var COSTOS_VENTA_DEF = 5;
+  // Rentabilidad en dólares: prendido o no y la cotización elegida (si no, la del Dólar Blue venta).
+  var rentUSD = { on: false, tc: null };
+  try { rentUSD.on = localStorage.getItem("prop-rent-usd") === "1"; rentUSD.tc = numeroDe(localStorage.getItem("prop-rent-tc")) || null; } catch (e) {}
+  function cotizacionRent() {
+    if (rentUSD.tc > 0) return rentUSD.tc;
+    var dol = window.PropContratos && PropContratos.dolar ? PropContratos.dolar() : null;
+    return dol && dol.venta > 0 ? dol.venta : null;
+  }
+  function barraMoneda(tc) {
+    var bar = el("div", "rent-moneda");
+    var b = el("button", "boton chico" + (rentUSD.on ? "" : " secundario"), "Precio dólar");
+    b.type = "button"; b.setAttribute("aria-pressed", rentUSD.on ? "true" : "false");
+    b.title = rentUSD.on ? "Volver a ver los importes en pesos" : "Ver los importes en dólares";
+    b.addEventListener("click", function () {
+      rentUSD.on = !rentUSD.on;
+      try { localStorage.setItem("prop-rent-usd", rentUSD.on ? "1" : "0"); } catch (e) {}
+      repintarPestana();
+    });
+    bar.append(b);
+    if (!rentUSD.on) return bar;
+    var lab = el("label", null, "Cotización $");
+    var i = el("input"); i.type = "text"; i.inputMode = "decimal"; i.value = tc ? numTxt(tc, 0) : ""; i.placeholder = "Ej. 1.450";
+    i.setAttribute("aria-label", "Cotización del dólar en pesos");
+    i.addEventListener("change", function () {
+      var n = numeroDe(i.value);
+      rentUSD.tc = n > 0 ? n : null;
+      try { if (rentUSD.tc) localStorage.setItem("prop-rent-tc", String(rentUSD.tc)); else localStorage.removeItem("prop-rent-tc"); } catch (e) {}
+      repintarPestana();
+    });
+    lab.append(i);
+    bar.append(lab);
+    var dol = window.PropContratos && PropContratos.dolar ? PropContratos.dolar() : null;
+    bar.append(el("span", "sub", !tc ? "Cargá la cotización para ver los importes en dólares." :
+      rentUSD.tc > 0 ? "Cotización cargada a mano" + (dol && dol.venta ? " (Dólar Blue venta: $ " + numTxt(dol.venta, 0) + "; borrala para usarla)" : "") + "." :
+      "Dólar Blue venta" + (dol.fecha ? " del " + dol.fecha : "") + ". Podés cambiarla."));
+    return bar;
+  }
   function vistaRentabilidad(d) {
     var box = el("div", "columna");
     if (!window.PropValores || !PropValores.listo()) { box.append(el("p", "cargando", "Cargando valores de las unidades…")); return box; }
@@ -983,6 +1020,14 @@
     var par = PropValores.parametros() || {};
     var costos = typeof par.costosVenta === "number" ? par.costosVenta : COSTOS_VENTA_DEF;
     var tasa = typeof par.tasaAlternativa === "number" ? par.tasaAlternativa : null;
+    // Precio dólar: los importes se ven en dólares, divididos por la cotización (Dólar Blue venta, editable).
+    var tc = cotizacionRent();
+    var usd = rentUSD.on && tc > 0;
+    var fmtUSD = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 });
+    var fmtUSDCorto = new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 });
+    function m0(n) { return usd && typeof n === "number" && !isNaN(n) ? "U$S " + fmtUSD.format(n / tc) : pesos0(n); }
+    function mc(n) { return usd && typeof n === "number" ? "U$S " + fmtUSDCorto.format(n / tc) : corto(n); }
+    box.append(barraMoneda(tc));
     var aCargo = ((d.expensas || {}).aCargo || {}).valores || {};
     var impEdificio = (aCargo.rentas || 0) + (aCargo.municipalidad || 0);
 
@@ -1051,10 +1096,10 @@
     // KPIs del portafolio
     var k = el("div", "kpis");
     [
-      ["Invertido", corto(tot.invertido || null), tot.conValores + " de " + tot.n + " unidades con valores"],
-      ["Valor real", corto(tot.valorReal || null), tot.dReal === null ? "Cargalo con la “i”" : signo(tot.dReal) + " sobre la compra", tot.dReal !== null && tot.dReal < 0 ? "baja" : "ok"],
-      ["Venta estimada", corto(tot.venta || null), valoriz === null ? "Cargala con la “i”" : signo(valoriz) + " sobre la compra", valoriz !== null && valoriz < 0 ? "baja" : "ok"],
-      ["Alquiler anual", corto(tot.alquilerAnual || null), "Neto " + corto(tot.netoAnual - impEdificio * 12) + " después de gastos"],
+      ["Invertido", mc(tot.invertido || null), tot.conValores + " de " + tot.n + " unidades con valores"],
+      ["Valor real", mc(tot.valorReal || null), tot.dReal === null ? "Cargalo con la “i”" : signo(tot.dReal) + " sobre la compra", tot.dReal !== null && tot.dReal < 0 ? "baja" : "ok"],
+      ["Venta estimada", mc(tot.venta || null), valoriz === null ? "Cargala con la “i”" : signo(valoriz) + " sobre la compra", valoriz !== null && valoriz < 0 ? "baja" : "ok"],
+      ["Alquiler anual", mc(tot.alquilerAnual || null), "Neto " + mc(tot.netoAnual - impEdificio * 12) + " después de gastos"],
       ["Rendimiento bruto", rendBruto === null ? "—" : pct1(rendBruto), "Alquiler sobre la compra"],
       ["Rendimiento neto", rendNeto === null ? "—" : pct1(rendNeto), "Después de adm., arreglos, gastos" + (impEdificio ? " e impuestos a cargo" : ""), rendNeto !== null && rendNeto < 0 ? "baja" : "ok"]
     ].forEach(function (x) {
@@ -1066,7 +1111,7 @@
     if (!tot.conValores) box.append(el("div", "alerta", "Todavía no hay valores cargados. Tocá la “i” de cada unidad (en Unidades o en la tabla de abajo) y cargá precio de compra, valor real, venta estimada y gastos."));
 
     // Por lugar
-    var pl = panel("Por lugar", "Rendimientos sobre el precio de compra de las unidades que lo tienen cargado." + (impEdificio ? " Los impuestos a cargo del dueño (Expensas, " + pesos0(impEdificio) + " por mes) se descuentan solo en el total." : ""));
+    var pl = panel("Por lugar", "Rendimientos sobre el precio de compra de las unidades que lo tienen cargado." + (impEdificio ? " Los impuestos a cargo del dueño (Expensas, " + m0(impEdificio) + " por mes) se descuentan solo en el total." : ""));
     var tl = el("table"), th = el("thead"), hr = el("tr");
     ["Lugar", "Unidades", "Invertido", "Valor real", "Venta estimada", "Alquiler anual", "Gastos anuales", "Neto anual", "Rend. bruto", "Rend. neto"].forEach(function (h, i) { hr.append(el("th", i ? "num" : "", h)); });
     th.append(hr);
@@ -1074,9 +1119,9 @@
     function filaResumen(nombre, r, extraGastos, cls) {
       var tr = el("tr", cls || "");
       var neto = r.netoAnual - (extraGastos || 0);
-      tr.append(el("td", null, nombre), el("td", "num", r.conValores + " / " + r.n), el("td", "num", pesos0(r.invertido || null)), el("td", "num", pesos0(r.valorReal || null)),
-        el("td", "num", pesos0(r.venta || null)), el("td", "num", pesos0(r.alquilerAnual || null)), el("td", "num", pesos0((r.gastosAnual + (extraGastos || 0)) || null)),
-        el("td", "num" + (neto < 0 ? " rojo" : ""), pesos0(r.alquilerAnual ? neto : null)),
+      tr.append(el("td", null, nombre), el("td", "num", r.conValores + " / " + r.n), el("td", "num", m0(r.invertido || null)), el("td", "num", m0(r.valorReal || null)),
+        el("td", "num", m0(r.venta || null)), el("td", "num", m0(r.alquilerAnual || null)), el("td", "num", m0((r.gastosAnual + (extraGastos || 0)) || null)),
+        el("td", "num" + (neto < 0 ? " rojo" : ""), m0(r.alquilerAnual ? neto : null)),
         el("td", "num", r.compraConRenta ? pct1(r.brutoConCompra / r.compraConRenta) : "—"),
         el("td", "num", r.compraConRenta ? pct1((r.netoConCompra - (extraGastos || 0)) / r.compraConRenta) : "—"));
       return tr;
@@ -1114,14 +1159,14 @@
       if (dif === null) conv.append(el("span", "sub", x.v.ventaEstimada ? (tasa === null ? "Falta la tasa" : "Falta el alquiler") : "Falta la venta estimada"));
       else {
         conv.append(el("span", "pill " + (dif > 0 ? "vender" : "alquilar"), dif > 0 ? "Vender" : "Alquilar"));
-        conv.append(el("span", "sub", "+" + pesos0(Math.abs(dif)) + " por año"));
+        conv.append(el("span", "sub", "+" + m0(Math.abs(dif)) + " por año"));
       }
-      tr.append(cu, el("td", null, x.lugar), celdaValor(x.v, "precioCompra", "num"),
-        el("td", "num", pesos0(x.c.alquiler)), el("td", "num", x.c.alquiler ? pesos0(x.c.gastos) : "—"),
-        el("td", "num" + (x.c.neto !== null && x.c.neto < 0 ? " rojo" : ""), pesos0(x.c.neto)),
+      tr.append(cu, el("td", null, x.lugar), celdaValor(x.v, "precioCompra", "num", m0),
+        el("td", "num", m0(x.c.alquiler)), el("td", "num", x.c.alquiler ? m0(x.c.gastos) : "—"),
+        el("td", "num" + (x.c.neto !== null && x.c.neto < 0 ? " rojo" : ""), m0(x.c.neto)),
         el("td", "num", x.c.bruto === null ? "—" : pct1(x.c.bruto)), el("td", "num rend-celda", x.c.rendNeto === null ? "—" : pct1(x.c.rendNeto)),
         el("td", "num", x.sobreVenta === null ? "—" : pct1(x.sobreVenta)),
-        el("td", "num", pesos0(x.netoAnual)), el("td", "num", pesos0(x.vendiendo)), conv);
+        el("td", "num", m0(x.netoAnual)), el("td", "num", m0(x.vendiendo)), conv);
       tbu.append(tr);
     });
     // Todo el portafolio: seguir alquilando o vender todo lo que tiene venta estimada.
@@ -1131,7 +1176,7 @@
     var lt = el("td", null, "Total · " + conEsc.length + " unidad(es) con escenario"); lt.colSpan = 9;
     var ct = el("td");
     if (conEsc.length) ct.append(el("span", "pill " + (vendT > alqT ? "vender" : "alquilar"), vendT > alqT ? "Vender" : "Alquilar"));
-    rf.append(lt, el("td", "num", conEsc.length ? pesos0(alqT) : "—"), el("td", "num", conEsc.length ? pesos0(vendT) : "—"), ct);
+    rf.append(lt, el("td", "num", conEsc.length ? m0(alqT) : "—"), el("td", "num", conEsc.length ? m0(vendT) : "—"), ct);
     tfu.append(rf);
     tu.append(thu, tbu, tfu);
     var wu = el("div", "tabla-scroll fija"); wu.append(tu); pu.append(wu);
