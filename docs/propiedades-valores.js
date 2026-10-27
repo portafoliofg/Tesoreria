@@ -323,6 +323,59 @@
     iDorm.focus();
   }
 
+  // ----- Cuentas de impuestos de Saavedra (listado del Excel: PH, MUNI, RENTAS) -----
+  // Se cargan solas una vez en las unidades de Saavedra que todavía no tienen cuentas. Para no
+  // tocar otro edificio con unidades de igual nombre, solo si coinciden al menos 20 de las 27.
+  var CUENTAS_SAAVEDRA = [
+    ["LOCAL 1 A", "03-1103001800001", "110144639901"],
+    ["LOCAL 2 B", "03-1103001800002", "110144639910"],
+    ["LOCAL 3 C", "03-1103001800003", "110144639928"],
+    ["PB A", "03-1103001800004", "110144639936"],
+    ["PB B", "03-1103001800005", "110144639944"],
+    ["PB C", "03-1103001800006", "110144639952"],
+    ["PB D", "03-1103001800007", "110144639961"],
+    ["1° A", "03-1103001800008", "110144639979"],
+    ["1° B", "03-1103001800009", "110144639987"],
+    ["1° C", "03-1103001800010", "110144639995"],
+    ["1° D", "03-1103001800011", "110144640004"],
+    ["1° E", "03-1103001800012", "110144640012"],
+    ["1° F", "03-1103001800013", "110144640021"],
+    ["1° G", "03-1103001800014", "110144640039"],
+    ["1° H", "03-1103001800015", "110144640047"],
+    ["2° A", "03-1103001800016", "110144640055"],
+    ["2° B", "03-1103001800017", "110144640063"],
+    ["2° C", "03-1103001800018", "110144640071"],
+    ["2° D", "03-1103001800019", "110144640080"],
+    ["2° E", "03-1103001800020", "110144640098"],
+    ["2° F", "03-1103001800021", "110144640101"],
+    ["2° G", "03-1103001800022", "110144640110"],
+    ["2° H", "03-1103001800023", "110144640128"],
+    ["3° A", "03-1103001800024", "110144640136"],
+    ["3° B", "03-1103001800025", "110144640144"],
+    ["3° C", "03-1103001800026", "110144640152"],
+    ["3° D", "03-1103001800027", "110144640161"]
+  ];
+  var sembrando = false;
+  function sembrarCuentas(edificio, unidades) {
+    if (sembrando || !estado.listo || estado.edificio !== edificio) return Promise.resolve(0);
+    var pares = CUENTAS_SAAVEDRA.map(function (c) { return { c: c, u: unidadDeListado(c[0], unidades) }; }).filter(function (x) { return x.u; });
+    if (pares.length < 20) return Promise.resolve(0);
+    var lista = pares.filter(function (x) { var v = cargado(x.u) || {}; return !v.muni && !v.rentas; }).map(function (x) {
+      return { unidad: x.u.unidad, clave: claveDe(x.u), lugar: x.u.lugar || "", muni: x.c[1], rentas: x.c[2] };
+    });
+    if (!lista.length) return Promise.resolve(0);
+    sembrando = true;
+    return BGPSesion.pedir("guardarValorPropiedad", { cuentas: lista, edificio: edificio }).then(function (r) {
+      (r.valores || []).forEach(function (nv) {
+        var k = clave(nv.clave);
+        estado.valores = estado.valores.filter(function (x) { return clave(x.clave) !== k; });
+        estado.valores.push(nv);
+      });
+      sembrando = false;
+      return lista.length;
+    }, function (err) { sembrando = false; console.log("Cuentas de Saavedra: " + ((err && err.message) || err)); return 0; });
+  }
+
   // ----- Cuentas de impuestos de muchas unidades (pegadas del Excel) -----
   // Columnas PH (unidad), MUNI, AGUAS y RENTAS; con o sin la fila de títulos.
   function leerListadoCuentas(txt) {
@@ -452,7 +505,7 @@
   }
 
   window.PropValores = {
-    cargar: cargar, de: de, esEstimado: esEstimado, configurarZona: configurarZona, botonCuentas: botonCuentas, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
+    cargar: cargar, de: de, esEstimado: esEstimado, configurarZona: configurarZona, botonCuentas: botonCuentas, sembrarCuentas: sembrarCuentas, rendimiento: rendimiento, calculo: calculo, botonInfo: botonInfo,
     parametros: function () { return estado.parametros; },
     // Unidades importadas en el mapa (KML): [{lugar, nombre, unidad}]
     unidadesMapa: function () { return estado.listo && estado.edificio ? (estado.unidadesMapa || []) : []; },

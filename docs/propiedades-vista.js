@@ -247,7 +247,15 @@
     // Los contratos del edificio (teléfonos para "Recordarle"); al llegar se redibuja la pestaña.
     if (actual && window.PropContratos) PropContratos.cargar(actual.edificio).then(function () { if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana(); });
     // Valores y detalle de cada unidad (planilla aparte, propiedades-valores.js).
-    if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () { if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana(); }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
+    if (actual && window.PropValores) PropValores.cargar(actual.edificio).then(function () {
+      if ((pestana === "unidades" || pestana === "rentabilidad") && !editando()) repintarPestana();
+      // Cuentas de municipalidad y rentas de Saavedra: se guardan solas la primera vez.
+      var d = actual && actual.datos;
+      if (!d || !PropValores.sembrarCuentas) return;
+      var deSaavedra = unidadesConContratos(d).filter(function (u) { return lugarDe(d, u) === "Saavedra"; })
+        .map(function (u) { return { unidad: u.unidad, clave: u.clave, lugar: "Saavedra" }; });
+      PropValores.sembrarCuentas(actual.edificio, deSaavedra).then(function (n) { if (n && pestana === "unidades" && !editando()) repintarPestana(); });
+    }, function (err) { if (err && err.sesion === false) irAlIngreso(); });
     var caja = $("contenido");
     caja.replaceChildren();
     $("acciones").replaceChildren();
