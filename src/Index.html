@@ -941,6 +941,7 @@
   .rf-tabla .pos { color: var(--ok); } .rf-tabla .neg { color: var(--bad); }
   .rf-tabla .rf-mal { color: var(--bad); font-weight: 600; cursor: help; }
   .rf-periodo { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .rf-dia-head { margin-top: 16px; }
   .rf-periodo b { color: var(--text); font-variant-numeric: tabular-nums; } .rf-periodo b.neg { color: var(--bad); }
   .pl-tabla tr.pl-banco-ini td { border-top: 2px solid var(--border); }
   .pl-tabla input { width: 100%; min-width: 110px; margin: 0; height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -14876,7 +14877,7 @@ function bolsaAbierta(b) {
 
 function pillInversion(campo, valor) {
   const n = normalizar(valor || "");
-  if (campo === "Movimiento") return pill(valor || "—", n === "RESCATE" ? "pill-ing" : n.indexOf("SUSCRIP") === 0 ? "pill-egr" : "pill-neutro");
+  if (campo === "Movimiento") return pill(valor || "—", n === "RESCATE" ? "pill-egr" : n.indexOf("SUSCRIP") === 0 ? "pill-ing" : "pill-neutro");
   if (!valor) return pill("Pendiente", "pill-alerta");
   if (["PAGADO", "DEPOSITADO", "RESCATADO", "ACREDITADO"].indexOf(n) >= 0) return pill(valor, "pill-ing");
   if (["ANULADO", "DEVOLUCION", "RECHAZADO"].indexOf(n) >= 0) return pill(valor, "pill-egr");
@@ -14981,8 +14982,8 @@ function renderInversiones() {
     renderKpis($("kpisInversiones"), ultimos.map(x => ({ label: "FCI · " + x.banco, valor: x.saldo, formato: x.fmt, sub: "Último saldo informado: " + x.fecha, tono: "var(--primary)" }))
       .concat([
         { label: "Rendimiento 30 días", valor: rend30, formato: formatImporte, sub: "Saldos de Inicio sin rescates ni suscripciones", tono: "var(--accent)" },
-        { label: "Rescates del mes", valor: suma("RESCATE"), formato: formatImporte, sub: "En negativo · pasan del fondo a la cuenta", tono: "var(--ok)" },
-        { label: "Suscripciones del mes", valor: suma("SUSCRIPCION"), formato: formatImporte, sub: "En positivo · pasan de la cuenta al fondo", tono: "var(--bad)" }
+        { label: "Rescates del mes", valor: suma("RESCATE"), formato: formatImporte, sub: "En negativo · pasan del fondo a la cuenta", tono: "var(--bad)" },
+        { label: "Suscripciones del mes", valor: suma("SUSCRIPCION"), formato: formatImporte, sub: "En positivo · pasan de la cuenta al fondo", tono: "var(--ok)" }
       ]));
   } else {
     const abiertos = bolsaDatos.filter(bolsaAbierta);
@@ -15579,6 +15580,21 @@ function renderRendFciInicio() {
     dudosos = Math.max(dudosos, r.dudosos || 0);
   }
   if (dudosos) card.append(el("p", "dt-sub", dudosos + " período(s) con saltos raros no se cuentan (suele faltar un rescate o una suscripción)."));
+  // Día por día: saldo de los fondos en pesos y lo que rindieron cada día.
+  const diario = fciDiaPorDia("Pesos", 30);
+  if (diario.length) {
+    let ver = 7;
+    const cab = el("div", "pl-head rf-dia-head");
+    cab.append(el("div", "card-title", "Día por día"));
+    const mas = el("button", "secondary small", "Ver 30 días");
+    mas.type = "button";
+    const caja = el("div");
+    const pintar = () => { caja.replaceChildren(tablaFciDiaria(diario, formatImporte, ver)); mas.textContent = ver > 7 ? "Ver menos" : "Ver 30 días"; };
+    mas.addEventListener("click", () => { ver = ver > 7 ? 7 : 30; pintar(); });
+    if (diario.length > 7) cab.append(mas);
+    card.append(cab, caja);
+    pintar();
+  }
   box.replaceChildren(card);
 }
 
@@ -15929,35 +15945,44 @@ async function abrirSalidaCheques() {
   catch (err) { setStatus($("salidaStatus"), "No se pudieron traer los cheques: " + msgErr(err), "hint msg-error"); }
 }
 
+// Cheques que pueden salir: emitidos y todavía abiertos (sin pagar ni conciliar), por número.
+function chequesParaSalida() {
+  const porNumero = {};
+  chequesDatos.forEach(c => {
+    if (c["Tipo"] === "De terceros" || !chequeAbierto(c)) return;
+    const k = claveNumeroCheque(c["N° de Cheque"]);
+    if (k) (porNumero[k] = porNumero[k] || []).push(c);
+  });
+  return porNumero;
+}
+
+// De la foto solo cuentan los números de 5 cifras o más (los cortos suelen ser importes, fechas o códigos).
+const MIN_CIFRAS_SALIDA = 5;
+
 function renderSalidaCheques() {
   const box = $("salidaLista");
   box.replaceChildren();
   const escritos = numerosDeTexto($("salidaNumeros").value);
-  const deFoto = numerosDeTexto(salidaImagenes.map(im => im.texto).join("\n"));
-  const porNumero = {};
-  chequesDatos.forEach(c => {
-    const k = claveNumeroCheque(c["N° de Cheque"]);
-    if (k) (porNumero[k] = porNumero[k] || []).push(c);
-  });
+  const deFoto = numerosDeTexto(salidaImagenes.map(im => im.texto).join("\n")).filter(n => n.length >= MIN_CIFRAS_SALIDA);
+  const porNumero = chequesParaSalida();
+  // Los que ya estaban pagados o cerrados no se listan: solo se avisa cuántos son.
+  const cerrados = {};
+  chequesDatos.forEach(c => { if (c["Tipo"] !== "De terceros" && !chequeAbierto(c)) { const k = claveNumeroCheque(c["N° de Cheque"]); if (k) cerrados[k] = true; } });
   salidaPropuestos = [];
   const noEncontrados = [];
   const otrosFoto = [];
+  const yaCerrados = [];
   const buscados = escritos.map(n => ({ n: n, escrito: true })).concat(deFoto.filter(n => escritos.indexOf(n) < 0).map(n => ({ n: n, escrito: false })));
   buscados.forEach(b => {
     const lista = porNumero[b.n] || [];
     if (!lista.length) {
-      if (b.escrito) noEncontrados.push(b.n);
-      else if (b.n.length >= 6 && b.n.length <= 10) otrosFoto.push(b.n);
+      if (cerrados[b.n]) yaCerrados.push(b.n);
+      else if (b.escrito) noEncontrados.push(b.n);
+      else if (b.n.length <= 10) otrosFoto.push(b.n);
       return;
     }
-    const abiertos = lista.filter(c => normalizar(c["Estado"] || "").trim() !== "PAGADO");
-    lista.forEach(c => {
-      const yaPagado = normalizar(c["Estado"] || "").trim() === "PAGADO";
-      // Varios cheques abiertos con el mismo número (distinto banco): se elige a mano.
-      // Números cortos leídos de la foto: pueden ser otra cosa (importe, fecha), se marcan a mano.
-      const marcar = !yaPagado && abiertos.length === 1 && (b.escrito || b.n.length >= 5);
-      salidaPropuestos.push({ c: c, yaPagado: yaPagado, marcar: marcar, varios: abiertos.length > 1 });
-    });
+    // Varios cheques abiertos con el mismo número (distinto banco): se elige a mano.
+    lista.forEach(c => salidaPropuestos.push({ c: c, yaPagado: false, marcar: lista.length === 1, varios: lista.length > 1 }));
   });
   salidaPropuestos.forEach((p, i) => {
     const c = p.c;
@@ -15976,7 +16001,8 @@ function renderSalidaCheques() {
     lab.append(chk, tx, el("span", "viz-cob-monto", textoImporte(importeCheque(c), monedaCheque(c))));
     box.append(lab);
   });
-  if (noEncontrados.length) box.append(el("p", "hint msg-error", "Sin cheque cargado con estos números: " + noEncontrados.join(", ") + "."));
+  if (noEncontrados.length) box.append(el("p", "hint msg-error", "Sin cheque emitido pendiente con estos números: " + noEncontrados.join(", ") + "."));
+  if (yaCerrados.length) box.append(el("p", "dt-sub", "Ya estaban pagados o cerrados (no se tocan): " + yaCerrados.join(", ") + "."));
   if (otrosFoto.length) {
     const det = el("details", "salida-otros");
     det.append(el("summary", "dt-sub", "Otros números leídos en la foto que no coinciden con ningún cheque (" + otrosFoto.length + ")"), el("p", "dt-sub", otrosFoto.join(", ")));
@@ -15984,7 +16010,7 @@ function renderSalidaCheques() {
   }
   if (salidaImagenes.some(im => im.estado === "leyendo")) return actualizarBotonSalida();
   if (!buscados.length) setStatus($("salidaStatus"), "Pegá las imágenes (Ctrl+V o Win+V) o escribí los números.", "hint");
-  else if (!salidaPropuestos.length) setStatus($("salidaStatus"), "Ningún número coincide con un cheque cargado. Revisá la foto o escribí los números.", "hint msg-error");
+  else if (!salidaPropuestos.length) setStatus($("salidaStatus"), "Ningún número coincide con un cheque emitido pendiente. Revisá la foto o escribí los números.", "hint msg-error");
   else setStatus($("salidaStatus"), salidaPropuestos.length + " cheque(s) encontrado(s). Revisá los marcados antes de guardar.", "hint");
   actualizarBotonSalida();
 }
@@ -16007,7 +16033,7 @@ function renderSalidaImagenes() {
     const d = el("div", "salida-img");
     if (im.url) { const img = el("img"); img.src = im.url; img.alt = im.file.name; d.append(img); }
     else d.append(el("div", "dt-sub", im.file.name));
-    const n = im.estado === "leyendo" ? "Leyendo…" : im.estado === "error" ? "No se pudo leer" : numerosDeTexto(im.texto).filter(k => chequesDatos.some(c => claveNumeroCheque(c["N° de Cheque"]) === k)).length + " cheque(s)";
+    const n = im.estado === "leyendo" ? "Leyendo…" : im.estado === "error" ? "No se pudo leer" : (pn => numerosDeTexto(im.texto).filter(k => k.length >= MIN_CIFRAS_SALIDA && pn[k]).length)(chequesParaSalida()) + " cheque(s)";
     d.append(el("div", "dt-sub" + (im.estado === "error" ? " alerta-txt" : ""), "Imagen " + (i + 1) + " · " + n));
     const x = el("button", "secondary", "×");
     x.type = "button";
@@ -16146,7 +16172,7 @@ function tipoMovFci(f) {
 function pillMovFci(f) {
   const t = tipoMovFci(f);
   const texto = f["Movimiento"] || (t === "RESCATE" ? "Rescate" : t === "SUSCRIPCION" ? "Suscripción" : "—");
-  return pill(texto, t === "RESCATE" ? "pill-ing" : t === "SUSCRIPCION" ? "pill-egr" : "pill-neutro");
+  return pill(texto, t === "RESCATE" ? "pill-egr" : t === "SUSCRIPCION" ? "pill-ing" : "pill-neutro");
 }
 
 function bancosParaFci() {
@@ -16464,6 +16490,66 @@ function calcularRendimientoFciSaldos() {
   return res;
 }
 
+// FCI día por día (en pesos o en dólares): para cada fecha con saldo informado, el saldo total
+// de los fondos ese día, las suscripciones y rescates del medio y lo que rindieron desde el
+// saldo anterior de cada banco. Si entre dos saldos hay más de un día (fin de semana), el
+// rendimiento es el de todo ese tramo y se avisa cuántos días son.
+function fciDiaPorDia(moneda, dias) {
+  const usd = moneda === "USD";
+  const bancos = calcularRendimientoFciSaldos().filter(x => (x.moneda === "USD") === usd);
+  const desde = sumarDiasIso(hoyIso(), -dias);
+  const porDia = {};
+  bancos.forEach(b => b.periodos.forEach(p => {
+    if (p.hasta <= desde) return;
+    const d = porDia[p.hasta] || (porDia[p.hasta] = { iso: p.hasta, rend: 0, susc: 0, resc: 0, base: 0, dias: 1, dudoso: false });
+    d.susc += p.susc; d.resc += p.resc; d.dias = Math.max(d.dias, p.d);
+    if (p.dudoso) d.dudoso = true;
+    else { d.rend += p.rend; d.base += p.capital * p.d; }
+  }));
+  // Saldo de cada banco a una fecha: el último informado hasta ese día.
+  const saldoAl = iso => bancos.reduce((a, b) => {
+    let s = null;
+    b.periodos.forEach(p => { if (p.desde <= iso) s = p.hasta <= iso ? p.fin : p.ini; });
+    if (s === null && b.ultimo && b.ultimo.iso <= iso) s = b.ultimo.saldo;
+    return a + (s || 0);
+  }, 0);
+  return Object.keys(porDia).sort().reverse().map(k => {
+    const d = porDia[k];
+    d.saldo = saldoAl(k);
+    d.tna = d.base > 0 ? d.rend / d.base * 365 : null;
+    return d;
+  });
+}
+
+// Tabla del FCI día por día (las más nuevas arriba). max: cuántos días se ven.
+function tablaFciDiaria(filas, fmt, max) {
+  const tabla = el("table", "pl-tabla rf-tabla");
+  const thead = el("thead"), trh = el("tr");
+  ["Día", "Saldo FCI", "Suscr. / rescates", "Rendimiento", "TNA"].forEach(h => trh.append(el("th", null, h)));
+  thead.append(trh);
+  const tbody = el("tbody");
+  filas.slice(0, max).forEach(d => {
+    const tr = el("tr");
+    const tdD = el("td", "pl-cta");
+    tdD.append(el("div", null, nombreDia(d.iso).substring(0, 3) + " " + isoADma(d.iso).substring(0, 5)));
+    if (d.dias > 1) tdD.append(el("div", "rf-sub", d.dias + " días desde el saldo anterior"));
+    const tdM = el("td", "num");
+    if (d.susc) tdM.append(el("div", "pos", "+" + fmt(d.susc)));
+    if (d.resc) tdM.append(el("div", "neg", fmt(d.resc)));
+    if (!d.susc && !d.resc) tdM.textContent = "—";
+    const tdR = el("td", "num" + (d.dudoso && !d.base ? "" : d.rend < 0 ? " neg" : " pos"));
+    if (d.dudoso && !d.base) { tdR.append(el("div", "rf-mal", "No cuadra")); tdR.title = "Revisá si falta un rescate o una suscripción ese día."; }
+    else {
+      tdR.append(el("div", null, (d.rend > 0 ? "+" : "") + fmt(d.rend)));
+      if (d.dudoso) tdR.append(el("div", "rf-sub", "Sin un banco que no cuadra"));
+    }
+    tr.append(tdD, el("td", "num", fmt(d.saldo)), tdM, tdR, el("td", "num", d.tna === null ? "—" : pctTexto(d.tna)));
+    tbody.append(tr);
+  });
+  tabla.append(thead, tbody);
+  return envolverTabla(tabla);
+}
+
 function rendimientoFciDe(banco, moneda) {
   const k = normalizar(nombreBancoCanonico(banco) || banco) + "|" + (moneda === "USD" ? "USD" : "Pesos");
   return calcularRendimientoFciSaldos().find(x => x.k === k) || null;
@@ -16512,6 +16598,20 @@ function renderRendimientoFciSaldos(box) {
   });
   t.detalle.append(envolverTabla(tabla));
   t.ayuda.textContent = "Rendimiento = saldo actual − saldo anterior − suscripciones − rescates. TNA = rendimiento ÷ capital × 365 ÷ días.";
+
+  // Día por día: saldo y rendimiento diario de los últimos 30 días, en pesos y en dólares.
+  const td = tarjetaViz("FCI día por día", "Saldo total de los fondos cada día y lo que rindió desde el día anterior (sin contar rescates ni suscripciones).", "fciDiario");
+  box.append(td.card);
+  td.plot.remove();
+  td.leyenda.remove();
+  td.btnTabla.hidden = true;
+  const diaPesos = fciDiaPorDia("Pesos", 30), diaUsd = fciDiaPorDia("USD", 30);
+  if (!diaPesos.length && !diaUsd.length) { datoViz(td, ["Hacen falta al menos dos días con saldo de FCI para ver el rendimiento diario. Cargalos en la planilla de Saldos de Inicio."]); td.btnDetalle.hidden = true; return; }
+  const ganadoDia = diaPesos.length ? diaPesos[0] : null;
+  datoViz(td, ganadoDia ? ["Último día (" + isoADma(ganadoDia.iso) + "): el FCI en pesos ", el("b", null, (ganadoDia.rend >= 0 ? "ganó " : "perdió ") + fmtImp(Math.abs(ganadoDia.rend))), ganadoDia.tna === null ? "." : " (TNA " + pctTexto(ganadoDia.tna) + ")."] : ["Solo hay FCI en dólares."]);
+  if (diaPesos.length) { td.detalle.append(el("div", "viz-det-head", "Pesos · últimos 30 días")); td.detalle.append(tablaFciDiaria(diaPesos, fmtImp, 30)); }
+  if (diaUsd.length) { td.detalle.append(el("div", "viz-det-head", "Dólares · últimos 30 días")); td.detalle.append(tablaFciDiaria(diaUsd, formatUsd, 30)); }
+  td.ayuda.textContent = "Rendimiento del día = saldo del día − saldo del día anterior − suscripciones − rescates, sumado entre bancos. Después de un fin de semana o feriado el rendimiento es el de todo el tramo.";
 }
 
 // ---------------- Reporte mensual automático ----------------
