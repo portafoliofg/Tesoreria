@@ -33,20 +33,21 @@
   var DESTINOS = ["Vivienda", "Comercial", "Oficina", "Cochera", "Depósito", "Otro"];
   var estado = { edificio: null, valores: [], url: "", parametros: null, cargando: null, listo: false, error: "" };
   var dialogo = null;
-  // Valores genéricos para Saavedra (octubre de 2026), en dólares, con el rango de la zona del
-  // edificio: USD 1.100 a 1.250 el m². Valor real = el techo (USD 1.250); venta estimada = el
-  // piso (USD 1.100), lo que se cerraría al vender. Se pasan a pesos con el Dólar Blue.
+  // Valores genéricos para Saavedra (octubre de 2026), en dólares, por tipo de unidad:
+  //   1 dormitorio: USD 40.000 a 45.000 · 2 dormitorios: USD 62.000 a 65.000 · locales: USD 35.000 a 60.000.
+  // Se usa el promedio de cada rango, tanto para el valor real como para la venta estimada.
+  // Se pasan a pesos con el Dólar Blue.
   // La compra NO sale de acá: es lo que se invirtió (compraTotalUSD), repartido entre las unidades.
-  // Vivienda según los dormitorios (sin dato, 1 dormitorio · 2 ambientes).
+  // Vivienda según los dormitorios (sin dato, 1 dormitorio; 0 usa el de 1 y 3 o más el de 2).
   // Gastos mensuales (en pesos): ABL, expensas a cargo del dueño y seguro.
+  function promedio(r) { return (r[0] + r[1]) / 2; }
   var ESTIMADOS = {
     lugares: ["saavedra"],
-    usdM2: 1250,
-    m2Vivienda: [32, 45, 65, 85],  // 0, 1, 2 y 3 o más dormitorios
+    viviendaUSD: [promedio([40000, 45000]), promedio([40000, 45000]), promedio([62000, 65000]), promedio([62000, 65000])],  // 0, 1, 2 y 3 o más dormitorios
     cocheraUSD: 12000,
-    comercialUSD: 60000,
+    comercialUSD: promedio([35000, 60000]),
     gastosVivienda: 90000, gastosCochera: 25000, gastosComercial: 120000,
-    venta: 1100 / 1250,  // venta estimada sobre el valor real (piso / techo del m²)
+    venta: 1,  // venta estimada sobre el valor real (los dos con el promedio)
     // Compra real de todo el lugar, en dólares: se reparte entre sus unidades según el valor
     // de mercado de cada una (una cochera recibe menos que un departamento).
     compraTotalUSD: { saavedra: 780000 },
@@ -124,7 +125,7 @@
     if (destino === "Cochera" || (!destino && /coch|garage|garaje/.test(nombre))) return { usd: ESTIMADOS.cocheraUSD, gastos: ESTIMADOS.gastosCochera };
     if (destino === "Comercial" || (!destino && /local/.test(nombre))) return { usd: ESTIMADOS.comercialUSD, gastos: ESTIMADOS.gastosComercial };
     var dorm = v && typeof v.dormitorios === "number" && !isNaN(v.dormitorios) ? v.dormitorios : 1;
-    return { usd: ESTIMADOS.usdM2 * ESTIMADOS.m2Vivienda[Math.min(Math.max(dorm, 0), ESTIMADOS.m2Vivienda.length - 1)], gastos: ESTIMADOS.gastosVivienda };
+    return { usd: ESTIMADOS.viviendaUSD[Math.min(Math.max(dorm, 0), ESTIMADOS.viviendaUSD.length - 1)], gastos: ESTIMADOS.gastosVivienda };
   }
 
   // Valor real y venta: los de mercado de la zona. Compra: la parte de la inversión total que le toca.
