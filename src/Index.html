@@ -1259,6 +1259,73 @@
   :root[data-densidad="compacta"] select, :root[data-densidad="compacta"] input[type=text], :root[data-densidad="compacta"] input[type=date], :root[data-densidad="compacta"] input[type=number] { height: 34px; }
   :root[data-densidad="compacta"] .viz-grid { gap: 12px; }
 
+  /* ---------- Calendario de vencimientos ---------- */
+  .cal-card { padding: 16px 18px; }
+  .cal-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 12px; }
+  .cal-mes { display: flex; align-items: center; gap: 8px; }
+  .cal-mes h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin: 0 6px; min-width: 150px; text-align: center; }
+  .cal-flecha { width: 34px; padding: 0; font-size: 20px; line-height: 1; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .cal-cab { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: center; padding: 2px 0 4px; }
+  .cal-dia { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 92px; height: auto; padding: 7px 8px; border-radius: 10px; text-align: left;
+    border: 1px solid var(--border); color: var(--text); font-weight: 500; box-shadow: none; cursor: pointer; overflow: hidden;
+    background: color-mix(in srgb, var(--bad) calc(var(--int, 0) * 16%), var(--surface));
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s; animation: tabEntra .45s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 8ms); }
+  .cal-dia:hover, .cal-dia:focus-visible { background: color-mix(in srgb, var(--bad) calc(var(--int, 0) * 16%), var(--surface)); color: var(--text); border-color: var(--border-strong); transform: translateY(-1px); box-shadow: 0 6px 14px -10px rgba(15, 23, 42, .4); }
+  .cal-dia.fuera { opacity: .45; }
+  .cal-dia.hoy { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  .cal-dia.sel { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .cal-num { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cal-dia.hoy .cal-num { color: var(--on-primary); background: var(--primary); border-radius: 999px; padding: 0 7px; }
+  .cal-monto { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .cal-monto.neg { color: var(--bad); }
+  .cal-monto.pos { color: var(--ok); }
+  .cal-n { margin-top: auto; font-size: 11px; color: var(--faint); }
+  .cal-venc { position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; }
+  .cal-ref { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .cal-ref span { display: inline-flex; align-items: center; gap: 7px; }
+  .cal-ref i { width: 12px; height: 12px; border-radius: 3px; }
+  .cal-ref-pagar { background: color-mix(in srgb, var(--bad) 16%, var(--surface)); border: 1px solid var(--border); }
+  .cal-ref-cobrar { background: var(--ok); }
+  .cal-ref-venc { background: var(--bad); border-radius: 50% !important; }
+  #calDia:empty { display: none; }
+  .cal-dia-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 6px; }
+  .cal-dia-head h3 { margin: 0; font-size: 15px; }
+  .cal-grupo { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 0 2px; }
+  .cal-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .cal-item:last-child { border-bottom: none; }
+  .cal-item-txt { min-width: 0; }
+  .cal-item-der { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+  .cal-gcal { font-size: 11.5px; color: var(--primary); text-decoration: none; white-space: nowrap; }
+  .cal-gcal:hover { text-decoration: underline; }
+  .cal-pasos { margin: 0 0 12px; padding-left: 20px; line-height: 1.55; }
+  .cal-google-acc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .btn-link-primario { display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 10px; background: var(--primary); color: var(--on-primary); font-weight: 600; text-decoration: none; }
+  @media (max-width: 700px) {
+    .cal-grid { gap: 3px; }
+    .cal-dia { min-height: 58px; padding: 4px; border-radius: 7px; }
+    .cal-n { display: none; }
+    .cal-monto { font-size: 10.5px; }
+    .cal-venc { width: 14px; height: 14px; font-size: 9px; top: 3px; right: 3px; }
+    .cal-mes h2 { min-width: 0; font-size: 16px; }
+  }
+  /* ---------- Rescatar o negociar, ALYC mes a mes y simulador ---------- */
+  .rn-lista { display: grid; margin-top: 10px; border-top: 1px solid var(--border); }
+  .rn-fila { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .rn-fila:last-child { border-bottom: none; }
+  .rn-res { flex-shrink: 0; font-size: 12.5px; font-weight: 650; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text); white-space: nowrap; }
+  .rn-res.pos { background: rgba(var(--ok-rgb), .12); color: var(--ok); }
+  .rn-res.neg { background: rgba(var(--bad-rgb), .1); color: var(--bad); }
+  .alyc-mapa td, .alyc-mapa th { white-space: nowrap; }
+  .alyc-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 8px; vertical-align: middle; }
+  .alyc-celda { font-weight: 600; background: color-mix(in srgb, var(--vz-2) calc(12% + var(--int, 0) * 50%), var(--surface)); }
+  .alyc-celda.vacia { background: none; color: var(--faint); font-weight: 400; }
+  .sim-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
+  .sim-res { margin-top: 16px; display: grid; gap: 12px; }
+  .sim-res .tab-tile.fijo { animation: none; }
+  .sim-tit { margin: 6px 0 0; font-weight: 650; }
+  @media (max-width: 700px) { .sim-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .rn-fila { flex-direction: column; align-items: flex-start; } }
+  @media (prefers-reduced-motion: reduce) { .cal-dia { animation: none !important; transition: none; } }
   /* ---------- Tablero de FCI y Bolsa ---------- */
   .tablero { display: grid; gap: 16px; }
   .tab-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
@@ -1465,6 +1532,7 @@
     <button class="nav-item nav-sub" data-vista="planes" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14"/><circle cx="8" cy="5" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="19" r="1.5"/></svg>Planes de pago</button>
     <button class="nav-item nav-sub" data-vista="efectivo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v.01M18 14.5v.01"/></svg>Efectivo</button>
     <button class="nav-item nav-restringido" data-vista="facturas" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L4 21V5a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg>Facturas</button>
+    <button class="nav-item" data-vista="calendario" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14.5" r="1"/><circle cx="12" cy="14.5" r="1"/><circle cx="15.5" cy="14.5" r="1"/></svg>Calendario</button>
     <button class="nav-item" data-vista="flujo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h18"/><path d="M5 15l4-5 4 3 6-7"/><path d="M15 6h4v4"/></svg>Saldos y flujo</button>
     <button class="nav-item" data-vista="cuentas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5L12 5l8 4.5"/><path d="M6 10v7M10 10v7M14 10v7M18 10v7"/><path d="M3.5 20h17"/></svg>Bancos y cuentas</button>
     <div class="nav-grupo">Control</div>
@@ -1803,6 +1871,35 @@
       <div class="chips-filtros" id="chips-cheques" hidden></div>
       <div id="chequesBox"></div>
     </div>
+  </section>
+
+  <!-- ===================== VISTA: CALENDARIO ===================== -->
+  <section id="vista-calendario" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Calendario</h1>
+        <p class="sub">Todo lo que vence cada día: cheques emitidos y de terceros, bolsa, compromisos y recordatorios con importe. Tocá un día para ver el detalle.</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button id="calActualizar" class="secondary" type="button">Actualizar</button>
+        <button id="calGoogle" class="secondary" type="button" title="Ver estos vencimientos en tu Google Calendar">Google Calendar</button>
+      </div>
+    </div>
+    <div id="kpisCalendario" class="kpis"></div>
+    <div class="card cal-card">
+      <div class="cal-barra">
+        <div class="cal-mes">
+          <button id="calAnt" class="secondary small cal-flecha" type="button" aria-label="Mes anterior">&lsaquo;</button>
+          <h2 id="calTitulo" aria-live="polite"></h2>
+          <button id="calSig" class="secondary small cal-flecha" type="button" aria-label="Mes siguiente">&rsaquo;</button>
+          <button id="calHoy" class="secondary small" type="button">Hoy</button>
+        </div>
+        <div class="seg" id="calFiltro" role="radiogroup" aria-label="Qué mostrar"></div>
+      </div>
+      <div id="calGrid" class="cal-grid"></div>
+      <div class="cal-ref"><span><i class="cal-ref-pagar"></i>A pagar (más intenso, más plata)</span><span><i class="cal-ref-cobrar"></i>A cobrar</span><span><i class="cal-ref-venc"></i>Vencido sin pagar</span></div>
+    </div>
+    <div class="card" id="calDia"></div>
   </section>
 
   <!-- ===================== VISTA: FCI Y BOLSA ===================== -->
@@ -2540,6 +2637,57 @@
 </div>
 
 <!-- ===================== MODAL: IMPORTE RECIBIDO (BOLSA) ===================== -->
+<!-- ===================== MODAL: GOOGLE CALENDAR ===================== -->
+<div class="modal-overlay" id="modalCalGoogle">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calGoogleTitulo">
+    <div class="modal__head">
+      <div><h3 id="calGoogleTitulo">Ver los vencimientos en Google Calendar</h3><div class="sub-dato">Se agrega como un calendario aparte ("Tesorería · vencimientos"), con un evento por día que dice cuánto hay que pagar y cobrar. Se actualiza solo cada algunas horas.</div></div>
+      <button class="modal__close" data-cerrar="modalCalGoogle" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <ol class="cal-pasos">
+        <li>Tocá <b>Agregar a Google Calendar</b> (con la cuenta de Google donde lo querés ver) y confirmá.</li>
+        <li>Si no se abre, en Google Calendar andá a <b>Otros calendarios → + → Desde URL</b> y pegá el enlace de abajo.</li>
+      </ol>
+      <label>Enlace de suscripción<input type="text" id="calGoogleUrl" readonly></label>
+      <div class="cal-google-acc">
+        <a id="calGoogleAbrir" class="btn-link-primario" href="#" target="_blank" rel="noopener">Agregar a Google Calendar</a>
+        <button id="calGoogleCopiar" class="secondary" type="button">Copiar enlace</button>
+      </div>
+      <p class="hint">El enlace es secreto: quien lo tenga ve los vencimientos (no puede cambiar nada). Si se compartió de más, generá uno nuevo: el anterior deja de funcionar y hay que volver a agregarlo.</p>
+      <p id="calGoogleStatus" class="hint"></p>
+    </div>
+    <div class="modal__foot">
+      <button id="calGoogleNuevo" class="secondary" type="button">Generar enlace nuevo</button>
+      <button data-cerrar="modalCalGoogle" type="button">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: SIMULADOR DE NEGOCIACIÓN EN BOLSA ===================== -->
+<div class="modal-overlay" id="modalSimBolsa">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="simTitulo">
+    <div class="modal__head">
+      <div><h3 id="simTitulo">Simular la negociación de un cheque</h3><div class="sub-dato">Cuánto recibís y cuánto cuesta, comparado con tus tasas de bolsa y con lo que rinde el FCI. Es solo una cuenta: no guarda nada.</div></div>
+      <button class="modal__close" data-cerrar="modalSimBolsa" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="sim-grid">
+        <label>Qué sabés<select id="simModo"><option value="nominal">El valor del cheque (nominal)</option><option value="recibir">Lo que necesito recibir</option></select></label>
+        <label><span id="simImporteEt">Valor nominal del cheque</span><input type="text" id="simImporte" inputmode="decimal" placeholder="0,00"></label>
+        <label>Se negocia el<input type="date" id="simDesde"></label>
+        <label>Fecha de pago<input type="date" id="simFecha"></label>
+        <label>TNA que ofrece la ALYC (%)<input type="text" id="simTna" inputmode="decimal" placeholder="Ej.: 35"></label>
+        <label>ALYC<select id="simAlyc"></select></label>
+      </div>
+      <div id="simResultado" class="sim-res viz"></div>
+    </div>
+    <div class="modal__foot">
+      <button data-cerrar="modalSimBolsa" type="button">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalRecibido">
   <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="recTitulo">
     <div class="modal__head">
@@ -4366,7 +4514,7 @@ function setStatus(node, text, cls) {
 }
 
 // ---------------- Navegación ----------------
-const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "flujo", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
+const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "calendario", "flujo", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
 document.querySelectorAll(".nav-item").forEach(btn => {
   btn.addEventListener("click", () => mostrarVista(btn.dataset.vista));
 });
@@ -4384,6 +4532,7 @@ function mostrarVista(nombre) {
   if (nombre === "transferencias") { if (!transferenciasCargadas) cargarTransferencias(); else aplicarFiltrosTransferencias(); }
   if (nombre === "cheques") { if (!chequesCargados) cargarCheques(); else aplicarFiltrosCheques(); }
   if (nombre === "inversiones") cargarInversiones(false);
+  if (nombre === "calendario") cargarCalendario(false);
   if (nombre === "cuentas") renderCuentas();
   if (nombre === "alertas") cargarAlertas();
   if (nombre === "auditoria") cargarAuditoria();
@@ -7851,7 +8000,7 @@ if (mqClaro) {
 }
 
 // ---------------- Encabezado ----------------
-const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", inversiones: "FCI y Bolsa" };
+const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", inversiones: "FCI y Bolsa", calendario: "Calendario de vencimientos" };
 
 function alCambiarVista(nombre) {
   actualizarBarraSeleccion();
@@ -11686,7 +11835,7 @@ document.addEventListener("keydown", e => {
 // ?: ver todos. No actúan mientras se escribe en un campo ni con una ventana abierta.
 const ATAJOS_IR = [
   ["i", "inicio"], ["c", "cargar"], ["m", "transferencias"], ["h", "cheques"], ["p", "compromisos"], ["t", "facturas"],
-  ["s", "flujo"], ["b", "cuentas"], ["o", "conciliacion"], ["a", "alertas"], ["r", "reportes"], ["d", "auditoria"], ["u", "usuarios"]
+  ["l", "calendario"], ["s", "flujo"], ["b", "cuentas"], ["o", "conciliacion"], ["a", "alertas"], ["r", "reportes"], ["d", "auditoria"], ["u", "usuarios"]
 ];
 const ATAJOS_OTROS = [
   [["Ctrl", "K"], "Buscar movimientos, cheques, cuentas o secciones"], [["/"], "Buscar"],
@@ -15284,6 +15433,420 @@ function sugerirRecibidosBolsa() {
   return sugerencias;
 }
 
+// ---------------- Calendario de vencimientos ----------------
+// Mes a mes, lo que vence cada día (lo arma el servidor en Calendario.gs con cheques,
+// bolsa, compromisos y recordatorios). Solo lectura. También da el enlace para verlo en
+// Google Calendar (una suscripción iCal: no le pide permisos nuevos al script).
+let calMes = "";
+let calDiaSel = "";
+let calFiltro = "todo";
+let calPedido = 0;
+const calCache = {};
+const CAL_FILTROS = [["todo", "Todo"], ["pagar", "A pagar"], ["cobrar", "A cobrar"]];
+const CAL_DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+// Las 6 semanas que se ven del mes (empiezan el lunes).
+function rangoCalendario(mes) {
+  const dow = (new Date(msIso(mes)).getUTCDay() + 6) % 7;
+  const desde = sumarDiasIso(mes, -dow);
+  return { desde: desde, hasta: sumarDiasIso(desde, 41) };
+}
+
+async function cargarCalendario(forzar) {
+  if (!calMes) calMes = hoyIso().substring(0, 7) + "-01";
+  const r = rangoCalendario(calMes);
+  const k = r.desde + "|" + r.hasta;
+  const pedido = ++calPedido;
+  if (!calCache[k] || forzar) {
+    $("calTitulo").textContent = mesLargo(calMes);
+    $("calGrid").replaceChildren(nodoCargando());
+    try {
+      const res = await runJson("obtenerCalendario", r);
+      calCache[k] = res.items || [];
+    } catch (err) {
+      if (pedido === calPedido) $("calGrid").replaceChildren(nodoError("No se pudo traer el calendario: " + msgErr(err)));
+      return;
+    }
+  }
+  if (pedido !== calPedido) return;  // ya se pidió otro mes
+  renderCalendario(calCache[k], r);
+}
+
+function itemsVisiblesCal(items) {
+  return items.filter(x => calFiltro === "todo" || x.clase === calFiltro);
+}
+
+function renderCalendario(todos, r) {
+  const hoy = hoyIso();
+  const mes = calMes.substring(0, 7);
+  $("calTitulo").textContent = mesLargo(calMes);
+  const items = itemsVisiblesCal(todos);
+  const porDia = {};
+  items.forEach(x => { (porDia[x.iso] = porDia[x.iso] || []).push(x); });
+  const delMes = todos.filter(x => x.iso.substring(0, 7) === mes);
+  const suma = (l, clase) => l.filter(x => x.clase === clase && x.moneda !== "USD").reduce((a, x) => a + Math.abs(x.importe), 0);
+  const pagarMes = suma(delMes, "pagar"), cobrarMes = suma(delMes, "cobrar");
+  const vencidos = todos.filter(x => x.vencido);
+  const totalDia = {};
+  delMes.forEach(x => { if (x.clase === "pagar" && x.moneda !== "USD") totalDia[x.iso] = (totalDia[x.iso] || 0) + Math.abs(x.importe); });
+  const pico = Object.keys(totalDia).sort((a, b) => totalDia[b] - totalDia[a])[0];
+  renderKpis($("kpisCalendario"), [
+    { label: "A pagar en " + mesLargo(calMes).split(" ")[0].toLowerCase(), valor: pagarMes, formato: fmtImp, sub: delMes.filter(x => x.clase === "pagar").length + " vencimiento(s) · en pesos", tono: "var(--bad)" },
+    { label: "A cobrar", valor: cobrarMes, formato: fmtImp, sub: delMes.filter(x => x.clase === "cobrar").length + " cheque(s) y recordatorio(s)", tono: "var(--ok)" },
+    { label: "Neto del mes", valor: cobrarMes - pagarMes, formato: fmtImp, sub: "A cobrar menos a pagar", tono: "var(--primary)" },
+    pico ? { label: "Día más cargado", valor: totalDia[pico], formato: fmtImp, sub: nombreDia(pico).split(",")[0] + " " + isoADma(pico).substring(0, 5), tono: "var(--warn)" }
+      : { label: "Vencidos sin pagar", valor: vencidos.length, formato: v => String(Math.round(v)), sub: "En las semanas que se ven", tono: "var(--warn)" }
+  ]);
+
+  const seg = $("calFiltro");
+  seg.replaceChildren();
+  CAL_FILTROS.forEach(f => {
+    const lab = el("label", "seg-op");
+    const rr = el("input");
+    rr.type = "radio";
+    rr.name = "calFiltro";
+    rr.checked = calFiltro === f[0];
+    rr.addEventListener("change", () => { calFiltro = f[0]; renderCalendario(todos, r); });
+    lab.append(rr, document.createTextNode(f[1]));
+    seg.append(lab);
+  });
+
+  // Intensidad del color: lo que hay que pagar ese día contra el día más cargado del mes.
+  const maxPagar = Math.max.apply(null, Object.keys(porDia).map(iso => suma(porDia[iso], "pagar")).concat([1]));
+  const grid = $("calGrid");
+  grid.replaceChildren();
+  CAL_DIAS.forEach(d => grid.append(el("div", "cal-cab", d)));
+  if (!calDiaSel || calDiaSel.substring(0, 7) !== mes) {
+    calDiaSel = hoy.substring(0, 7) === mes ? hoy : (Object.keys(porDia).filter(iso => iso.substring(0, 7) === mes).sort()[0] || calMes);
+  }
+  for (let i = 0; i < 42; i++) {
+    const iso = sumarDiasIso(r.desde, i);
+    const lista = porDia[iso] || [];
+    const pagar = suma(lista, "pagar"), cobrar = suma(lista, "cobrar");
+    const usd = lista.filter(x => x.moneda === "USD").length;
+    const b = el("button", "cal-dia" + (iso.substring(0, 7) !== mes ? " fuera" : "") + (iso === hoy ? " hoy" : "") + (iso === calDiaSel ? " sel" : "") + (lista.length ? " con" : ""));
+    b.type = "button";
+    b.style.setProperty("--int", (pagar / maxPagar).toFixed(3));
+    b.style.setProperty("--i", String(i));
+    b.append(el("span", "cal-num", String(parseInt(iso.substring(8, 10), 10))));
+    if (lista.some(x => x.vencido)) b.append(el("span", "cal-venc", "!"));
+    if (pagar) b.append(el("span", "cal-monto neg", "−" + montoCorto(pagar).replace("$ ", "")));
+    if (cobrar) b.append(el("span", "cal-monto pos", "+" + montoCorto(cobrar).replace("$ ", "")));
+    if (usd) b.append(el("span", "cal-monto", usd + " en US$"));
+    if (lista.length) b.append(el("span", "cal-n", lista.length + (lista.length === 1 ? " vencimiento" : " vencimientos")));
+    b.setAttribute("aria-label", nombreDia(iso) + ": " + (lista.length ? lista.length + " vencimiento(s), a pagar " + fmtImp(pagar) + ", a cobrar " + fmtImp(cobrar) : "sin vencimientos"));
+    b.addEventListener("click", () => {
+      calDiaSel = iso;
+      grid.querySelectorAll(".cal-dia.sel").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      renderDiaCalendario(iso, porDia[iso] || []);
+      if (iso.substring(0, 7) !== mes) { calMes = iso.substring(0, 7) + "-01"; cargarCalendario(false); }
+    });
+    grid.append(b);
+  }
+  renderDiaCalendario(calDiaSel, porDia[calDiaSel] || []);
+}
+
+// Enlace para agregar un solo vencimiento a Google Calendar (abre el formulario de Google, no hace falta permiso).
+function enlaceGoogleCalendar(x) {
+  const d = x.iso.replace(/-/g, ""), f = sumarDiasIso(x.iso, 1).replace(/-/g, "");
+  const texto = (x.clase === "pagar" ? "Pagar " : "Cobrar ") + textoImporte(Math.abs(x.importe), x.moneda) + " · " + x.titulo;
+  const det = x.tipo + (x.detalle ? " · " + x.detalle : "") + (x.estimado ? " (importe estimado)" : "") + "\nTesorería: https://bgpsammar.com";
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(texto) + "&dates=" + d + "/" + f + "&details=" + encodeURIComponent(det);
+}
+
+function renderDiaCalendario(iso, lista) {
+  const box = $("calDia");
+  box.replaceChildren();
+  const head = el("div", "cal-dia-head");
+  const pagar = lista.filter(x => x.clase === "pagar"), cobrar = lista.filter(x => x.clase === "cobrar");
+  const tot = l => ["Pesos", "USD"].map(m => { const v = l.filter(x => x.moneda === m).reduce((a, x) => a + Math.abs(x.importe), 0); return v ? textoImporte(v, m) : ""; }).filter(Boolean).join(" + ");
+  head.append(el("h3", null, nombreDia(iso)), el("span", "dt-sub", lista.length ? (pagar.length ? "A pagar " + tot(pagar) : "") + (pagar.length && cobrar.length ? " · " : "") + (cobrar.length ? "A cobrar " + tot(cobrar) : "") : "Sin vencimientos"));
+  box.append(head);
+  if (!lista.length) { box.append(el("p", "hint", calFiltro === "todo" ? "Nada vence este día." : "Nada " + (calFiltro === "pagar" ? "a pagar" : "a cobrar") + " este día.")); return; }
+  [["A pagar", pagar], ["A cobrar", cobrar]].forEach(g => {
+    if (!g[1].length) return;
+    box.append(el("div", "cal-grupo", g[0]));
+    g[1].forEach(x => {
+      const f = el("div", "cal-item");
+      const tx = el("div", "cal-item-txt");
+      const tit = el("div", "dt-principal");
+      tit.append(pill(x.tipo, x.clase === "pagar" ? "pill-egr" : "pill-ing"), document.createTextNode(" " + x.titulo));
+      tx.append(tit);
+      const sub = [x.detalle, x.estimado ? "importe estimado" : ""].filter(Boolean).join(" · ");
+      if (sub) tx.append(el("div", "dt-sub", sub));
+      const der = el("div", "cal-item-der");
+      der.append(el("span", "importe " + (x.importe < 0 ? "neg" : "pos"), textoImporte(x.importe, x.moneda)));
+      if (x.vencido) der.append(pill("Vencido sin pagar", "pill-alerta"));
+      const a = el("a", "cal-gcal", "Agregar a Google Calendar");
+      a.href = enlaceGoogleCalendar(x);
+      a.target = "_blank";
+      a.rel = "noopener";
+      der.append(a);
+      f.append(tx, der);
+      box.append(f);
+    });
+  });
+}
+
+function moverMesCalendario(n) {
+  if (!calMes) calMes = hoyIso().substring(0, 7) + "-01";
+  calMes = sumarMesesIso(calMes, n);
+  cargarCalendario(false);
+}
+
+$("calAnt").addEventListener("click", () => moverMesCalendario(-1));
+$("calSig").addEventListener("click", () => moverMesCalendario(1));
+$("calHoy").addEventListener("click", () => { calMes = hoyIso().substring(0, 7) + "-01"; calDiaSel = hoyIso(); cargarCalendario(false); });
+$("calActualizar").addEventListener("click", () => { Object.keys(calCache).forEach(k => delete calCache[k]); cargarCalendario(true); });
+
+// ----- Suscripción en Google Calendar -----
+function mostrarEnlaceCalendario(res) {
+  $("calGoogleUrl").value = res.url;
+  $("calGoogleAbrir").href = "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(res.webcal);
+}
+
+async function pedirEnlaceCalendario(regenerar) {
+  const st = $("calGoogleStatus");
+  setStatus(st, regenerar ? "Generando un enlace nuevo…" : "Preparando el enlace…", "hint");
+  try {
+    const res = await runJson("suscripcionCalendario", { regenerar: !!regenerar });
+    mostrarEnlaceCalendario(res);
+    setStatus(st, regenerar ? "Listo: este es el enlace nuevo. El anterior ya no funciona." : "", regenerar ? "hint msg-ok" : "hint");
+  } catch (err) {
+    setStatus(st, "No se pudo obtener el enlace: " + msgErr(err), "hint msg-error");
+  }
+}
+
+$("calGoogle").addEventListener("click", () => {
+  $("calGoogleUrl").value = "";
+  $("calGoogleAbrir").href = "#";
+  abrirModal("modalCalGoogle");
+  pedirEnlaceCalendario(false);
+});
+$("calGoogleAbrir").addEventListener("click", e => { if ($("calGoogleAbrir").getAttribute("href") === "#") e.preventDefault(); });
+$("calGoogleCopiar").addEventListener("click", async () => {
+  const v = $("calGoogleUrl").value;
+  if (!v) return;
+  try { await navigator.clipboard.writeText(v); }
+  catch (e) { $("calGoogleUrl").select(); document.execCommand("copy"); }
+  setStatus($("calGoogleStatus"), "Enlace copiado.", "hint msg-ok");
+});
+$("calGoogleNuevo").addEventListener("click", async () => {
+  const ok = await confirmar("Generar enlace nuevo", "El enlace actual deja de funcionar: quien lo tenga agregado en Google Calendar va a tener que agregar el nuevo.", "Generar");
+  if (ok) pedirEnlaceCalendario(true);
+});
+
+// ----- Rescatar o negociar: el FCI contra el costo de bolsa -----
+// Si conseguir plata negociando cheques sale más caro que lo que rinde el FCI, conviene
+// rescatar: se deja de ganar menos de lo que se paga. Usa la TNA real del FCI (saldos de
+// Saldos, como el tablero) y la TNA de los cheques negociados (costoBolsa).
+
+// TNA de los cheques con importe recibido negociados desde hace `dias` (por fecha de carga).
+function tasaBolsaDesde(desdeIso, filtro) {
+  let base = 0, costo = 0, n = 0, recibido = 0;
+  bolsaDatos.forEach(b => {
+    if (normalizar(b["Moneda"]).indexOf("US") === 0 || (filtro && !filtro(b))) return;
+    const iso = fechaAOrden(b["Fecha de carga"]);
+    const c = costoBolsa(b);
+    if (!c || c.invalido || !iso || iso < desdeIso) return;
+    base += c.recibido * c.dias; costo += c.costo; recibido += c.recibido; n++;
+  });
+  return { tna: base > 0 ? costo / base * 365 : null, n: n, recibido: recibido, costo: costo };
+}
+
+// La tasa reciente de bolsa: últimos 60 días; si no hay cheques con dato, el último año.
+function tasaBolsaReciente() {
+  const hoy = hoyIso();
+  const r = tasaBolsaDesde(sumarDiasIso(hoy, -60));
+  if (r.n) return Object.assign(r, { periodo: "últimos 60 días" });
+  return Object.assign(tasaBolsaDesde(sumarDiasIso(hoy, -365)), { periodo: "último año" });
+}
+
+// TNA del FCI en pesos (últimos 30 días; si no hay, 90) y lo que hay disponible hoy.
+function tasaFciActual() {
+  const hoy = hoyIso();
+  const bancos = calcularRendimientoFciSaldos().filter(x => x.moneda !== "USD");
+  let r = rendimientoConjunto(bancos, sumarDiasIso(hoy, -30)), periodo = "últimos 30 días";
+  if (r.tna === null) { r = rendimientoConjunto(bancos, sumarDiasIso(hoy, -90)); periodo = "últimos 90 días"; }
+  const disponible = fciQueSuma(fciVigentes(hoy)).filter(f => f.moneda !== "USD").reduce((a, f) => a + f.saldo, 0);
+  return { tna: r.tna, periodo: periodo, disponible: disponible };
+}
+
+// Promedio de cada ALYC desde una fecha: [{alyc, tna, n}], la más barata primero.
+function tasasPorAlyc(desdeIso) {
+  const por = {};
+  bolsaDatos.forEach(b => {
+    if (normalizar(b["Moneda"]).indexOf("US") === 0) return;
+    const iso = fechaAOrden(b["Fecha de carga"]);
+    const c = costoBolsa(b);
+    if (!c || c.invalido || !iso || iso < desdeIso) return;
+    const k = b["ALYC"] || "Sin ALYC";
+    const x = por[k] || (por[k] = { alyc: k, base: 0, costo: 0, n: 0 });
+    x.base += c.recibido * c.dias; x.costo += c.costo; x.n++;
+  });
+  return Object.keys(por).map(k => ({ alyc: k, tna: por[k].base > 0 ? por[k].costo / por[k].base * 365 : null, n: por[k].n }))
+    .filter(x => x.tna !== null).sort((a, b) => a.tna - b.tna);
+}
+
+function tarjetaRescatarONegociar(grid, i) {
+  const hoy = hoyIso();
+  const t = tarjetaTablero("¿Rescatar o negociar?", "Lo que cuesta conseguir plata en bolsa contra lo que deja de ganar el FCI si la sacás de ahí.", i, true);
+  grid.append(t.card);
+  t.plot.remove();
+  const fci = tasaFciActual(), bol = tasaBolsaReciente();
+  const acc = el("div", "viz-acciones");
+  const bSim = el("button", "secondary small", "Simular un cheque");
+  bSim.type = "button";
+  bSim.addEventListener("click", () => abrirSimuladorBolsa());
+  acc.append(bSim);
+  if (fci.tna === null || bol.tna === null) {
+    datoViz(t, [fci.tna === null ? "Falta la tasa del FCI: hacen falta dos saldos de FCI seguidos de un banco (se cargan en Saldos). " : "",
+      bol.tna === null ? "Falta la tasa de bolsa: cargá el importe recibido de los cheques negociados (tocá un cheque en la tabla de Bolsa)." : ""].filter(Boolean));
+    t.extra.append(acc);
+    t.btnTabla.hidden = true;
+    return;
+  }
+  const dif = bol.tna - fci.tna;
+  const parecido = Math.abs(dif) < 0.01;
+  const ej = 1000000, d = 30;
+  const costoEj = ej * bol.tna * d / 365, pierdeEj = ej * fci.tna * d / 365;
+  datoViz(t, parecido
+    ? ["Las tasas son parecidas: bolsa ", el("b", null, pctTexto(bol.tna)), " y FCI ", el("b", null, pctTexto(fci.tna)), ". Da casi lo mismo rescatar o negociar."]
+    : dif > 0
+      ? [el("b", null, "Conviene rescatar del FCI."), " La bolsa te cobra " + pctTexto(bol.tna) + " y el FCI rinde " + pctTexto(fci.tna) + ": por cada " + montoCorto(ej) + " a 30 días, negociar cuesta " + fmtImp(costoEj) + " y rescatar deja de ganar " + fmtImp(pierdeEj) + " (ahorrás ", el("b", null, fmtImp(costoEj - pierdeEj)), ")."]
+      : [el("b", null, "Conviene negociar."), " El FCI rinde " + pctTexto(fci.tna) + ", más de lo que cobra la bolsa (" + pctTexto(bol.tna) + "): por cada " + montoCorto(ej) + " a 30 días, rescatar deja de ganar " + fmtImp(pierdeEj) + " y negociar cuesta " + fmtImp(costoEj) + "."]);
+  barrasHorizontales(t.extra, [
+    { label: "Bolsa", sub: "TNA de " + bol.n + " cheque(s) · " + bol.periodo, barras: [{ v: bol.tna, color: "var(--vz-2)", texto: pctTexto(bol.tna) }] },
+    { label: "FCI", sub: "TNA real · " + fci.periodo, barras: [{ v: Math.max(0, fci.tna), color: "var(--vz-3)", texto: pctTexto(fci.tna) }] }
+  ]);
+  // Lo que pasó (90 días) y lo que viene (30 días).
+  const lista = el("div", "rn-lista");
+  const desde90 = sumarDiasIso(hoy, -90);
+  let costo90 = 0, oport90 = 0, rec90 = 0, n90 = 0;
+  bolsaDatos.forEach(b => {
+    if (normalizar(b["Moneda"]).indexOf("US") === 0) return;
+    const iso = fechaAOrden(b["Fecha de carga"]);
+    const c = costoBolsa(b);
+    if (!c || c.invalido || !iso || iso < desde90) return;
+    costo90 += c.costo; oport90 += c.recibido * Math.max(0, fci.tna) * c.dias / 365; rec90 += c.recibido; n90++;
+  });
+  if (n90) {
+    const ahorro = costo90 - oport90;
+    lista.append(filaRn("Últimos 90 días", n90 + " cheque(s) negociados: recibiste " + fmtImp(rec90) + " y costaron " + fmtImp(costo90) + ". Con plata del FCI habrías dejado de ganar " + fmtImp(oport90) + (rec90 > fci.disponible ? " (si el FCI alcanzaba: hoy tiene " + fmtImp(fci.disponible) + ")" : "") + ".",
+      ahorro > 0 ? "Ahorro posible " + fmtImp(ahorro) : "Negociar fue mejor", ahorro > 0 ? "pos" : ""));
+  }
+  const vencen = bolsaDatos.filter(b => bolsaAbierta(b) && parseImporte(b["Monto"]) < 0 && normalizar(b["Moneda"]).indexOf("US") !== 0 && fechaAOrden(b["Fecha de pago"]) && fechaAOrden(b["Fecha de pago"]) <= sumarDiasIso(hoy, 30))
+    .reduce((a, b) => a + Math.abs(parseImporte(b["Monto"])), 0);
+  if (vencen) {
+    const cubre = fci.disponible >= vencen;
+    lista.append(filaRn("Próximos 30 días", "Vencen " + fmtImp(vencen) + " de bolsa y el FCI tiene " + fmtImp(fci.disponible) + ".",
+      cubre ? "El FCI los cubre" : "Cubre el " + Math.round(fci.disponible * 100 / vencen) + "%", cubre ? "pos" : "neg"));
+  }
+  if (lista.childNodes.length) t.extra.append(lista);
+  t.extra.append(acc);
+  t.ayuda.textContent = "Comparación aproximada: no tiene en cuenta impuestos ni el plazo de rescate de cada fondo.";
+  t.btnTabla.hidden = true;
+}
+
+function filaRn(titulo, texto, resultado, tono) {
+  const f = el("div", "rn-fila");
+  const tx = el("div");
+  tx.append(el("div", "strong", titulo), el("div", "dt-sub", texto));
+  f.append(tx, el("span", "rn-res " + (tono || ""), resultado));
+  return f;
+}
+
+// ----- Simulador de negociación -----
+function abrirSimuladorBolsa() {
+  const hoy = hoyIso();
+  if (!$("simDesde").value) $("simDesde").value = hoy;
+  if (!$("simFecha").value) $("simFecha").value = sumarDiasIso(hoy, 30);
+  const vol = {};
+  bolsaDatos.forEach(b => { const k = b["ALYC"]; if (k) vol[k] = (vol[k] || 0) + Math.abs(parseImporte(b["Monto"])); });
+  const sel = $("simAlyc");
+  const previo = sel.value;
+  llenarSelect(sel, Object.keys(vol).sort((a, b) => vol[b] - vol[a]).map(k => ({ value: k, label: k })), "Sin elegir");
+  sel.value = previo && vol[previo] ? previo : "";
+  abrirModal("modalSimBolsa");
+  calcularSimulacion();
+  setTimeout(() => $("simImporte").focus(), 50);
+}
+
+function calcularSimulacion() {
+  const box = $("simResultado");
+  box.replaceChildren();
+  const modo = $("simModo").value;
+  $("simImporteEt").textContent = modo === "nominal" ? "Valor nominal del cheque" : "Importe que necesito recibir";
+  const imp = Math.abs(parseImporte($("simImporte").value || ""));
+  const tna = parseFloat(String($("simTna").value || "").replace("%", "").replace(",", ".")) / 100;
+  const desde = $("simDesde").value, hasta = $("simFecha").value;
+  const dias = desde && hasta ? diasEntre(desde, hasta) : 0;
+  const falta = [];
+  if (!imp) falta.push(modo === "nominal" ? "el valor del cheque" : "el importe a recibir");
+  if (!(dias > 0) || dias > 900) falta.push("una fecha de pago posterior a la de negociación");
+  if (!(tna > 0) || tna > 5) falta.push("la TNA que ofrecen (por ejemplo 35)");
+  if (falta.length) { box.append(el("p", "hint", "Para calcular falta " + falta.join(", ") + ".")); return; }
+  const factor = 1 + tna * dias / 365;
+  const nominal = modo === "nominal" ? imp : imp * factor;
+  const recibido = modo === "nominal" ? imp / factor : imp;
+  const costo = nominal - recibido;
+  const tea = Math.pow(factor, 365 / dias) - 1;
+
+  tilesTablero(box, [
+    { label: modo === "nominal" ? "Recibís" : "Cheque a negociar (nominal)", valor: modo === "nominal" ? recibido : nominal, formato: fmtImp, tono: "var(--vz-1)", sub: modo === "nominal" ? "Nominal " + fmtImp(nominal) : "Recibís " + fmtImp(recibido) },
+    { label: "Costo", valor: costo, formato: fmtImp, tono: "var(--vz-2)", sub: dias + " días · " + fmtImp(costo / dias) + " por día" },
+    { label: "TNA", valor: tna, formato: pctTexto, tono: "var(--vz-7)", sub: "Tasa efectiva anual " + pctTexto(tea) }
+  ], true);
+
+  const hoy = hoyIso();
+  const prom = tasaBolsaDesde(sumarDiasIso(hoy, -90));
+  const alycs = tasasPorAlyc(sumarDiasIso(hoy, -180));
+  const elegida = $("simAlyc").value;
+  const deElegida = elegida ? alycs.find(x => x.alyc === elegida) : null;
+  const fci = tasaFciActual();
+  const msgs = [];
+  const conTasa = (t2) => recibido * t2 * dias / 365;
+  if (prom.tna !== null) {
+    const dp = tna - prom.tna;
+    msgs.push(filaRn("Contra tu promedio", "Tus " + prom.n + " cheque(s) de los últimos 90 días salieron a " + pctTexto(prom.tna) + ".",
+      Math.abs(dp) < 0.0025 ? "Igual al promedio" : (dp > 0 ? "+" : "−") + pctTexto(Math.abs(dp)).replace("%", " puntos") + " · " + (dp > 0 ? "cuesta " : "ahorrás ") + fmtImp(Math.abs(conTasa(dp))), dp > 0.0025 ? "neg" : dp < -0.0025 ? "pos" : ""));
+  }
+  if (deElegida) {
+    const da = tna - deElegida.tna;
+    msgs.push(filaRn("Contra " + elegida, "Su promedio de los últimos 6 meses es " + pctTexto(deElegida.tna) + " (" + deElegida.n + " cheque(s)).",
+      Math.abs(da) < 0.0025 ? "En su promedio" : (da > 0 ? "Más cara que su promedio" : "Más barata que su promedio"), da > 0.0025 ? "neg" : da < -0.0025 ? "pos" : ""));
+  }
+  if (alycs.length && alycs[0].tna < tna - 0.0025 && alycs[0].alyc !== elegida) {
+    msgs.push(filaRn("La más barata", alycs[0].alyc + " cobró " + pctTexto(alycs[0].tna) + " en promedio los últimos 6 meses.",
+      "Con esa tasa costaría " + fmtImp(conTasa(alycs[0].tna)), "pos"));
+  }
+  if (fci.tna !== null) {
+    const pierde = conTasa(Math.max(0, fci.tna));
+    const alcanza = fci.disponible >= recibido;
+    msgs.push(filaRn("Contra rescatar del FCI", "El FCI rinde " + pctTexto(fci.tna) + " (" + fci.periodo + "): sacar " + fmtImp(recibido) + " por " + dias + " días deja de ganar " + fmtImp(pierde) + ". " +
+      (alcanza ? "Hoy hay " + fmtImp(fci.disponible) + " en fondos." : "Ojo: en fondos hay " + fmtImp(fci.disponible) + ", no alcanza para todo."),
+      costo > pierde ? "Conviene rescatar · ahorrás " + fmtImp(costo - pierde) : "Conviene negociar", costo > pierde ? "pos" : ""));
+  }
+  if (msgs.length) {
+    const l = el("div", "rn-lista");
+    msgs.forEach(m => l.append(m));
+    box.append(l);
+  }
+  // Barras con la tasa de esta oferta, el promedio, las ALYC y el FCI.
+  const filas = [{ label: "Esta oferta", sub: elegida || "", barras: [{ v: tna, color: "var(--vz-1)", texto: pctTexto(tna) }] }];
+  if (prom.tna !== null) filas.push({ label: "Tu promedio", sub: "Últimos 90 días", barras: [{ v: prom.tna, color: "var(--vz-n2)", texto: pctTexto(prom.tna) }] });
+  alycs.slice(0, 5).forEach(x => filas.push({ label: x.alyc, sub: x.n + " cheque(s) · 6 meses", barras: [{ v: x.tna, color: x.alyc === elegida ? "var(--vz-1)" : "var(--vz-otros)", texto: pctTexto(x.tna) }] }));
+  if (fci.tna !== null) filas.push({ label: "FCI", sub: "Lo que rinde · " + fci.periodo, barras: [{ v: Math.max(0, fci.tna), color: "var(--vz-3)", texto: pctTexto(fci.tna) }] });
+  box.append(el("div", "viz-det-head sim-tit", "Tasas para comparar (TNA)"));
+  barrasHorizontales(box, filas);
+}
+
+["simModo", "simImporte", "simDesde", "simFecha", "simTna", "simAlyc"].forEach(id => {
+  $(id).addEventListener("input", () => { clearTimeout(calcularSimulacion._t); calcularSimulacion._t = setTimeout(calcularSimulacion, 200); });
+  $(id).addEventListener("change", calcularSimulacion);
+});
+
 // ---------------- Tablero de FCI y Bolsa ----------------
 // Arriba de las tarjetas de análisis: indicadores con su tendencia y gráficos que se
 // dibujan con una animación corta (se apaga con "reducir movimiento" del sistema).
@@ -15353,7 +15916,7 @@ function vacioTablero(t, texto) {
 }
 
 // Indicadores grandes con su línea de tendencia. items: [{label, valor, formato, sub, tono, serie, delta: {texto, bueno}}]
-function tilesTablero(box, items) {
+function tilesTablero(box, items, fijo) {
   const cont = el("div", "tab-tiles");
   items.forEach((it, i) => {
     const k = el("div", "tab-tile");
@@ -15365,6 +15928,7 @@ function tilesTablero(box, items) {
     if (it.sub) k.append(el("div", "tab-sub", it.sub));
     if (it.serie && it.serie.length > 1) k.append(sparkline(it.serie));
     cont.append(k);
+    if (fijo) { val.textContent = it.formato(it.valor); k.classList.add("fijo"); return; }
     contarAnimado(val, it.valor, it.formato);
     if (!reduceMotion) {
       // Se inclina un poco hacia el puntero: da volumen sin deformar los números.
@@ -15854,6 +16418,9 @@ function armarTableroFci(cont, redibujar) {
     t4.btnTabla.hidden = true;
   }
 
+  // Rescatar o negociar (FCI contra el costo de bolsa): solo en pesos.
+  if (moneda === "Pesos") { try { tarjetaRescatarONegociar(grid, 4); } catch (err) { console.error(err); } }
+
   // 5. Entradas y salidas de los fondos por mes.
   const meses = [];
   for (let i = 11; i >= 0; i--) meses.push(sumarMesesIso(hoy.substring(0, 7) + "-01", -i));
@@ -15911,7 +16478,11 @@ function renderTableroBolsa(box) {
   const head = el("div", "tab-head");
   const tit = el("div");
   tit.append(el("h2", null, "Tablero de Bolsa"), el("p", "viz-sub", "Cheques propios negociados en bolsa: cuándo hay que pagarlos, a qué tasa se consiguió la plata y con qué ALYC."));
-  head.append(tit);
+  const bSim = el("button", "secondary", "Simular un cheque");
+  bSim.type = "button";
+  bSim.title = "Cuánto recibís y cuánto cuesta negociar un cheque, comparado con tus tasas y con el FCI";
+  bSim.addEventListener("click", () => abrirSimuladorBolsa());
+  head.append(tit, bSim);
   cont.append(head);
   const pesos = bolsaDatos.filter(b => normalizar(b["Moneda"]).indexOf("US") !== 0);
   if (!pesos.length) { cont.append(el("div", "card viz-vacio", "Todavía no hay cheques en bolsa. Se importan con la planilla de flujo de fondos.")); return; }
@@ -15995,6 +16566,9 @@ function renderTableroBolsa(box) {
     tablaViz(t1.tabla, ["Semana"].concat(series.map(s => s.label), ["Total", "Cheques"]), cats.map(c => [c.titulo].concat(series.map(s => fmtImp(c.datos[s.k][0])), [fmtImp(c.total), String(c.lista.length)])));
   }
 
+  // Rescatar o negociar (FCI contra el costo de bolsa).
+  try { tarjetaRescatarONegociar(grid, 1); } catch (err) { console.error(err); }
+
   // 2. Tasa de cada cheque negociado (últimos 12 meses).
   const t2 = tarjetaTablero("Tasa de cada cheque negociado", "Cada punto es un cheque: cuándo se negoció y a qué TNA. La línea es el promedio ponderado.", 1);
   grid.append(t2.card);
@@ -16043,36 +16617,92 @@ function renderTableroBolsa(box) {
     tablaViz(t3.tabla, ["ALYC", "Cheques", "Deuda", "TNA promedio"], filasA.map(x => [x.alyc, String(x.n), fmtImp(x.deuda), tasaDe(x.alyc) === null ? "—" : pctTexto(tasaDe(x.alyc))]));
   }
 
-  // 4. Negociado por mes.
-  const t4 = tarjetaTablero("Lo negociado cada mes", "Valor nominal de los cheques negociados por mes (fecha de carga), por ALYC.", 3, true);
+  // 4. ALYC mes a mes: la tasa de cada una (arriba) y lo negociado (abajo).
+  const t4 = tarjetaTablero("ALYC mes a mes", "Arriba, la TNA promedio que cobró cada ALYC en el mes; abajo, cuánto se negoció con cada una (por fecha de carga).", 4, true);
   grid.append(t4.card);
   const meses = [];
   for (let i = 11; i >= 0; i--) meses.push(sumarMesesIso(hoy.substring(0, 7) + "-01", -i));
   const negociados = pesos.filter(b => fechaAOrden(b["Fecha de carga"]) >= meses[0]);
   if (!negociados.length) vacioTablero(t4, "No hay cheques negociados en los últimos 12 meses.");
   else {
+    const tasaDe = lista => {
+      const cs = lista.map(costoBolsa).filter(c => c && !c.invalido);
+      const bb = cs.reduce((a, c) => a + c.recibido * c.dias, 0);
+      return { tna: bb > 0 ? cs.reduce((a, c) => a + c.costo, 0) / bb * 365 : null, rec: cs.reduce((a, c) => a + c.recibido * c.dias, 0) };
+    };
     const catsM = meses.map((m, i) => {
       const del = negociados.filter(b => fechaAOrden(b["Fecha de carga"]).substring(0, 7) === m.substring(0, 7));
-      const datos = {};
-      series.forEach(s => { datos[s.k] = [0, 0]; });
-      del.forEach(b => { datos[serieDe(b)][0] += nominal(b); });
-      const cs = del.map(costoBolsa).filter(c => c && !c.invalido);
-      const bb = cs.reduce((a, c) => a + c.recibido * c.dias, 0);
-      return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), datos: datos, total: del.reduce((a, b) => a + nominal(b), 0), n: del.length, tna: bb > 0 ? cs.reduce((a, c) => a + c.costo, 0) / bb * 365 : null };
+      const datos = {}, linea = {}, base = {};
+      series.forEach(s => {
+        const deS = del.filter(b => serieDe(b) === s.k);
+        datos[s.k] = [deS.reduce((a, b) => a + nominal(b), 0), 0];
+        const tt = tasaDe(deS);
+        linea[s.k] = tt.tna;
+        base[s.k] = tt.rec;
+      });
+      return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), datos: datos, linea: linea, base: base, total: del.reduce((a, b) => a + nominal(b), 0), n: del.length, tna: tasaDe(del).tna };
     });
-    const tot = catsM.reduce((a, c) => a + c.total, 0);
-    datoViz(t4, ["En 12 meses se negociaron ", el("b", null, fmtImp(tot)), " en " + negociados.length + " cheque(s), unos " + montoCorto(tot / 12) + " por mes."]);
-    leyendaViz(t4.leyenda, series);
+    // Conclusión: el último mes con al menos dos ALYC con tasa.
+    let ult = null;
+    for (let i = catsM.length - 1; i >= 0 && !ult; i--) if (series.filter(s => catsM[i].linea[s.k] !== null).length >= 2) ult = catsM[i];
+    if (ult) {
+      const con = series.filter(s => ult.linea[s.k] !== null).sort((a, b) => ult.linea[a.k] - ult.linea[b.k]);
+      const barata = con[0], cara = con[con.length - 1];
+      const dif = ult.linea[cara.k] - ult.linea[barata.k];
+      // Lo que costó de más lo negociado con la cara, si se hubiera hecho a la tasa de la barata (recibido × días × diferencia ÷ 365).
+      const extra = ult.base[cara.k] * dif / 365;
+      datoViz(t4, ["En " + mesLargo(ult.mes).toLowerCase() + " ", el("b", null, cara.label), " cobró " + pctTexto(ult.linea[cara.k]) + " y ", el("b", null, barata.label), " " + pctTexto(ult.linea[barata.k]) + ": ",
+        el("b", null, pctTexto(dif).replace("%", " puntos")), " de diferencia." + (extra > 1 ? " Con la tasa más baja, lo negociado con " + cara.label + " habría costado " + fmtImp(extra) + " menos." : "")], dif >= 0.03);
+    } else {
+      const tot = catsM.reduce((a, c) => a + c.total, 0);
+      datoViz(t4, ["En 12 meses se negociaron ", el("b", null, fmtImp(tot)), " en " + negociados.length + " cheque(s). Para comparar tasas hace falta el importe recibido de cheques de al menos dos ALYC en el mismo mes."]);
+    }
+    leyendaViz(t4.leyenda, series.map(s => ({ label: s.label, color: s.color })));
+    const conLinea = series.filter(s => catsM.some(c => c.linea[s.k] !== null));
     dibujarCombo(t4, {
-      aria: "Cheques negociados en bolsa por mes", cats: catsM, barras: series, altoBarras: 180,
+      aria: "TNA y volumen negociado por ALYC y por mes", cats: catsM, barras: series, lineas: conLinea.length ? conLinea : null,
+      tituloLinea: "TNA promedio de cada ALYC", tituloBarras: "Negociado (valor nominal)", altoLinea: 130, altoBarras: 150,
+      formatoLinea: v => Math.round(v * 100) + "%", marcarLinea: () => true,
       tooltip: i => {
         const c = catsM[i];
-        const filas = series.filter(s => c.datos[s.k][0]).map(s => ({ color: s.color, valor: fmtImp(c.datos[s.k][0]), label: s.label }));
+        const filas = series.filter(s => c.datos[s.k][0]).map(s => ({ color: s.color, valor: fmtImp(c.datos[s.k][0]) + (c.linea[s.k] !== null ? " · " + pctTexto(c.linea[s.k]) : ""), label: s.label }));
         filas.push({ total: true, valor: fmtImp(c.total), label: c.n + " cheque(s)" });
         return { titulo: mesLargo(c.mes), filas: filas, nota: c.tna !== null ? "TNA promedio del mes: " + pctTexto(c.tna) : "Sin importe recibido para calcular la tasa" };
       }
     });
-    tablaViz(t4.tabla, ["Mes"].concat(series.map(s => s.label), ["Total", "Cheques", "TNA"]), catsM.slice().reverse().map(c => [mesLargo(c.mes)].concat(series.map(s => fmtImp(c.datos[s.k][0])), [fmtImp(c.total), String(c.n), c.tna === null ? "—" : pctTexto(c.tna)])));
+    // Mapa de tasas: ALYC × últimos 6 meses (más oscuro, más cara).
+    const seis = catsM.slice(-6);
+    const vals = [];
+    seis.forEach(c => series.forEach(s => { if (c.linea[s.k] !== null) vals.push(c.linea[s.k]); }));
+    if (vals.length) {
+      const mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+      const tabla = el("table", "alyc-mapa");
+      const trh = el("tr");
+      trh.append(el("th", null, "ALYC"));
+      seis.forEach(c => trh.append(el("th", "num", mesCorto(c.mes, true))));
+      tabla.append(trh);
+      series.forEach(s => {
+        const tr = el("tr");
+        const tdN = el("td");
+        const sw = el("i", "alyc-sw");
+        sw.style.setProperty("--c", s.color);
+        tdN.append(sw, document.createTextNode(s.label));
+        tr.append(tdN);
+        seis.forEach(c => {
+          const v = c.linea[s.k];
+          const td = el("td", "num alyc-celda", v === null ? "—" : pctTexto(v));
+          if (v !== null) {
+            td.style.setProperty("--int", (mx > mn ? (v - mn) / (mx - mn) : 0.5).toFixed(3));
+            td.title = s.label + " · " + mesLargo(c.mes) + ": " + pctTexto(v) + " · " + fmtImp(c.datos[s.k][0]) + " negociados";
+          } else td.classList.add("vacia");
+          tr.append(td);
+        });
+        tabla.append(tr);
+      });
+      t4.detalle.append(el("div", "viz-det-head", "Tasa de cada ALYC, últimos 6 meses (más oscuro, más cara)"), envolverTabla(tabla));
+    }
+    tablaViz(t4.tabla, ["Mes"].concat(series.map(s => s.label + " (nominal)"), series.map(s => s.label + " (TNA)"), ["Total", "Cheques", "TNA del mes"]),
+      catsM.slice().reverse().map(c => [mesLargo(c.mes)].concat(series.map(s => fmtImp(c.datos[s.k][0])), series.map(s => c.linea[s.k] === null ? "—" : pctTexto(c.linea[s.k])), [fmtImp(c.total), String(c.n), c.tna === null ? "—" : pctTexto(c.tna)])));
   }
 }
 

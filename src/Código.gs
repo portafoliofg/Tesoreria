@@ -135,7 +135,9 @@ const BLOQUEO_SEGUNDOS = 600;
  * ALLOWALL permite mostrarla dentro de un iframe en el dominio propio
  * (ver docs/index.html).
  */
-function doGet() {
+function doGet(e) {
+  // Suscripción de Google Calendar a los vencimientos (Calendario.gs): ?cal=<enlace secreto>.
+  if (e && e.parameter && e.parameter.cal) return feedCalendario_(e.parameter.cal);
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Tesorería · Andrés Sammartino')
     .setFaviconUrl('https://bgpsammar.com/logo-as-64.png')
@@ -268,6 +270,9 @@ const ACCIONES = {
   obtenerValoresPropiedades: (d, u) => obtenerValoresPropiedades_(d, u),
   guardarValorPropiedad: (d, u) => guardarValorPropiedad_(d, u),
   tableroF1: (d, u) => tableroF1_(d, u),
+  // Calendario de vencimientos y su suscripción en Google Calendar (Calendario.gs).
+  obtenerCalendario: (d, u) => obtenerCalendario_(d, u),
+  suscripcionCalendario: (d, u) => suscripcionCalendario_(d, u),
   cotizacionesDolar: cotizacionesDolar_,
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }

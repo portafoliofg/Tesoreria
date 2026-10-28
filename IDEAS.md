@@ -6,30 +6,21 @@ Ideas de mejoras conversadas, para retomarlas. Las **elegidas** son las próxima
 No se toca la plataforma de **Inversiones** (el cartel de bgpsammar.com que abre `azevo.onrender.com`)
 ni su enlace en `docs/index.html`.
 
-## Elegidas
+## Hechas
 
-### 1. FCI contra costo de bolsa (cuándo conviene rescatar)
-Cruzar la TNA real del FCI (rendimiento con los saldos de Saldos) con la TNA que se paga al
-negociar cheques en bolsa (costo de bolsa). Si la bolsa sale más cara que lo que rinde el fondo,
-avisar cuánto se ahorra rescatando en vez de negociar:
+- **Calendario de vencimientos** (menú Calendario): mes a mes, lo que vence cada día (cheques emitidos y
+  de terceros, bolsa, compromisos y recordatorios con importe), con el detalle del día y un enlace por
+  vencimiento para agregarlo a Google Calendar. Suscripción a Google Calendar con un enlace secreto
+  (iCal, `Calendario.gs`): no le pide permisos nuevos al script; se puede regenerar.
+- **¿Rescatar o negociar?** (tableros de FCI y de Bolsa): TNA real del FCI contra la TNA reciente de
+  bolsa, cuánto se ahorra por cada $ 1 M a 30 días, lo que pasó en 90 días y si el FCI cubre lo que
+  vence en 30 días.
+- **Simulador de negociación** (botón "Simular un cheque" en Bolsa): recibido o nominal, costo, TNA y
+  TEA, comparado con el promedio propio, cada ALYC y el FCI.
+- **ALYC mes a mes** (tablero de Bolsa): TNA de cada ALYC por mes y lo negociado, diferencia entre la
+  más cara y la más barata, y mapa de tasas de los últimos 6 meses.
 
-> "Te estás financiando en bolsa al 33% y el FCI rinde 27%. Rescatar $ X para no negociar el
-> próximo cheque te ahorra $ Y."
-
-- Dónde: tablero de FCI y Bolsa (una tarjeta en cada solapa) y como aviso en Inicio.
-- Con qué: `calcularRendimientoFciSaldos` / `tnaVentana` (FCI) y `costoBolsa` / `costoBolsaResumen` (bolsa).
-- Detalle: comparar con la tasa de los cheques más recientes (no el promedio histórico) y
-  considerar el plazo (un rescate deja de rendir los mismos días que dura el cheque).
-- Amaroki: respuesta rápida "¿me conviene rescatar o negociar?".
-
-### 3. Simulador de negociación de cheques
-Ingresando importe, días (o fecha de pago) y la tasa que ofrece la ALYC, mostrar:
-- Lo que se recibe y el costo en pesos.
-- Cómo queda esa tasa contra el promedio propio, contra cada ALYC y contra lo que rinde el FCI (idea 1).
-- También al revés: con el importe que hace falta recibir, qué nominal hay que negociar.
-
-- Dónde: botón "Simular" en la solapa Bolsa (modal), con el resultado al lado del promedio de la ALYC.
-- Con qué: la misma fórmula de `costoBolsa`: TNA = (nominal ÷ recibido − 1) × 365 ÷ días.
+Pendiente de estas: respuesta rápida de Amaroki "¿me conviene rescatar o negociar?".
 
 ## Más adelante
 
