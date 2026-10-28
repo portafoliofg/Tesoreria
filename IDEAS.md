@@ -2,6 +2,10 @@
 
 Ideas de mejoras conversadas, para retomarlas. Las **elegidas** son las próximas a hacer.
 
+**Alcance:** todo es para Tesorería (la app de este repositorio, con sus pestañas, incluida FCI y Bolsa).
+No se toca la plataforma de **Inversiones** (el cartel de bgpsammar.com que abre `azevo.onrender.com`)
+ni su enlace en `docs/index.html`.
+
 ## Elegidas
 
 ### 1. FCI contra costo de bolsa (cuándo conviene rescatar)
