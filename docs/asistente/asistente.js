@@ -38,7 +38,7 @@
     buscar_movimientos: "movimientos", buscar_cheques: "cheques", saldos: "saldos", cuentas_bancarias: "cuentas",
     proximos_vencimientos: "vencimientos", compromisos: "compromisos", inversiones: "inversiones",
     propiedades: "propiedades", actividad_de_la_app: "actividad de la app", facturas: "facturas",
-    revisar_inconsistencias: "revisión", recordar: "memoria", olvidar: "memoria", crear_pendiente: "pendientes",
+    respuesta_rapida: "respuesta rápida", revisar_inconsistencias: "revisión", recordar: "memoria", olvidar: "memoria", crear_pendiente: "pendientes",
     completar_pendiente: "pendientes", listar_pendientes: "pendientes", crear_recordatorio: "recordatorios"
   };
   // Acciones de la app después de las cuales se vuelve a revisar si algo no cuadra.
