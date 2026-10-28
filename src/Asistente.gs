@@ -84,6 +84,8 @@ function asisEstado_(u) {
   const sugerencias = [
     '¿Cuánta plata tenemos hoy entre cuentas y FCI?',
     '¿Qué cheques vencen esta semana?',
+    'Cheques en cartera para este mes',
+    'Rendimiento del FCI en los últimos 30 días',
     '¿Qué pagos tenemos en los próximos 15 días?',
     '¿Qué falta conciliar?',
     '¿Quién no pagó el alquiler este mes?',
@@ -103,10 +105,14 @@ function asisPreguntar_(d, u) {
   ASIS_MEMO_ = {};
   ASIS_ESCRITURAS_ = 0;
   const clave = asisClave_();
+  const canal = d.canal === 'voz' ? 'voz' : 'texto';
+  // Las preguntas comunes (cheques, saldos, rendimiento del FCI, vencimientos) se contestan
+  // directo con los datos, sin Gemini: más rápido y sin gastar cuota (AsistenteRapido.gs).
+  const rapida = d.mensaje ? asisRapida_(String(d.mensaje).trim().substring(0, ASIS_MAX_TEXTO), u) : null;
+  if (rapida) return { ok: true, respuesta: canal === 'voz' ? rapida.voz : rapida.texto, consultas: ['respuesta_rapida'], modelo: 'respuesta rápida' };
   if (!clave) {
     return { ok: false, error: 'El asistente todavía no está activado: falta cargar la clave de Gemini (GEMINI_API_KEY) en las propiedades del script. Los pasos están en ASISTENTE.md.' };
   }
-  const canal = d.canal === 'voz' ? 'voz' : 'texto';
   let texto = String(d.mensaje || '').trim();
   if (texto.length > ASIS_MAX_TEXTO) texto = texto.substring(0, ASIS_MAX_TEXTO);
 
@@ -122,6 +128,10 @@ function asisPreguntar_(d, u) {
     if (!texto) return { ok: true, respuesta: 'No te escuché bien. ¿Me lo repetís?', transcripcion: '', consultas: [] };
   }
   if (!texto) return { ok: false, error: 'Escribí o decí tu pregunta.' };
+  if (transcripcion) {
+    const r = asisRapida_(texto, u);
+    if (r) return { ok: true, respuesta: canal === 'voz' ? r.voz : r.texto, transcripcion: transcripcion, consultas: ['respuesta_rapida'], modelo: 'respuesta rápida' };
+  }
 
   const historial = asisHistorial_(d.historial);
   const inicial = historial.concat([{ role: 'user', parts: [{ text: texto }] }]);

@@ -47,6 +47,27 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
   Se apaga diciendo *"listo"*, *"gracias"* o *"chau"*, o si no escucha nada.
 - **Lápiz**: empieza una charla nueva. La charla queda guardada en ese navegador.
 
+## Respuestas rápidas (sin Gemini)
+
+Las preguntas más comunes se contestan directo con los datos, en uno o dos segundos y sin
+gastar cuota (debajo de la respuesta dice *Usó: respuesta rápida*):
+
+| Pregunta | Qué contesta |
+|---|---|
+| *Cheques en cartera para octubre*, *cheques a cobrar el mes que viene* | Cheques de terceros abiertos (en cartera o en custodia) por fecha de pago, con total y lista. |
+| *Cheques emitidos de esta semana*, *cheques vencidos sin pagar* | Cheques emitidos pendientes. |
+| *¿Qué cheques vencen esta semana?* | Los dos: a cobrar y a pagar. |
+| *¿Cuánto tenemos de saldo a favor?*, *¿cuánta plata tenemos?* | Cuentas + FCI (último saldo informado); con "a favor" suma también los cheques de terceros en cartera. |
+| *Saldo de Galicia*, *saldo de FCI* | Las cuentas y el FCI de ese banco, o todos los FCI. |
+| *Rendimiento del FCI de BBVA*, *¿cuánto rindió el FCI en septiembre?* | Rendimiento y TNA por banco, igual que en FCI y Bolsa (por defecto, últimos 30 días). También entiende el nombre del fondo. |
+| *¿Qué vence esta semana?*, *pagos de los próximos 15 días* | Cheques, bolsa, compromisos y recordatorios a pagar y a cobrar. |
+
+Entiende *hoy*, *mañana*, *esta semana*, *la semana que viene*, *este mes*, *el mes que viene*,
+*el mes pasado*, un mes por nombre (con año o sin) y *próximos / últimos N días*. Si la pregunta
+pide algo más (por qué, comparar, un cheque o una persona puntual, facturas, propiedades…) o
+una repregunta (*¿y en noviembre?*), la contesta Gemini como siempre. Las reglas están en
+`src/AsistenteRapido.gs`.
+
 ## Memoria, pendientes y recordatorios
 
 Se le pide hablando o escribiendo:
@@ -146,6 +167,7 @@ el chat ofrece abrir su página, donde funciona.
 | Archivo | Qué es |
 |---|---|
 | `src/Asistente.gs` | Servidor: llama a Gemini, hace las consultas, la revisión, la memoria y los pendientes. |
+| `src/AsistenteRapido.gs` | Respuestas rápidas sin Gemini (cheques, saldos, rendimiento del FCI, vencimientos). |
 | `docs/asistente/` | Página propia, chat (`asistente.js`, el mismo para la app y la página) y manifiesto. |
 | `ASISTENTE.md` | Este archivo. |
 
