@@ -14924,9 +14924,31 @@ function ultimoFciPorBanco() {
   return Object.keys(ult).map(k => ult[k]).sort((a, b) => b.iso.localeCompare(a.iso) || b.saldo - a.saldo);
 }
 
+// Filas de la ventana FCI: las de la planilla más los saldos de FCI cargados a mano
+// (Saldos / Inicio) como filas SALDO, salvo que la planilla ya traiga el saldo de ese
+// banco en esa fecha. Se arma una vez por versión de los datos (el análisis compara la lista).
+let memoFilasFci = {};
+function filasFciConSaldos() {
+  if (memoFilasFci.fci === fciDatos && memoFilasFci.saldos === saldosGuardados) return memoFilasFci.res;
+  const bancoDe = b => nombreBancoCanonico(interpretarEtiqueta(b).bancoTexto || b);
+  const enPlanilla = {};
+  fciDatos.forEach(f => { if (normalizar(f["Movimiento"]) === "SALDO") enPlanilla[bancoDe(f["Banco"]) + "|" + fechaAOrden(f["Fecha"])] = true; });
+  const res = fciDatos.slice();
+  saldosGuardados.filter(esFilaFci).forEach(s => {
+    if (!parseImporte(s["Saldo"]) || enPlanilla[bancoDe(s["Banco"]) + "|" + fechaAOrden(s["Fecha"])]) return;
+    res.push({
+      "Persona": s["Cargado por"] || "", "Fecha": s["Fecha"], "Banco": s["Banco"], "Fondo": "FCI del banco", "Movimiento": "SALDO",
+      "Solicitud o rendimiento": "Saldo cargado en la app" + (s["Origen"] ? " (" + s["Origen"] + ")" : ""),
+      "Moneda": s["Moneda"] === "USD" ? "USD" : "Pesos", "Monto": s["Saldo"], __i: fciDatos.length + res.length
+    });
+  });
+  memoFilasFci = { fci: fciDatos, saldos: saldosGuardados, res: res };
+  return res;
+}
+
 function renderInversiones() {
   const esFci = ventanaInv === "fci";
-  const datos = esFci ? fciDatos : bolsaDatos;
+  const datos = esFci ? filasFciConSaldos() : bolsaDatos;
   const cols = COLUMNAS_INV[ventanaInv];
   const campoTipo = esFci ? "Movimiento" : "Condicion";
   const campoBanco = esFci ? "Banco" : "ALYC";
@@ -14935,7 +14957,7 @@ function renderInversiones() {
   // Ventanas
   const vent = $("ventanas-inversiones");
   vent.replaceChildren();
-  [["fci", "FCI", fciDatos.length], ["bolsa", "Bolsa", bolsaDatos.length]].forEach(v => {
+  [["fci", "FCI", filasFciConSaldos().length], ["bolsa", "Bolsa", bolsaDatos.length]].forEach(v => {
     const b = el("button", "rapida" + (ventanaInv === v[0] ? " activa" : ""));
     b.type = "button";
     b.append(el("span", null, v[1]), el("span", "rapida-n", formatEntero(v[2])));
@@ -15959,11 +15981,28 @@ function chequesParaSalida() {
 // De la foto solo cuentan los números de 5 cifras o más (los cortos suelen ser importes, fechas o códigos).
 const MIN_CIFRAS_SALIDA = 5;
 
+// Números de cheque de una foto. Además de los de 5 cifras o más, los listados de
+// movimientos del banco (Fecha | Concepto | Descripción | Monto | Nro. De Comprobante,
+// ej. "28/10/2026 0019 CH.CAM.RECIB.ACH.ECH $ -5.000.000,00 2815") traen el cheque
+// como comprobante con 3 o 4 cifras: en los renglones con fecha (o en todo el texto si
+// tiene la columna "comprobante") se sacan fechas e importes y lo que queda de 3 cifras
+// o más también cuenta.
+function numerosDeFoto(texto) {
+  const t = String(texto || "");
+  const largos = numerosDeTexto(t).filter(n => n.length >= MIN_CIFRAS_SALIDA);
+  const sinFechasNiImportes = x => x
+    .replace(/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g, " ")
+    .replace(/(?<!\d)\d{1,3}(?:\.\d{3})*,\d{2}\b/g, " ");
+  const reFecha = /\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/;
+  const cortos = numerosDeTexto((/comprobante/i.test(t) ? [t] : t.split(/\r?\n/).filter(l => reFecha.test(l))).map(sinFechasNiImportes).join("\n"));
+  return largos.concat(cortos.filter(n => largos.indexOf(n) < 0));
+}
+
 function renderSalidaCheques() {
   const box = $("salidaLista");
   box.replaceChildren();
   const escritos = numerosDeTexto($("salidaNumeros").value);
-  const deFoto = numerosDeTexto(salidaImagenes.map(im => im.texto).join("\n")).filter(n => n.length >= MIN_CIFRAS_SALIDA);
+  const deFoto = numerosDeFoto(salidaImagenes.map(im => im.texto).join("\n"));
   const porNumero = chequesParaSalida();
   // Los que ya estaban pagados o cerrados no se listan: solo se avisa cuántos son.
   const cerrados = {};
@@ -16033,7 +16072,7 @@ function renderSalidaImagenes() {
     const d = el("div", "salida-img");
     if (im.url) { const img = el("img"); img.src = im.url; img.alt = im.file.name; d.append(img); }
     else d.append(el("div", "dt-sub", im.file.name));
-    const n = im.estado === "leyendo" ? "Leyendo…" : im.estado === "error" ? "No se pudo leer" : (pn => numerosDeTexto(im.texto).filter(k => k.length >= MIN_CIFRAS_SALIDA && pn[k]).length)(chequesParaSalida()) + " cheque(s)";
+    const n = im.estado === "leyendo" ? "Leyendo…" : im.estado === "error" ? "No se pudo leer" : (pn => numerosDeFoto(im.texto).filter(k => pn[k]).length)(chequesParaSalida()) + " cheque(s)";
     d.append(el("div", "dt-sub" + (im.estado === "error" ? " alerta-txt" : ""), "Imagen " + (i + 1) + " · " + n));
     const x = el("button", "secondary", "×");
     x.type = "button";
