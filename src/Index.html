@@ -1326,11 +1326,10 @@
   .sim-tit { margin: 6px 0 0; font-weight: 650; }
   @media (max-width: 700px) { .sim-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .rn-fila { flex-direction: column; align-items: flex-start; } }
   @media (prefers-reduced-motion: reduce) { .cal-dia { animation: none !important; transition: none; } }
-  /* ---------- Tablero de FCI y Bolsa ---------- */
+  /* ---------- Tablero de Bolsa ---------- */
   .tablero { display: grid; gap: 16px; }
   .tab-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
   .tab-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
-  .tab-ctrl { display: flex; flex-wrap: wrap; gap: 8px; }
   .tab-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
   .tab-tile { position: relative; padding: 16px 18px 0; border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden;
     background: linear-gradient(165deg, var(--surface) 35%, var(--surface-2)); display: flex; flex-direction: column;
@@ -1357,12 +1356,6 @@
   @keyframes tabEntra { from { opacity: 0; transform: perspective(800px) translateY(14px) rotateX(10deg); } to { opacity: 1; transform: none; } }
   @keyframes vzRevela { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
   @keyframes vzAparece { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: none; } }
-  .vz-apilado { opacity: .82; }
-  .vz-apilado-borde { fill: none; stroke: var(--surface); stroke-width: 1.5; }
-  .vz-total { stroke: var(--text); stroke-width: 2; }
-  .vz-cursor { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0; }
-  .vz-cursor.on { opacity: .55; }
-  .vz-oculto { display: none; }
   .vz-ref { stroke: var(--vz-n1); stroke-width: 1.5; stroke-dasharray: 5 4; }
   .vz-ref-txt { font-size: 11.5px; }
   .vz-disperso { stroke: var(--surface); stroke-width: 2; transition: r .15s; }
@@ -1375,16 +1368,8 @@
   .hb-pista { height: 10px; }
   .hb-barra { height: 10px; width: 0; border-radius: 0 4px 4px 0; background: var(--c); transition: width .9s cubic-bezier(.2, .7, .2, 1); }
   .hb-val { font-size: 12.5px; line-height: 10px; font-weight: 600; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .comp-barra { display: flex; gap: 2px; height: 26px; margin-top: 14px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
-  .comp-seg { width: 0; background: var(--c); transition: width 1s cubic-bezier(.2, .7, .2, 1); }
-  .comp-lista { display: grid; margin-top: 10px; }
-  .comp-fila { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-  .comp-fila:last-child { border-bottom: none; }
-  .comp-fila i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
-  .comp-fila b { font-variant-numeric: tabular-nums; }
-  .comp-imp { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  @media (max-width: 600px) { .comp-fila { grid-template-columns: 12px minmax(0, 1fr) auto; } .comp-imp { grid-column: 2 / -1; } .hb-fila { grid-template-columns: minmax(80px, 110px) minmax(0, 1fr) auto; } }
-  @media (prefers-reduced-motion: reduce) { .tab-tile, .viz-anim, .viz-anim .viz-plot svg, .vz-disperso { animation: none !important; } .hb-barra, .comp-seg { transition: none; } }
+  @media (max-width: 600px) { .hb-fila { grid-template-columns: minmax(80px, 110px) minmax(0, 1fr) auto; } }
+  @media (prefers-reduced-motion: reduce) { .tab-tile, .viz-anim, .viz-anim .viz-plot svg, .vz-disperso { animation: none !important; } .hb-barra { transition: none; } }
   /* ===== Análisis de FCI y Bolsa, cobertura y reporte ===== */
   .inv-analisis { display: grid; gap: 16px; margin-bottom: 16px; }
   .inv-analisis:empty { display: none; }
@@ -15236,11 +15221,15 @@ function renderInversiones() {
     analisis._ver = versionAnalisisInv;
     analisis._saldos = saldosGuardados;
     analisis.replaceChildren();
-    // Tablero arriba (indicadores y gráficos); reemplaza a los indicadores sueltos.
-    try {
-      if (esFci) renderTableroFci(analisis); else renderTableroBolsa(analisis);
-      $("kpisInversiones").hidden = true;
-    } catch (err) { console.error(err); $("kpisInversiones").hidden = false; analisis.append(nodoError("No se pudo armar el tablero: " + msgErr(err))); }
+    // Bolsa: tablero arriba (indicadores y gráficos), que reemplaza a los indicadores sueltos.
+    // FCI: solo los indicadores sueltos.
+    $("kpisInversiones").hidden = false;
+    if (!esFci) {
+      try {
+        renderTableroBolsa(analisis);
+        $("kpisInversiones").hidden = true;
+      } catch (err) { console.error(err); analisis.append(nodoError("No se pudo armar el tablero: " + msgErr(err))); }
+    }
     if (esFci) {
       try { renderRendimientoFciSaldos(analisis); }
       catch (err) { console.error(err); analisis.append(nodoError("No se pudo calcular el rendimiento por banco: " + msgErr(err))); }
@@ -15847,39 +15836,14 @@ function calcularSimulacion() {
   $(id).addEventListener("change", calcularSimulacion);
 });
 
-// ---------------- Tablero de FCI y Bolsa ----------------
-// Arriba de las tarjetas de análisis: indicadores con su tendencia y gráficos que se
+// ---------------- Tablero de Bolsa ----------------
+// Arriba de las tarjetas de análisis de Bolsa: indicadores con su tendencia y gráficos que se
 // dibujan con una animación corta (se apaga con "reducir movimiento" del sistema).
-// Usa los mismos cálculos que el resto de la pestaña: rendimiento con los saldos de FCI
-// cargados en Inicio (calcularRendimientoFciSaldos) y costo de bolsa (costoBolsa).
-let rangoFci = 90;
-let monedaFci = "Pesos";
-try { rangoFci = parseInt(localStorage.getItem("lc-rango-fci"), 10) || 90; } catch (e) {}
-const RANGOS_FCI = [[30, "30 días"], [90, "90 días"], [180, "6 meses"], [365, "1 año"]];
-
+// Usa el costo de bolsa (costoBolsa) y, para "¿Rescatar o negociar?", la TNA del FCI.
+// FCI no tiene tablero: muestra sus indicadores sueltos (kpisInversiones).
 function msIso(iso) {
   const p = iso.split("-");
   return Date.UTC(+p[0], +p[1] - 1, +p[2]);
-}
-
-function cortoMoneda(moneda) {
-  return moneda === "USD" ? v => montoCorto(v).replace("$", "US$") : montoCorto;
-}
-
-function segViz(nombre, ops, actual, alCambiar) {
-  const seg = el("div", "seg");
-  seg.setAttribute("role", "radiogroup");
-  ops.forEach(o => {
-    const lab = el("label", "seg-op");
-    const r = el("input");
-    r.type = "radio";
-    r.name = nombre;
-    r.checked = o[0] === actual;
-    r.addEventListener("change", () => alCambiar(o[0]));
-    lab.append(r, document.createTextNode(o[1]));
-    seg.append(lab);
-  });
-  return seg;
 }
 
 // Número que sube desde cero (el resto de la app los muestra fijos).
@@ -15998,87 +15962,6 @@ function marcasFecha(x0, x1, ancho) {
 }
 
 /**
- * Áreas apiladas en el tiempo (eje X proporcional a las fechas).
- * cfg: {fechas: [iso], series: [{k, label, color}], valor(k, i), fmtEje, fmt, aria, alto}
- */
-function dibujarApilado(t, cfg) {
-  const plot = t.plot;
-  plot._dibujar = () => dibujarApilado(t, cfg);
-  if (vizObservador && !plot._observado) { vizObservador.observe(plot); plot._observado = true; }
-  const W = Math.max(280, Math.round(plot.clientWidth || 600));
-  plot._ancho = W;
-  const padL = 66, padR = 16, padT = 14, alto = cfg.alto || 230, H = padT + alto + 28;
-  const xs = cfg.fechas.map(msIso);
-  const x0 = xs[0], x1 = xs.length > 1 ? xs[xs.length - 1] : xs[0] + 86400000;
-  const x = v => padL + (v - x0) * (W - padL - padR) / (x1 - x0);
-  // Acumulado de abajo hacia arriba en el orden de las series.
-  const acum = cfg.fechas.map((f, i) => { let s = 0; return cfg.series.map(se => { const a = s; s += Math.max(0, cfg.valor(se.k, i) || 0); return [a, s]; }); });
-  const maxTot = Math.max.apply(null, acum.map(a => a.length ? a[a.length - 1][1] : 0).concat([1]));
-  const e = escalaLinda(0, maxTot, 4);
-  const y = v => padT + (e.max - v) * alto / (e.max - e.min);
-  const viejo = plot.querySelector("svg");
-  if (viejo) viejo.remove();
-  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": cfg.aria || "" });
-  plot.insertBefore(svg, t.tip);
-  e.ticks.forEach(v => {
-    svgEl("line", { x1: padL, x2: W - padR, y1: y(v), y2: y(v), class: v === 0 ? "vz-base" : "vz-grid" }, svg);
-    const tx = svgEl("text", { x: padL - 8, y: y(v) + 4, class: "vz-eje", "text-anchor": "end" }, svg);
-    tx.textContent = (cfg.fmtEje || montoCorto)(v);
-  });
-  marcasFecha(x0, x1, W - padL - padR).forEach(m => {
-    const tx = svgEl("text", { x: x(m.v), y: H - 8, class: "vz-eje", "text-anchor": "middle" }, svg);
-    tx.textContent = m.t;
-  });
-  cfg.series.forEach((se, j) => {
-    let arriba = "", abajo = "";
-    xs.forEach((v, i) => { arriba += (i ? " L " : "M ") + x(v).toFixed(1) + " " + y(acum[i][j][1]).toFixed(1); });
-    for (let i = xs.length - 1; i >= 0; i--) abajo += " L " + x(xs[i]).toFixed(1) + " " + y(acum[i][j][0]).toFixed(1);
-    const a = svgEl("path", { d: arriba + abajo + " Z", class: "vz-apilado" }, svg);
-    a.style.fill = se.color;
-    // Borde superior del color de fondo: separa una capa de la otra.
-    svgEl("path", { d: arriba, class: "vz-apilado-borde" }, svg);
-  });
-  // Línea del total y su valor al final.
-  let dTot = "";
-  xs.forEach((v, i) => { dTot += (i ? " L " : "M ") + x(v).toFixed(1) + " " + y(acum[i].length ? acum[i][acum[i].length - 1][1] : 0).toFixed(1); });
-  svgEl("path", { d: dTot, class: "vz-linea vz-total" }, svg);
-  const ultTot = acum[acum.length - 1].length ? acum[acum.length - 1][acum[acum.length - 1].length - 1][1] : 0;
-  const te = svgEl("text", { x: x(xs[xs.length - 1]) - 4, y: y(ultTot) - 9, class: "vz-valor", "text-anchor": "end" }, svg);
-  te.textContent = (cfg.fmtEje || montoCorto)(ultTot);
-  // Cursor: línea vertical, un punto por capa y el detalle del día.
-  const guia = svgEl("line", { y1: padT, y2: padT + alto, class: "vz-cursor" }, svg);
-  const puntos = cfg.series.map(se => { const c = svgEl("circle", { r: 4, class: "vz-punto vz-oculto" }, svg); c.style.fill = se.color; return c; });
-  const hit = svgEl("rect", { x: padL, y: 0, width: W - padL - padR, height: H, class: "vz-hit", tabindex: "0" }, svg);
-  hit.setAttribute("aria-label", cfg.aria || "");
-  let actual = xs.length - 1;
-  const mostrar = i => {
-    actual = i;
-    const px = x(xs[i]);
-    guia.setAttribute("x1", px); guia.setAttribute("x2", px); guia.classList.add("on");
-    cfg.series.forEach((se, j) => {
-      const v = cfg.valor(se.k, i) || 0;
-      puntos[j].classList.toggle("vz-oculto", !v);
-      puntos[j].setAttribute("cx", px); puntos[j].setAttribute("cy", y(acum[i][j][1]));
-    });
-    const filas = cfg.series.slice().reverse().filter(se => cfg.valor(se.k, i)).map(se => ({ color: se.color, valor: cfg.fmt(cfg.valor(se.k, i)), label: se.label }));
-    filas.push({ total: true, valor: cfg.fmt(acum[i].length ? acum[i][acum[i].length - 1][1] : 0), label: "Total" });
-    tipTablero(t, { titulo: nombreDia(cfg.fechas[i]), filas: filas, nota: cfg.nota ? cfg.nota(i) : "" }, px, W, padT);
-  };
-  const ocultar = () => { guia.classList.remove("on"); puntos.forEach(p => p.classList.add("vz-oculto")); t.tip.classList.remove("on"); };
-  const cercano = px => { let m = 0; xs.forEach((v, i) => { if (Math.abs(x(v) - px) < Math.abs(x(xs[m]) - px)) m = i; }); return m; };
-  hit.addEventListener("pointermove", ev => {
-    const r = svg.getBoundingClientRect();
-    mostrar(cercano((ev.clientX - r.left) * W / r.width));
-  });
-  hit.addEventListener("pointerleave", ocultar);
-  hit.addEventListener("focus", () => mostrar(actual));
-  hit.addEventListener("blur", ocultar);
-  hit.addEventListener("keydown", ev => {
-    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") { ev.preventDefault(); mostrar(Math.max(0, Math.min(xs.length - 1, actual + (ev.key === "ArrowLeft" ? -1 : 1)))); }
-  });
-}
-
-/**
  * Puntos en el tiempo (un punto por cheque) con una línea de referencia.
  * cfg: {puntos: [{iso, v, color, tip: {titulo, filas}}], fmtEje, referencia: {v, label}, aria}
  */
@@ -16185,56 +16068,7 @@ function barrasHorizontales(box, filas, maximo) {
   requestAnimationFrame(() => requestAnimationFrame(() => pendientes.forEach(p => { p[0].style.width = p[1].toFixed(2) + "%"; })));
 }
 
-// Una barra de 100% partida en segmentos, con la lista abajo. partes: [{label, color, v, texto}]
-function barraComposicion(box, partes) {
-  const total = partes.reduce((a, p) => a + p.v, 0) || 1;
-  const barra = el("div", "comp-barra");
-  const lista = el("div", "comp-lista");
-  const segs = [];
-  partes.forEach(p => {
-    const s = el("div", "comp-seg");
-    s.style.setProperty("--c", p.color);
-    s.title = p.label + ": " + p.texto + " (" + Math.round(p.v * 100 / total) + "%)";
-    barra.append(s);
-    segs.push([s, p.v * 100 / total]);
-    const f = el("div", "comp-fila");
-    const sw = el("i");
-    sw.style.setProperty("--c", p.color);
-    f.append(sw, el("span", "comp-nom", p.label), el("b", null, (p.v * 100 / total).toFixed(1).replace(".", ",") + "%"), el("span", "comp-imp", p.texto));
-    lista.append(f);
-  });
-  box.append(barra, lista);
-  requestAnimationFrame(() => requestAnimationFrame(() => segs.forEach(s => { s[0].style.width = s[1].toFixed(2) + "%"; })));
-}
-
-// ----- FCI -----
-
-// Saldos de FCI de cada banco por fecha (si se cargó dos veces, el último), de una moneda.
-function saldosFciPorBanco(moneda) {
-  const grupos = {};
-  saldosGuardados.filter(esFilaFci).forEach(s => {
-    const iso = fechaAOrden(s["Fecha"]);
-    if (!iso || (s["Moneda"] === "USD" ? "USD" : "Pesos") !== moneda) return;
-    const k = normalizar(nombreBancoCanonico(s["Banco"]) || s["Banco"]) + "|" + moneda;
-    const g = grupos[k] || (grupos[k] = { k: k, banco: s["Banco"], porFecha: {} });
-    const prev = g.porFecha[iso];
-    if (!prev || String(s["Fecha de Carga"]) > prev.carga) g.porFecha[iso] = { saldo: parseImporte(s["Saldo"]), carga: String(s["Fecha de Carga"]) };
-  });
-  return Object.keys(grupos).map(k => {
-    const g = grupos[k];
-    g.fechas = Object.keys(g.porFecha).sort();
-    return g;
-  });
-}
-
-// Color fijo por banco (orden alfabético de todos los bancos con FCI): no cambia al filtrar.
-function colorBancoFci(banco) {
-  const todos = [];
-  saldosGuardados.filter(esFilaFci).forEach(s => { const b = normalizar(nombreBancoCanonico(s["Banco"]) || s["Banco"]); if (todos.indexOf(b) < 0) todos.push(b); });
-  todos.sort();
-  const i = todos.indexOf(normalizar(nombreBancoCanonico(banco) || banco));
-  return i >= 0 && i < 8 ? "var(--vz-" + (i + 1) + ")" : "var(--vz-otros)";
-}
+// ----- FCI (lo usa ¿Rescatar o negociar?) -----
 
 // Rendimiento y TNA de varios bancos juntos en una ventana (como tnaVentana, sumando la base).
 function rendimientoConjunto(bancos, desde, hasta) {
@@ -16246,227 +16080,6 @@ function rendimientoConjunto(bancos, desde, hasta) {
     base += p.capital * p.d;
   }));
   return { rend: rend, tna: base > 0 ? rend / base * 365 : null, dudosos: dudosos };
-}
-
-function renderTableroFci(box) {
-  const cont = el("div", "tablero viz");
-  box.append(cont);
-  const dibujar = () => { cont.replaceChildren(); armarTableroFci(cont, () => dibujar()); };
-  dibujar();
-}
-
-function armarTableroFci(cont, redibujar) {
-  const hoy = hoyIso();
-  const hayUsd = saldosGuardados.some(s => esFilaFci(s) && s["Moneda"] === "USD" && parseImporte(s["Saldo"]));
-  if (!hayUsd) monedaFci = "Pesos";
-  const moneda = monedaFci;
-  const fmt = moneda === "USD" ? formatUsd : fmtImp;
-  const fmtEje = cortoMoneda(moneda);
-  const desde = sumarDiasIso(hoy, -rangoFci);
-  if (!RANGOS_FCI.some(r => r[0] === rangoFci)) rangoFci = 90;
-  const nombreRango = RANGOS_FCI.find(r => r[0] === rangoFci)[1];
-
-  // Encabezado con los controles.
-  const head = el("div", "tab-head");
-  const tit = el("div");
-  tit.append(el("h2", null, "Tablero de FCI"), el("p", "viz-sub", "Con los saldos de FCI cargados en Saldos y los rescates y suscripciones. Pasá el mouse por los gráficos para ver cada día."));
-  const ctrl = el("div", "tab-ctrl");
-  ctrl.append(segViz("rangoFci", RANGOS_FCI, rangoFci, v => { rangoFci = v; try { localStorage.setItem("lc-rango-fci", String(v)); } catch (e) {} redibujar(); }));
-  if (hayUsd) ctrl.append(segViz("monedaFci", [["Pesos", "Pesos"], ["USD", "Dólares"]], moneda, v => { monedaFci = v; redibujar(); }));
-  head.append(tit, ctrl);
-  cont.append(head);
-
-  const grupos = saldosFciPorBanco(moneda);
-  const rend = calcularRendimientoFciSaldos().filter(x => (x.moneda === "USD") === (moneda === "USD"));
-  if (!grupos.length) {
-    cont.append(el("div", "card viz-vacio", "Todavía no hay saldos de FCI" + (moneda === "USD" ? " en dólares" : "") + ". Cargalos en Saldos (columna FCI) y acá vas a ver la evolución y el rendimiento."));
-    return;
-  }
-
-  // Serie diaria: cada fecha con algún saldo; cada banco con su último saldo hasta ese día
-  // (si pasaron más de 45 días sin informarlo, ya no cuenta: el fondo se rescató).
-  const saldoAl = (g, iso) => {
-    let f = null;
-    for (let i = g.fechas.length - 1; i >= 0; i--) if (g.fechas[i] <= iso) { f = g.fechas[i]; break; }
-    return f && diasEntre(f, iso) <= 45 ? g.porFecha[f].saldo : 0;
-  };
-  const todas = {};
-  grupos.forEach(g => g.fechas.forEach(f => { if (f >= desde && f <= hoy) todas[f] = true; }));
-  // El primer día del rango arranca con lo que había.
-  if (!todas[desde] && grupos.some(g => saldoAl(g, desde))) todas[desde] = true;
-  const fechas = Object.keys(todas).sort();
-  const ordenBancos = grupos.map(g => ({ g: g, ult: saldoAl(g, hoy) })).sort((a, b) => b.ult - a.ult || a.g.banco.localeCompare(b.g.banco));
-  // Los que no tuvieron saldo en todo el rango no se dibujan.
-  const series = ordenBancos.filter(o => fechas.some(f => saldoAl(o.g, f))).map(o => ({ k: o.g.k, label: o.g.banco, color: colorBancoFci(o.g.banco), g: o.g }));
-  const totalAl = iso => series.reduce((a, s) => a + saldoAl(s.g, iso), 0);
-  const totales = fechas.map(totalAl);
-  const totalHoy = totalAl(hoy);
-  const hace30 = totalAl(sumarDiasIso(hoy, -30));
-
-  const rRango = rendimientoConjunto(rend, desde);
-  const rAnio = rendimientoConjunto(rend, (parseInt(hoy.substring(0, 4), 10) - 1) + "-12-31");
-  const porBanco = rend.map(b => ({ b: b, r30: tnaVentana(b.periodos, sumarDiasIso(hoy, -30)), r90: tnaVentana(b.periodos, sumarDiasIso(hoy, -90)), rR: tnaVentana(b.periodos, desde) }));
-  const conTasa = porBanco.filter(x => x.r30.tna !== null).sort((a, b) => b.r30.tna - a.r30.tna);
-  const dias = fciDiaPorDia(moneda, rangoFci).slice().reverse();
-
-  const delta = totalHoy - hace30;
-  tilesTablero(cont, [
-    { label: "En fondos hoy", valor: totalHoy, formato: fmt, tono: "var(--vz-1)", serie: totales,
-      delta: hace30 ? { texto: (delta >= 0 ? "▲ " : "▼ ") + fmt(Math.abs(delta)) + " vs. hace 30 días", bueno: null } : null,
-      sub: "Incluye lo que entró y salió" },
-    { label: "Ganado en " + nombreRango, valor: rRango.rend, formato: fmt, tono: "var(--vz-3)", neg: rRango.rend < 0, serie: dias.map(d => d.rend),
-      delta: rRango.tna !== null ? { texto: "TNA " + pctTexto(rRango.tna), bueno: rRango.tna >= 0 } : null,
-      sub: "Sin contar rescates ni suscripciones" + (rRango.dudosos ? " · " + rRango.dudosos + " tramo(s) sin cuadrar" : "") },
-    { label: "Ganado en el año", valor: rAnio.rend, formato: fmt, tono: "var(--vz-7)", neg: rAnio.rend < 0,
-      delta: rAnio.tna !== null ? { texto: "TNA " + pctTexto(rAnio.tna), bueno: rAnio.tna >= 0 } : null, sub: "Desde el 1 de enero" },
-    conTasa.length
-      ? { label: "Mejor tasa · 30 días", valor: conTasa[0].r30.tna, formato: pctTexto, tono: "var(--vz-4)",
-        sub: conTasa[0].b.banco + (conTasa.length > 1 ? " · la más baja: " + conTasa[conTasa.length - 1].b.banco + " " + pctTexto(conTasa[conTasa.length - 1].r30.tna) : "") }
-      : { label: "Mejor tasa · 30 días", valor: 0, formato: () => "—", tono: "var(--vz-4)", sub: "Faltan dos saldos seguidos de un banco" }
-  ]);
-
-  const grid = el("div", "viz-grid tab-grid");
-  cont.append(grid);
-
-  // 1. Evolución por banco (áreas apiladas).
-  const t1 = tarjetaTablero("Saldo en fondos, banco por banco", "Cada capa es un banco; arriba, el total. Sube con lo que rinde y con las suscripciones, baja con los rescates.", 0, true);
-  grid.append(t1.card);
-  if (fechas.length < 2) {
-    vacioTablero(t1, "Hace falta más de un día con saldo de FCI en " + nombreRango + ".");
-  } else {
-    leyendaViz(t1.leyenda, series.map(s => ({ label: s.label, color: s.color })));
-    const ini = totales[0], fin = totales[totales.length - 1];
-    datoViz(t1, ["Del " + isoADma(fechas[0]) + " al " + isoADma(fechas[fechas.length - 1]) + " el total pasó de " + fmt(ini) + " a ", el("b", null, fmt(fin)),
-      " (" + (fin >= ini ? "+" : "") + fmt(fin - ini) + "). De eso, " + fmt(rRango.rend) + " es rendimiento."]);
-    const movDia = {};
-    dias.forEach(d => { movDia[d.iso] = d; });
-    dibujarApilado(t1, {
-      aria: "Saldo de FCI por banco en " + nombreRango, fechas: fechas, series: series, fmt: fmt, fmtEje: fmtEje,
-      valor: (k, i) => saldoAl(series.find(s => s.k === k).g, fechas[i]),
-      nota: i => { const d = movDia[fechas[i]]; return d ? (d.dudoso && !d.base ? "Ese día no cuadra: revisá si falta un rescate o una suscripción" : "Rindió " + fmt(d.rend)) + (d.susc ? " · suscripciones " + fmt(d.susc) : "") + (d.resc ? " · rescates " + fmt(d.resc) : "") : ""; }
-    });
-    t1.ayuda.textContent = "Cada banco con su último saldo informado hasta ese día.";
-    tablaViz(t1.tabla, ["Día"].concat(series.map(s => s.label), ["Total"]), fechas.slice().reverse().map((f, i) => [isoADma(f)].concat(series.map(s => fmt(saldoAl(s.g, f))), [fmt(totales[fechas.length - 1 - i])])));
-  }
-
-  // 2. Lo que rindió cada día (o semana, en rangos largos).
-  const porSemana = rangoFci > 90;
-  const t2 = tarjetaTablero(porSemana ? "Lo que rindió cada semana" : "Lo que rindió cada día", "Rendimiento de todos los fondos juntos, sin contar lo que entró o salió. En rojo, los días que perdió.", 1, true);
-  grid.append(t2.card);
-  let barras = dias.map(d => ({ iso: d.iso, rend: d.rend, base: d.base, susc: d.susc, resc: d.resc, dudoso: d.dudoso, dias: d.dias }));
-  if (porSemana) {
-    const sem = {};
-    barras.forEach(d => {
-      const lunes = sumarDiasIso(d.iso, -((new Date(msIso(d.iso)).getUTCDay() + 6) % 7));
-      const s = sem[lunes] || (sem[lunes] = { iso: lunes, rend: 0, base: 0, susc: 0, resc: 0, dudoso: false, dias: 7 });
-      s.rend += d.rend; s.base += d.base; s.susc += d.susc; s.resc += d.resc; if (d.dudoso) s.dudoso = true;
-    });
-    barras = Object.keys(sem).sort().map(k => sem[k]);
-  }
-  if (!barras.length) {
-    vacioTablero(t2, "Hacen falta dos saldos de FCI seguidos para ver el rendimiento.");
-  } else {
-    const POS = { k: "g", label: "Ganó", color: "var(--vz-3)" }, NEG = { k: "p", label: "Perdió", color: "var(--vz-neg)" };
-    leyendaViz(t2.leyenda, [POS, NEG]);
-    const mejor = barras.reduce((m, d) => d.rend > m.rend ? d : m, barras[0]);
-    const prom = barras.reduce((a, d) => a + d.rend, 0) / barras.length;
-    datoViz(t2, [porSemana ? "En promedio rindió " : "En promedio rindió ", el("b", null, fmt(prom)), porSemana ? " por semana" : " por día con saldo", ". El mejor " + (porSemana ? "fue la semana del " : "fue el ") + isoADma(mejor.iso) + ": " + fmt(mejor.rend) + "."]);
-    const cats = barras.map(d => ({ corto: porSemana ? isoADma(d.iso).substring(0, 5) : isoADma(d.iso).substring(0, 5), datos: { g: [Math.max(0, d.rend), 0], p: [0, Math.min(0, d.rend)] }, d: d }));
-    dibujarCombo(t2, {
-      aria: "Rendimiento del FCI por " + (porSemana ? "semana" : "día"), cats: cats, barras: [POS, NEG], altoBarras: 200,
-      tooltip: i => {
-        const d = cats[i].d;
-        const filas = [{ color: d.rend >= 0 ? POS.color : NEG.color, valor: fmt(d.rend), label: d.rend >= 0 ? "Rindió" : "Perdió" }];
-        if (d.base > 0) filas.push({ valor: pctTexto(d.rend / d.base * 365), label: "TNA" });
-        if (d.susc) filas.push({ valor: fmt(d.susc), label: "Suscripciones" });
-        if (d.resc) filas.push({ valor: fmt(d.resc), label: "Rescates" });
-        return { titulo: porSemana ? "Semana del " + isoADma(d.iso) : nombreDia(d.iso), filas: filas, nota: d.dudoso ? "Algún banco no cuadró ese " + (porSemana ? "período" : "día") + ": no suma." : d.dias > 1 && !porSemana ? d.dias + " días desde el saldo anterior" : "" };
-      }
-    });
-    tablaViz(t2.tabla, [porSemana ? "Semana del" : "Día", "Rendimiento", "TNA", "Suscripciones", "Rescates"], barras.slice().reverse().map(d => [isoADma(d.iso), fmt(d.rend), d.base > 0 ? pctTexto(d.rend / d.base * 365) : "—", d.susc ? fmt(d.susc) : "—", d.resc ? fmt(d.resc) : "—"]));
-  }
-
-  // 3. Tasa de cada banco (30 y 90 días).
-  const t3 = tarjetaTablero("Tasa de cada banco", "TNA real de cada banco: la barra de color es la de los últimos 30 días y la gris, la de 90 días.", 2);
-  grid.append(t3.card);
-  t3.plot.remove();
-  const filasTasa = porBanco.filter(x => x.r30.tna !== null || x.r90.tna !== null).sort((a, b) => (b.r30.tna || b.r90.tna || 0) - (a.r30.tna || a.r90.tna || 0));
-  if (!filasTasa.length) {
-    datoViz(t3, ["Hace falta un segundo saldo de FCI de cada banco para calcular la tasa."]);
-    t3.btnTabla.hidden = true;
-  } else {
-    barrasHorizontales(t3.extra, filasTasa.map(x => ({
-      label: x.b.banco, sub: "Ganado: " + fmt(x.rR.rend) + (x.r30.dudosos ? " · " + x.r30.dudosos + " tramo(s) sin cuadrar" : ""),
-      barras: [
-        { v: x.r30.tna || 0, color: colorBancoFci(x.b.banco), texto: x.r30.tna === null ? "—" : pctTexto(x.r30.tna) },
-        { v: x.r90.tna || 0, color: "var(--vz-n2)", texto: x.r90.tna === null ? "—" : pctTexto(x.r90.tna) }
-      ]
-    })));
-    t3.ayuda.textContent = "TNA = rendimiento ÷ capital × 365 ÷ días. La barra de color usa el color de cada banco.";
-    tablaViz(t3.tabla, ["Banco", "TNA 30 días", "TNA 90 días", "Ganado en " + nombreRango], filasTasa.map(x => [x.b.banco, x.r30.tna === null ? "—" : pctTexto(x.r30.tna), x.r90.tna === null ? "—" : pctTexto(x.r90.tna), fmt(x.rR.rend)]));
-  }
-
-  // 4. Cómo está repartido hoy.
-  const t4 = tarjetaTablero("Cómo está repartido hoy", "Peso de cada banco en el total de fondos, con su último saldo informado.", 3);
-  grid.append(t4.card);
-  t4.plot.remove();
-  const partes = ordenBancos.filter(o => o.ult > 0).map(o => ({ label: o.g.banco, color: colorBancoFci(o.g.banco), v: o.ult, texto: fmt(o.ult) + " · al " + isoADma(o.g.fechas[o.g.fechas.length - 1]) }));
-  if (!partes.length) { datoViz(t4, ["No hay saldos de FCI vigentes."]); t4.btnTabla.hidden = true; }
-  else {
-    datoViz(t4, [partes[0].label + " concentra el ", el("b", null, Math.round(partes[0].v * 100 / totalHoy) + "%"), " de los fondos" + (partes.length > 1 ? "; le sigue " + partes[1].label + " con el " + Math.round(partes[1].v * 100 / totalHoy) + "%." : ".")]);
-    barraComposicion(t4.extra, partes);
-    t4.btnTabla.hidden = true;
-  }
-
-  // Rescatar o negociar (FCI contra el costo de bolsa): solo en pesos.
-  if (moneda === "Pesos") { try { tarjetaRescatarONegociar(grid, 4); } catch (err) { console.error(err); } }
-
-  // 5. Entradas y salidas de los fondos por mes.
-  const meses = [];
-  for (let i = 11; i >= 0; i--) meses.push(sumarMesesIso(hoy.substring(0, 7) + "-01", -i));
-  const movs = fciDatos.filter(f => tipoMovFci(f) !== "SALDO" && monedaDeTexto(f["Moneda"]) === moneda);
-  const t5 = tarjetaTablero("Entradas y salidas de los fondos", "Suscripciones (arriba) y rescates (abajo) de cada mes; el punto es el neto. Lo que rindió cada mes, en el detalle.", 4, true);
-  grid.append(t5.card);
-  const SUSC = { k: "s", label: "Suscripciones", color: "var(--vz-1)" }, RESC = { k: "r", label: "Rescates", color: "var(--vz-2)" };
-  const catsM = meses.map((m, i) => {
-    const del = movs.filter(f => fechaAOrden(f["Fecha"]).substring(0, 7) === m.substring(0, 7));
-    const s = del.filter(f => tipoMovFci(f) === "SUSCRIPCION").reduce((a, f) => a + Math.abs(parseImporte(f["Monto"])), 0);
-    const r = del.filter(f => tipoMovFci(f) === "RESCATE").reduce((a, f) => a + Math.abs(parseImporte(f["Monto"])), 0);
-    const g = rendimientoConjunto(rend, sumarDiasIso(m, -1), sumarDiasIso(sumarMesesIso(m, 1), -1));
-    return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), datos: { s: [s, 0], r: [0, -r] }, neto: s - r, s: s, r: r, n: del.length, g: g };
-  });
-  if (!movs.length) vacioTablero(t5, "No hay rescates ni suscripciones cargados. Se cargan con “Rescates y suscripciones”.");
-  else {
-    leyendaViz(t5.leyenda, [SUSC, RESC, { label: "Neto del mes", color: "var(--text)", punto: true }]);
-    const totS = catsM.reduce((a, c) => a + c.s, 0), totR = catsM.reduce((a, c) => a + c.r, 0);
-    datoViz(t5, ["En 12 meses entraron ", el("b", null, fmt(totS)), " a los fondos y salieron ", el("b", null, fmt(totR)), " (neto " + fmt(totS - totR) + ")."]);
-    const verMes = i => {
-      const c = catsM[i];
-      t5.detalle.replaceChildren();
-      const h = el("div", "viz-det-head");
-      h.append(el("b", null, mesLargo(c.mes)), el("span", null, c.n + " movimiento(s) · rindió " + fmt(c.g.rend) + (c.g.tna !== null ? " (TNA " + pctTexto(c.g.tna) + ")" : "")));
-      t5.detalle.append(h);
-      movs.filter(f => fechaAOrden(f["Fecha"]).substring(0, 7) === c.mes.substring(0, 7)).sort((a, b) => fechaAOrden(a["Fecha"]).localeCompare(fechaAOrden(b["Fecha"]))).slice(0, 8)
-        .forEach(f => t5.detalle.append(filaDetalle(String(f["Fecha"]).substring(0, 5), (tipoMovFci(f) === "RESCATE" ? "Rescate" : "Suscripción") + " · " + (f["Banco"] || "") + (f["Fondo"] ? " · " + f["Fondo"] : ""), f["Solicitud o rendimiento"] || "", parseImporte(f["Monto"]))));
-      if (c.n > 8) t5.detalle.append(el("p", "viz-mas", "… y " + (c.n - 8) + " más (están en la tabla de abajo)."));
-    };
-    let sel = catsM.length - 1;
-    while (sel > 0 && !catsM[sel].n) sel--;
-    dibujarCombo(t5, {
-      aria: "Suscripciones y rescates de FCI por mes", cats: catsM, barras: [SUSC, RESC], neto: true, seleccion: sel, alClic: verMes, altoBarras: 190,
-      tooltip: i => {
-        const c = catsM[i];
-        const filas = [];
-        if (c.s) filas.push({ color: SUSC.color, valor: fmt(c.s), label: "Suscripciones" });
-        if (c.r) filas.push({ color: RESC.color, valor: fmt(-c.r), label: "Rescates" });
-        filas.push({ total: true, valor: fmt(c.neto), label: "Neto" });
-        return { titulo: mesLargo(c.mes), filas: filas, nota: "Rindió " + fmt(c.g.rend) + (c.g.tna !== null ? " · TNA " + pctTexto(c.g.tna) : "") + ". Tocá para ver los movimientos." };
-      }
-    });
-    verMes(sel);
-    t5.ayuda.textContent = "Tocá un mes para ver sus movimientos.";
-    tablaViz(t5.tabla, ["Mes", "Suscripciones", "Rescates", "Neto", "Rindió", "TNA"], catsM.slice().reverse().map(c => [mesLargo(c.mes), fmt(c.s), fmt(-c.r), fmt(c.neto), fmt(c.g.rend), c.g.tna === null ? "—" : pctTexto(c.g.tna)]));
-  }
 }
 
 // ----- Bolsa -----

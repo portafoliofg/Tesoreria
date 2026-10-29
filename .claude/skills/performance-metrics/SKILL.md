@@ -1,6 +1,6 @@
 ---
 name: performance-metrics
-description: "Comparar inversiones de Tesorería teniendo en cuenta el riesgo y la estabilidad, no solo la tasa: volatilidad del rendimiento diario de cada FCI, caída máxima, días con rendimiento negativo, rendimiento contra una tasa de referencia (plazo fijo, caución), ratio de Sharpe y Sortino, y estabilidad de la TNA de cada ALYC. Usar al preguntar 'qué fondo es mejor', 'cuál rinde más estable', 'este fondo vale la pena', 'qué banco conviene', 'qué ALYC es más barata y más pareja', o al agregar indicadores a los tableros de FCI y Bolsa."
+description: "Comparar inversiones de Tesorería teniendo en cuenta el riesgo y la estabilidad, no solo la tasa: volatilidad del rendimiento diario de cada FCI, caída máxima, días con rendimiento negativo, rendimiento contra una tasa de referencia (plazo fijo, caución), ratio de Sharpe y Sortino, y estabilidad de la TNA de cada ALYC. Usar al preguntar 'qué fondo es mejor', 'cuál rinde más estable', 'este fondo vale la pena', 'qué banco conviene', 'qué ALYC es más barata y más pareja', o al agregar indicadores a la pestaña FCI y Bolsa."
 ---
 
 # Indicadores de rendimiento y riesgo

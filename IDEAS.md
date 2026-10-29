@@ -12,7 +12,7 @@ ni su enlace en `docs/index.html`.
   de terceros, bolsa, compromisos y recordatorios con importe), con el detalle del día y un enlace por
   vencimiento para agregarlo a Google Calendar. Suscripción a Google Calendar con un enlace secreto
   (iCal, `Calendario.gs`): no le pide permisos nuevos al script; se puede regenerar.
-- **¿Rescatar o negociar?** (tableros de FCI y de Bolsa): TNA real del FCI contra la TNA reciente de
+- **¿Rescatar o negociar?** (tablero de Bolsa; el de FCI se quitó): TNA real del FCI contra la TNA reciente de
   bolsa, cuánto se ahorra por cada $ 1 M a 30 días, lo que pasó en 90 días y si el FCI cubre lo que
   vence en 30 días.
 - **Simulador de negociación** (botón "Simular un cheque" en Bolsa): recibido o nominal, costo, TNA y
