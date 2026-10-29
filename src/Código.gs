@@ -55,7 +55,10 @@ const HEADERS_CHEQUES = [
   // El día en que el cheque se cargó en la app (arqueo: cheques ingresados en el día).
   'Fecha de Ingreso',
   // Se carga a mano al cargar el cheque (no sale del comprobante).
-  'Banco Aceptante'
+  'Banco Aceptante',
+  // Hora (HH:mm) de la Fecha de Débito: cuándo se pagó, depositó, acreditó o endosó. Se elige
+  // al cambiar el estado; la importación de la planilla no la trae ni la pisa.
+  'Hora de Débito'
 ];
 const COL_COMPROBANTE_CHEQUE = HEADERS_CHEQUES.indexOf('Comprobante');
 const COL_BANCO_CHEQUE = HEADERS_CHEQUES.indexOf('Banco');
@@ -1098,20 +1101,29 @@ function guardarCheques_(d, u) {
 
 // ======================= Estado de un cheque =======================
 // Desde la pestaña Cheques se cambia el estado (pagado, depositado, endosado, anulado…).
-// Si pasa a un estado que mueve la cuenta y no tiene fecha de débito, se pone la del día
-// (o la que mande la página). d: {id (ID Planilla), banco, numero, tipo, estado, fechaDebito}
+// La página pide la fecha y la hora (cualquier fecha, no solo la de hoy). Si pasa a un estado
+// que mueve la cuenta y no llega fecha ni tenía una, se pone la del día.
+// d: {id (ID Planilla), banco, numero, tipo, estado, fechaDebito (dd/mm/aaaa), hora (HH:mm)}
 const ESTADOS_CHEQUE_EDITABLES = ['Pendiente', 'En cartera', 'Pagado', 'Depositado', 'Acreditado', 'Endosado', 'Anulado', 'Caducado', 'Rechazado', 'Devolución', 'Custodia depositante'];
 const ESTADOS_CON_DEBITO = ['pagado', 'depositado', 'acreditado'];
 
 function actualizarEstadoCheque_(d, u) {
   const estado = String(d.estado || '').trim();
   if (ESTADOS_CHEQUE_EDITABLES.indexOf(estado) < 0) return { ok: false, error: 'Estado no válido.' };
+  const fecha = String(d.fechaDebito || '').trim();
+  const pf = fecha.split('/');
+  if (fecha && (pf.length !== 3 || !/^\d{1,2}$/.test(pf[0]) || !/^\d{1,2}$/.test(pf[1]) || !/^\d{4}$/.test(pf[2]) || +pf[0] < 1 || +pf[0] > 31 || +pf[1] < 1 || +pf[1] > 12)) {
+    return { ok: false, error: 'La fecha va como dd/mm/aaaa.' };
+  }
+  const horaPedida = String(d.hora || '').trim();
+  if (horaPedida && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horaPedida)) return { ok: false, error: 'La hora va como hh:mm (de 00:00 a 23:59).' };
   return conLock_(() => {
     const H = HEADERS_CHEQUES;
     const hoja = obtenerHoja_(SHEET_CHEQUES, H);
     const ult = hoja.getLastRow();
     const datos = ult > 1 ? hoja.getRange(2, 1, ult - 1, H.length).getDisplayValues() : [];
     const iEstado = H.indexOf('Estado'), iDeb = H.indexOf('Fecha de Débito'), iId = H.indexOf('ID Planilla'), iTipo = H.indexOf('Tipo');
+    const iHora = H.indexOf('Hora de Débito');
     const id = String(d.id || '').trim();
     const banco = claveTexto(d.banco), numero = String(d.numero || '').trim();
     let idx = -1;
@@ -1119,16 +1131,18 @@ function actualizarEstadoCheque_(d, u) {
     if (idx < 0 && numero) idx = datos.findIndex(f => String(f[COL_NUMERO_CHEQUE]).trim() === numero && claveTexto(f[COL_BANCO_CHEQUE]) === banco && (!d.tipo || f[iTipo] === d.tipo));
     if (idx < 0) return { ok: false, error: 'No se encontró el cheque.' };
     const fila = datos[idx];
-    const antes = { 'Estado': fila[iEstado], 'Fecha de Débito': fila[iDeb] };
-    const fecha = String(d.fechaDebito || '').trim();
+    const antes = { 'Estado': fila[iEstado], 'Fecha de Débito': fila[iDeb], 'Hora de Débito': fila[iHora] || '' };
     let debito = fila[iDeb];
-    if (ESTADOS_CON_DEBITO.indexOf(claveTexto(estado)) >= 0) debito = fecha || debito || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
-    else if (fecha) debito = fecha;
+    let hora = fila[iHora] || '';
+    if (fecha) { debito = fecha; hora = horaPedida; }
+    else if (ESTADOS_CON_DEBITO.indexOf(claveTexto(estado)) >= 0 && !debito) debito = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
     hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue(estado);
     hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(debito);
-    registrar_(u, 'Cambio de estado de cheque', (fila[iTipo] || 'Cheque') + ' N° ' + fila[COL_NUMERO_CHEQUE] + ' · ' + (fila[iEstado] || 'sin estado') + ' → ' + estado,
-      fila[iId] || fila[COL_NUMERO_CHEQUE], antes, { 'Estado': estado, 'Fecha de Débito': debito });
-    return { ok: true, estado: estado, fechaDebito: debito };
+    hoja.getRange(idx + 2, iHora + 1).setNumberFormat('@').setValue(hora);
+    const cuando = debito && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(estado)) < 0 ? ' (' + debito + (hora ? ' ' + hora : '') + ')' : '';
+    registrar_(u, 'Cambio de estado de cheque', (fila[iTipo] || 'Cheque') + ' N° ' + fila[COL_NUMERO_CHEQUE] + ' · ' + (fila[iEstado] || 'sin estado') + ' → ' + estado + cuando,
+      fila[iId] || fila[COL_NUMERO_CHEQUE], antes, { 'Estado': estado, 'Fecha de Débito': debito, 'Hora de Débito': hora });
+    return { ok: true, estado: estado, fechaDebito: debito, horaDebito: hora };
   });
 }
 
@@ -1189,6 +1203,7 @@ function registrarSalidaCheques_(d, u) {
       const antes = { 'Estado': f[iEstado], 'Fecha de Débito': f[iDeb] };
       hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue('Pagado');
       hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(fecha);
+      hoja.getRange(idx + 2, H.indexOf('Hora de Débito') + 1).setNumberFormat('@').setValue('');
       const archivoId = archivoIds[parseInt(c.archivo, 10)] || '';
       if (archivoId && !String(f[COL_COMPROBANTE_CHEQUE] || '').trim()) hoja.getRange(idx + 2, COL_COMPROBANTE_CHEQUE + 1).setNumberFormat('@').setValue(archivoId);
       cambiados.push({ 'Cheque': f[COL_NUMERO_CHEQUE], 'Tipo': f[H.indexOf('Tipo')], 'Importe': f[iImp], 'Antes': antes, 'Después': { 'Estado': 'Pagado', 'Fecha de Débito': fecha } });

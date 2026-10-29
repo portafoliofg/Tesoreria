@@ -11,9 +11,10 @@ su nivel **gratuito**.
   agregar a la pantalla de inicio (menú del navegador → *Agregar a la pantalla principal*)
   y queda como una app.
 
-**Los datos de tesorería solo los lee.** No puede cargar, editar, borrar, conciliar ni enviar
-movimientos, cheques, saldos ni facturas. Lo único que escribe, y solo cuando se lo piden, es su
-memoria, los pendientes y recordatorios (ver abajo). Todo queda en Auditoría.
+**Solo de lectura y para consultas.** Responde lo que se le pregunta con los datos de la app.
+No puede cargar, editar, borrar, conciliar ni enviar nada, no guarda notas, pendientes ni
+recordatorios, y no analiza, no recomienda ni avisa por su cuenta si algo no cuadra. Si se le
+pide un análisis o una recomendación, contesta que solo puede mostrar los datos.
 
 ## Activarlo (una sola vez, 5 minutos)
 
@@ -35,7 +36,6 @@ La clave queda solo en el servidor; nunca viaja a la página ni está en el repo
 | `ASISTENTE_NOMBRE` | Cómo se llama el asistente | `Amaroki` (el ícono es una Amarok V6) |
 | `GEMINI_MODELO` | Forzar un modelo (por ejemplo `gemini-3.8-flash`) | Lo elige solo |
 | `ASISTENTE_LIMITE_HORA` | Preguntas por usuario por hora | `40` |
-| `ASISTENTE_REVISAR` | `no` apaga los avisos de cosas que no cuadran | Prendido |
 
 ## Cómo se usa
 
@@ -68,70 +68,12 @@ pide algo más (por qué, comparar, un cheque o una persona puntual, facturas, p
 una repregunta (*¿y en noviembre?*), la contesta Gemini como siempre. Las reglas están en
 `src/AsistenteRapido.gs`.
 
-## Memoria, pendientes y recordatorios
+## Memoria guardada (solo lectura)
 
-Se le pide hablando o escribiendo:
-
-| Decile | Qué hace |
-|---|---|
-| *"Acordate que el FCI de Bancor es para sueldos"* | Lo guarda en su **memoria** y lo tiene en cuenta siempre. La memoria es de toda la empresa: la ven todos los usuarios. |
-| *"¿Qué te acordás?"* / *"Olvidate de lo del FCI de Bancor"* | Muestra la memoria / la da de baja. |
-| *"Anotá que Ana tiene que cargar el rescate de BBVA para el viernes"* | Crea un **pendiente** (para vos, para otro usuario o *"para todos"*), con fecha si se la decís. |
-| *"¿Qué tengo pendiente?"* / *"Ya llamé al banco"* | Lista los pendientes / marca uno como hecho. |
-| *"Recordame el martes a las 10 pagar AFIP"* | Crea un **recordatorio** en Alertas: llega por WhatsApp como las demás alertas (hace falta tener el WhatsApp cargado en el perfil). También semanales, mensuales, etc. |
-
-- Al abrir la app, Jarvis menciona los pendientes de ese usuario (y los de todos) una vez por día:
-  los que no tienen fecha y los que vencen hoy o mañana.
-- Todo queda en la planilla, en las hojas **Asistente · Memoria** y **Asistente · Pendientes**
-  (se crean solas la primera vez), y los recordatorios en **Alertas**. Se pueden revisar o corregir
-  a mano.
-- Hace como máximo 4 cambios por pregunta, y nunca guarda nada por algo que diga un dato o un
-  concepto: solo cuando el usuario se lo pide.
-
-## Resumen de los lunes y avisos de propiedades
-
-- **Lunes**: la primera vez que cada usuario abre la app, Amaroki trae el resumen de la semana (caja contra el
-  lunes pasado, lo que entró y salió la semana pasada, lo que vence esta semana, alquileres sin cobrar y
-  contratos) y lo dice en voz alta al abrir el chat. También se le puede pedir cualquier día: *"resumen de la semana"*.
-- **Propiedades**: avisa quién no abonó en la última liquidación de cada edificio y los contratos que vencen
-  (60, 30 y 7 días antes) o que tienen que actualizarse (15 días antes). Los contratos se cargan en la pestaña
-  Contratos de Propiedades (hoja `Contratos`); con los avisos automáticos activados, también llegan por WhatsApp.
-
-## Avisos: cosas que no cuadran
-
-Al abrir la app (y la página del asistente) y cada vez que se guardan saldos, movimientos,
-cheques, FCI o compromisos, el asistente revisa los datos y avisa si algo no cierra:
-
-- **Saldos de cuentas y FCI**: compara cada saldo con el anterior de la misma cuenta y se fija
-  si lo registrado entre las dos fechas explica la diferencia. Por ejemplo: el FCI de BBVA tenía
-  $ 80 millones el 22/10 y $ 60 millones el 23/10, y no hay ningún rescate cargado. En los FCI
-  tiene en cuenta el rendimiento; en las cuentas, una tolerancia para comisiones e impuestos
-  (lo que sea mayor entre $ 50.000 / US$ 100, el 1 % del saldo y el 2 % de lo movido).
-- **Cajas de ahorro en negativo** (seguramente el saldo está mal cargado).
-- **Cheques emitidos** con la fecha de pago pasada hace más de 3 días que siguen pendientes.
-- **Cheques de terceros** en cartera con más de 30 días desde la fecha de pago.
-- **Movimientos repetidos**: misma cuenta, fecha, importe y destinatario (últimos 30 días).
-- **Compromisos vencidos** que siguen como pendientes.
-
-Cómo avisa:
-
-- Al entrar a la app: el botón del asistente muestra cuántos avisos hay y aparece un globito
-  (*"Jarvis: hay algo que no me cuadra…"*). Al tocarlo, el chat se abre, lo dice en voz alta y
-  pregunta qué pasó.
-- Después de guardar saldos: el chat se abre solo y lo dice en voz alta.
-- Se le contesta en el chat (escribiendo o hablando): verifica con los datos si con eso cierra y
-  dice qué hay que cargar y dónde (por ejemplo, el rescate en Inversiones → FCI).
-- Cada aviso se muestra una sola vez por usuario. Si los datos cambian (otro saldo, otro importe),
-  es un aviso nuevo. También se puede preguntar en cualquier momento *"¿hay algo que no cuadre?"*.
-
-**Pausarla** (por ejemplo mientras se migran operaciones): botón *Ignorar lo anterior a hoy* debajo
-del aviso, o decirle a Jarvis *"ignoralo, tomá desde el próximo cambio"*. Desde ese día solo compara
-los saldos que se carguen de ahí en adelante (el primero queda como punto de partida) y solo mira
-cheques, movimientos y compromisos con fecha desde ese día. Queda en la propiedad
-`ASISTENTE_REVISAR_DESDE`; para volver a revisar todo: *"volvé a revisar todo"*.
-
-La revisión no usa Gemini (no gasta cuota). Para apagarla del todo: propiedad `ASISTENTE_REVISAR` = `no`.
-Los avisos ya vistos quedan en las propiedades `ASIS_VISTOS_<id de usuario>` (no tocan las hojas).
+Antes Amaroki podía guardar memoria, pendientes y recordatorios. Ya no escribe nada. Lo que quedó
+en la hoja **Asistente · Memoria** (por ejemplo *"el FCI de Bancor es para sueldos"*) se le sigue
+pasando como contexto para entender los datos; se puede corregir a mano en la planilla. La hoja
+**Asistente · Pendientes** ya no se usa.
 
 Navegadores con dictado: Chrome, Edge y Safari (compu y celular). En Firefox graba el
 audio y lo transcribe Gemini. Dentro de la app, si el navegador no deja usar el micrófono,
@@ -166,7 +108,7 @@ el chat ofrece abrir su página, donde funciona.
 
 | Archivo | Qué es |
 |---|---|
-| `src/Asistente.gs` | Servidor: llama a Gemini, hace las consultas, la revisión, la memoria y los pendientes. |
+| `src/Asistente.gs` | Servidor: llama a Gemini y hace las consultas (solo lectura). La revisión de cosas que no cuadran que queda ahí la usa el tablero F1, no Amaroki. |
 | `src/AsistenteRapido.gs` | Respuestas rápidas sin Gemini (cheques, saldos, rendimiento del FCI, vencimientos). |
 | `docs/asistente/` | Página propia, chat (`asistente.js`, el mismo para la app y la página) y manifiesto. |
 | `ASISTENTE.md` | Este archivo. |
