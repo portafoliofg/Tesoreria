@@ -955,9 +955,17 @@
   .pl-saldos { table-layout: fixed; }
   .pl-saldos th:nth-child(1) { width: 31%; }
   .pl-saldos th:nth-child(n+2) { width: 23%; }
-  .pl-saldos td.pl-cta { white-space: normal; overflow-wrap: anywhere; }
+  .pl-saldos td.pl-cta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-saldos input { min-width: 0; }
   .pl-saldos input:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+  /* Más compacta: renglones bajos, letra más chica y casillas sin borde (como celdas). */
+  .pl-saldos { font-size: 12.5px; }
+  .pl-saldos th { padding: 4px 6px; font-size: 10.5px; }
+  .pl-saldos td { padding: 1px 4px; line-height: 1.25; }
+  .pl-tabla.pl-saldos td input { height: 22px; padding: 0 6px; font-size: 12.5px; border-color: transparent; background: transparent; border-radius: 3px; }
+  .pl-tabla.pl-saldos td input:hover { border-color: var(--border); }
+  .pl-tabla.pl-saldos td input.pl-cambio { border-color: var(--primary); background: var(--surface); }
+  .pl-saldos tfoot td { padding-top: 4px; padding-bottom: 2px; }
   .fondos-card .card-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .fondos-link { font-size: 13px; }
   .fondos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
@@ -16913,7 +16921,7 @@ function inputPlanilla(item, alCambiar) {
     inp.classList.add("pl-cambio");
     alCambiar();
   });
-  inp.addEventListener("blur", () => { if (item.valor !== null) inp.value = textoSaldo(item.valor); });
+  // Al salir de la casilla el número queda como se escribió (no se le agregan puntos ni ",00").
   inp.addEventListener("focus", () => inp.select());
   inp.addEventListener("keydown", e => moverEnPlanilla(e, inp));
   return inp;
@@ -17138,7 +17146,9 @@ function renderPlanillaInicio() {
         const tr = el("tr", i === 0 ? "pl-banco-ini" : "");
         const x = g.cuentas[i];
         const tdC = el("td", "pl-cta");
-        tdC.append(el("span", "strong", g.banco), document.createTextNode(x ? " " + [siglaTipo(x.c["Tipo de Cuenta"]), x.c["N° de Cuenta"]].filter(Boolean).join(" ") : ""));
+        const detCta = x ? [siglaTipo(x.c["Tipo de Cuenta"]), x.c["N° de Cuenta"]].filter(Boolean).join(" ") : "";
+        tdC.append(el("span", "strong", g.banco), document.createTextNode(detCta ? " " + detCta : ""));
+        tdC.title = g.banco + (detCta ? " " + detCta : "");
         const tdS = el("td");
         const fila = { x: x || null, g: g, inpC: null };
         const idx = filasPegar.push(fila) - 1;
@@ -17214,7 +17224,6 @@ function pegarColumnasPlanilla(e, filas, desde, esFci) {
     if (!inp || !String(txt || "").trim()) return;
     inp.value = String(txt).trim();
     inp.dispatchEvent(new Event("input"));
-    inp.dispatchEvent(new Event("blur"));
   };
   const colFci = esFci ? 0 : 1;
   const fciPuesto = new Set();
