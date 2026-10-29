@@ -1350,6 +1350,8 @@
   .est-inicio select { width: auto; margin: 0; height: 32px; }
   .est-det-tit { margin: 10px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
   .est-abajo { margin-top: 16px; }
+  .est-conceptos { margin-top: 18px; }
+  .est-conc input { width: min(420px, 60vw); margin: 0; height: 32px; }
   .est-kpis { margin-bottom: 14px; }
   .est-kval { font-size: 17px; }
   .est-sub { font-size: 14px; margin: 4px 0 8px; }
@@ -19941,10 +19943,10 @@ function nombrePeriodoEst(periodo, anio) {
 
 async function cargarEstadisticas(forzar) {
   const box = $("estFlujo");
-  if (forzar || !transferenciasCargadas) {
+  if (forzar || !transferenciasCargadas || !chequesCargados) {
     box.replaceChildren(nodoCargando(true));
-    if (forzar) { transferenciasCargadas = false; }
-    await asegurarTransferencias();
+    if (forzar) { transferenciasCargadas = false; chequesCargados = false; }
+    await Promise.all([asegurarTransferencias(), asegurarCheques()]);
   }
   renderEstadisticas();
 }
@@ -20123,6 +20125,145 @@ function renderEstadisticas() {
   t.tabla.remove();
   t.btnTabla.hidden = true;
   box.replaceChildren(t.card, abajo);
+  try { box.append(tarjetaConceptosEst(ini)); } catch (err) { console.error(err); box.append(nodoError("No se pudo armar el gráfico por concepto: " + msgErr(err))); }
+}
+
+// ----- Estadísticas: acumulado por concepto (Caja Chica, Combustible Bandera…) -----
+// Suma mes a mes de los movimientos y cheques cuyo Concepto contiene el texto (sin importar
+// mayúsculas ni acentos), en el mismo período del gráfico de arriba. Se cuenta como gasto:
+// las salidas suman y las entradas restan. Movimientos: todos (también entre cuentas propias,
+// porque la caja chica se repone así), menos los renglones de resúmenes ya conciliados.
+// Cheques: por fecha de débito (o de pago si no tiene), sin anulados, rechazados ni endosados.
+const CONCEPTOS_EST = ["Caja Chica", "Combustible Bandera"];
+
+function conceptosEst() {
+  const c = (preferencias.estadisticas || {}).conceptos;
+  return Array.isArray(c) && c.length ? c : CONCEPTOS_EST;
+}
+
+function datosConceptosEst(ini, conceptos) {
+  const claves = conceptos.map(c => normalizar(c).trim());
+  const items = [];
+  transferenciasDatos.forEach(f => {
+    if (f["Origen"] === "Resumen" && f["Conciliación"]) return;
+    const k = claves.findIndex(c => normalizar(f["Concepto"] || "").indexOf(c) >= 0);
+    if (k < 0) return;
+    items.push({ k: k, iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
+      fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"] });
+  });
+  chequesDatos.forEach(c => {
+    if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
+    const k = claves.findIndex(x => normalizar(c["Concepto"] || "").indexOf(x) >= 0);
+    if (k < 0) return;
+    const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
+    items.push({ k: k, iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
+      fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"] });
+  });
+  const hoy = hoyIso().substring(0, 7);
+  const acum = conceptos.map(() => 0);
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = sumarMesesIso(ini, i), futuro = m.substring(0, 7) > hoy;
+    const del = items.filter(x => x.iso && x.iso.substring(0, 7) === m.substring(0, 7) && x.moneda === "Pesos");
+    const mes = conceptos.map((_, k) => del.filter(x => x.k === k).reduce((a, x) => a + x.gasto, 0));
+    mes.forEach((v, k) => { if (!futuro) acum[k] += v; });
+    const linea = {}, datos = {};
+    conceptos.forEach((_, k) => { linea["c" + k] = futuro ? null : acum[k]; datos["c" + k] = futuro ? [0, 0] : [Math.max(0, mes[k]), Math.min(0, mes[k])]; });
+    return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), futuro: futuro, items: del, porMes: mes, acum: acum.slice(), linea: linea, datos: datos };
+  });
+}
+
+function tarjetaConceptosEst(ini) {
+  const conceptos = conceptosEst();
+  const t = tarjetaViz("Acumulado por concepto", "Lo gastado mes a mes y sumado desde el inicio del período, en movimientos y cheques en pesos.", null);
+  t.cuerpo.hidden = false;
+  t.btnDetalle.hidden = true;
+  t.resumen.hidden = true;
+  t.card.classList.add("est-conceptos");
+  // Conceptos a seguir (se buscan dentro del Concepto de cada movimiento o cheque).
+  const form = el("div", "est-barra");
+  const lab = el("label", "est-inicio est-conc");
+  lab.append(document.createTextNode("Conceptos "));
+  const inp = el("input");
+  inp.type = "text";
+  inp.value = conceptos.join(", ");
+  inp.placeholder = CONCEPTOS_EST.join(", ");
+  inp.title = "Separados por coma. Se busca el texto dentro del concepto, sin importar mayúsculas ni acentos.";
+  const aplicar = el("button", "secondary small", "Aplicar");
+  aplicar.type = "button";
+  aplicar.addEventListener("click", () => {
+    const lista = inp.value.split(",").map(x => x.trim()).filter(Boolean).slice(0, 8);
+    const pe = Object.assign({}, preferencias.estadisticas || {});
+    pe.conceptos = lista.length ? lista : CONCEPTOS_EST;
+    preferencias.estadisticas = pe;
+    guardarPreferencias();
+    renderEstadisticas();
+  });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); aplicar.click(); } });
+  lab.append(inp);
+  form.append(lab, aplicar);
+  t.modos.replaceChildren(form);
+
+  const cats = datosConceptosEst(ini, conceptos);
+  const series = conceptos.map((c, k) => ({ k: "c" + k, label: c, color: "var(--vz-" + Math.min(8, k + 1) + ")" }));
+  const pasados = cats.filter(c => !c.futuro);
+  const ult = pasados[pasados.length - 1];
+  const nItems = pasados.reduce((a, c) => a + c.items.length, 0);
+  if (!nItems) {
+    datoViz(t, ["No hay movimientos ni cheques con " + conceptos.map(c => "“" + c + "”").join(" o ") + " en este período."]);
+    vacioViz(t, "Revisá que el concepto esté escrito igual en los movimientos y cheques.");
+    return t.card;
+  }
+  datoViz(t, conceptos.map((c, k) => [c + ": ", el("b", null, fmtImp(ult.acum[k])), k < conceptos.length - 1 ? " · " : ""]).reduce((a, x) => a.concat(x), ["Acumulado del período · "]));
+  leyendaViz(t.leyenda, series.map(s => ({ label: s.label + " (acumulado)", color: s.color, linea: true })).concat([{ label: "Barras: lo de cada mes", color: "var(--vz-n1)" }]));
+  // El detalle arranca en el último mes que tiene algo.
+  let sel = pasados.length - 1;
+  while (sel > 0 && !cats[sel].items.length) sel--;
+  const verMes = i => {
+    const c = cats[i];
+    t.detalle.replaceChildren();
+    const h = el("div", "viz-det-head");
+    h.append(el("b", null, mesLargo(c.mes)), el("span", null, conceptos.map((x, k) => x + " " + fmtImp(c.porMes[k])).join(" · ")));
+    t.detalle.append(h);
+    if (!c.items.length) { t.detalle.append(el("p", "hint", "Sin movimientos ni cheques con estos conceptos este mes.")); return; }
+    c.items.slice().sort((a, b) => (a.iso || "").localeCompare(b.iso || "")).slice(0, 30).forEach(x =>
+      t.detalle.append(filaDetalle(String(x.fecha).substring(0, 5), conceptos[x.k] + " · " + (x.quien || x.tipo), x.tipo + (x.concepto ? " · " + x.concepto : ""), -x.gasto)));
+    if (c.items.length > 30) t.detalle.append(el("p", "viz-mas", "… y " + (c.items.length - 30) + " más."));
+  };
+  const cfg = {
+    aria: "Acumulado por concepto", tituloLinea: "Acumulado desde el inicio del período", tituloBarras: "Lo de cada mes",
+    cats: cats, lineas: series, barras: series, altoLinea: 180, altoBarras: 100, seleccion: sel,
+    alClic: i => { if (!cats[i].futuro) verMes(i); },
+    tooltip: i => {
+      const c = cats[i];
+      if (c.futuro) return { titulo: mesLargo(c.mes), filas: [], nota: "Todavía no llegó" };
+      return { titulo: mesLargo(c.mes), filas: series.map((s, k) => ({ color: s.color, linea: true, valor: fmtImp(c.acum[k]) + " (mes " + fmtImp(c.porMes[k]) + ")", label: s.label })),
+        nota: c.items.length + " movimiento(s)/cheque(s). Tocá para ver el detalle." };
+    }
+  };
+  dibujarCombo(t, cfg);
+  verMes(sel);
+  t.ayuda.textContent = "Gasto = salidas − entradas con ese concepto. Las líneas suman mes a mes desde el inicio del período; las barras son lo de cada mes.";
+  // Tabla mes por mes: lo del mes y el acumulado de cada concepto.
+  const tabla = el("table", "est-tabla");
+  const trh = el("tr");
+  ["Mes"].concat(conceptos.map(c => c + " (mes)"), conceptos.map(c => c + " (acumulado)")).forEach((x, i) => trh.append(el("th", i ? "num" : "", x)));
+  tabla.append(trh);
+  cats.forEach(c => {
+    const tr = el("tr", c.futuro ? "est-futuro" : "");
+    tr.append(el("td", null, mesLargo(c.mes)));
+    c.porMes.forEach(v => tr.append(el("td", "num", c.futuro ? "—" : fmtImp(v))));
+    c.acum.forEach(v => tr.append(el("td", "num", c.futuro ? "—" : fmtImp(v))));
+    tabla.append(tr);
+  });
+  const trt = el("tr", "est-total");
+  trt.append(el("td", null, "Total"));
+  conceptos.forEach((_, k) => trt.append(el("td", "num", fmtImp(pasados.reduce((a, c) => a + c.porMes[k], 0)))));
+  conceptos.forEach(() => trt.append(el("td", "num", "")));
+  tabla.append(trt);
+  t.tabla.replaceChildren(envolverTabla(tabla));
+  t.tabla.hidden = false;
+  t.btnTabla.hidden = true;
+  return t.card;
 }
 
 // Elegir un mes en la tabla: lo marca en el gráfico y en la tabla sin volver a armar todo.
