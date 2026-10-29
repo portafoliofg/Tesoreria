@@ -1,223 +1,101 @@
 ---
 name: time-value-of-money
-description: "Calculate present value, future value, NPV, IRR for projects and loans, loan payments, and amortization schedules across all compounding conventions. Use when the user asks about discounting cash flows, valuing an annuity or perpetuity, comparing investments with different timing, building a mortgage amortization table, evaluating whether a project is worth pursuing, or solving for the rate that equates cash flows (project IRR, loan IRR, yield on an investment). Also trigger when users mention 'what is it worth today', 'how much will I have in 20 years', 'monthly payment on a loan', 'discount rate', 'Gordon growth model', 'effective annual rate', 'continuous compounding', or ask how to compare a lump sum versus a stream of payments. For portfolio money-weighted return (dollar-weighted IRR on an investor's contributions and withdrawals), use return-calculations instead."
+description: "Tasas y valor del dinero en el tiempo con las convenciones de Tesorería: TNA, TEA, tasa por período, valor actual y descuento de cheques y pagarés negociados en una ALYC, costo de negociar, intereses de un plazo fijo o una caución, VAN, TIR y cuotas de un plan de pago. Usar cuando se pregunte o se programe algo sobre 'a qué tasa salió', 'cuánto recibo si negocio este cheque', 'qué nominal necesito', 'TNA vs TEA', 'tasa efectiva', 'conviene pagar contado o en cuotas', 'cuánto vale hoy', o al tocar el simulador de negociación, costoBolsa o '¿Rescatar o negociar?'. Para el rendimiento de los FCI usar return-calculations."
 ---
 
-# Time Value of Money
+# Valor del dinero en el tiempo (Tesorería)
 
-## Core Concepts
+## Convenciones de la app (respetarlas siempre)
 
-### Future Value (FV)
-The value of a present sum after earning interest for `n` periods at rate `r` per period.
+- **TNA con interés simple sobre 365 días.** Es como se informa en Argentina y como calcula toda
+  la app (`src/Index.html`): `interés = capital × TNA × días ÷ 365`. Nunca 360 días.
+- **Días corridos** entre dos fechas (`diasEntre`), no hábiles.
+- **Porcentajes guardados como fracción** (0,35 = 35 %) y mostrados con `pctTexto`.
+- **Pesos y dólares no se mezclan.** Los cheques en dólares (Moneda empieza con "US") quedan
+  fuera de los promedios de tasa.
+- Importes con `parseImporte` (acepta "1.234.567,89").
 
-$$FV = PV \times (1 + r)^n$$
+## Fórmulas
 
-Future value grows exponentially with time, which is the mathematical basis of compound interest.
+| Qué | Fórmula |
+|---|---|
+| Factor de un plazo | `factor = 1 + TNA × días ÷ 365` |
+| Interés de un plazo | `capital × TNA × días ÷ 365` |
+| Tasa del período | `TNA × días ÷ 365` |
+| TEA (si se renueva a la misma tasa) | `factor ^ (365 ÷ días) − 1` |
+| TNA desde una TEA | `((1 + TEA) ^ (días ÷ 365) − 1) × 365 ÷ días` |
+| Tasa mensual equivalente desde TEA | `(1 + TEA) ^ (1 ÷ 12) − 1` |
 
-### Present Value (PV)
-The current worth of a future sum, discounted back at rate `r` for `n` periods. This is the inverse of future value.
+### Cheques y pagarés negociados en bolsa (hoja Inversiones Bolsa)
 
-$$PV = \frac{FV}{(1 + r)^n}$$
+La ALYC entrega hoy menos que el valor nominal y cobra el nominal al vencimiento.
 
-Present value is the cornerstone of all valuation: a dollar today is worth more than a dollar tomorrow because of the opportunity cost of capital.
+- `días = Fecha de pago − Fecha de carga`
+- `costo = nominal − recibido`
+- `TNA = (nominal ÷ recibido − 1) × 365 ÷ días` (función `costoBolsa`)
+- Recibido a partir de la TNA ofrecida: `recibido = nominal ÷ factor`
+- Nominal que hace falta para recibir un importe: `nominal = recibido × factor`
+- Un registro es inválido si `recibido > nominal`, si los días no son positivos o si falta el recibido.
 
-### Compounding Conventions
-Interest can compound at different frequencies. The nominal annual rate `r_nom` compounded `m` times per year produces different effective yields.
+**Promedio de varios cheques: ponderar por importe recibido × días**, no promediar las TNA:
 
-**Discrete compounding (m times per year):**
+`TNA promedio = Σ costo ÷ Σ (recibido × días) × 365` (funciones `tasaBolsaDesde` y `tasasPorAlyc`)
 
-$$FV = PV \times \left(1 + \frac{r_{nom}}{m}\right)^{m \times t}$$
+### Rescatar del FCI o negociar un cheque
 
-**Continuous compounding:**
+Para un monto `M` durante `d` días:
+- Negociar cuesta `M × TNA_bolsa × d ÷ 365`.
+- Rescatar deja de ganar `M × TNA_FCI × d ÷ 365`.
+- Conviene rescatar si `TNA_FCI < TNA_bolsa`. La diferencia por cada $ 1.000.000 a 30 días es
+  `1.000.000 × (TNA_bolsa − TNA_FCI) × 30 ÷ 365`.
 
-$$FV = PV \times e^{r \times t}$$
+### VAN y TIR (planes de pago, contado contra cuotas)
 
-**Effective Annual Rate (EAR):**
+- `VAN = Σ flujo_t ÷ (1 + r) ^ (días_t ÷ 365)`, con `r` como TEA y los días contados desde hoy.
+- TIR: la tasa que deja el VAN en cero. Se busca por bisección o Newton-Raphson. Informarla como
+  TEA y, si hace falta comparar con tasas de la app, convertirla a TNA para el plazo en cuestión.
+- Contado contra cuotas: traer las cuotas a hoy con la tasa que rinde la plata (por ejemplo la
+  TNA del FCI pasada a TEA). Si el valor actual de las cuotas es menor que el contado, conviene
+  financiarse.
 
-$$EAR = \left(1 + \frac{r_{nom}}{m}\right)^m - 1$$
+## Ejemplos
 
-For continuous compounding: `EAR = e^(r_nom) - 1`
-
-Common frequencies:
-| Frequency | m |
-|-----------|---|
-| Annual | 1 |
-| Semi-annual | 2 |
-| Quarterly | 4 |
-| Monthly | 12 |
-| Daily | 365 |
-| Continuous | infinity |
-
-### Ordinary Annuity
-A series of equal payments made at the **end** of each period for `n` periods.
-
-**Present Value:**
-
-$$PV = PMT \times \frac{1 - (1 + r)^{-n}}{r}$$
-
-**Future Value:**
-
-$$FV = PMT \times \frac{(1 + r)^n - 1}{r}$$
-
-### Annuity Due
-A series of equal payments made at the **beginning** of each period. Each cash flow is one period closer than in an ordinary annuity, so values are scaled by `(1 + r)`.
-
-**Present Value:**
-
-$$PV = PMT \times \frac{1 - (1 + r)^{-n}}{r} \times (1 + r)$$
-
-**Future Value:**
-
-$$FV = PMT \times \frac{(1 + r)^n - 1}{r} \times (1 + r)$$
-
-### Growing Annuity
-A finite series of payments that grow at a constant rate `g` per period, where `g != r`.
-
-**Present Value:**
-
-$$PV = \frac{PMT}{r - g} \times \left[1 - \left(\frac{1 + g}{1 + r}\right)^n\right]$$
-
-This is widely used in equity valuation (e.g., multi-stage dividend discount models) and salary/pension projections.
-
-### Perpetuity
-An infinite stream of equal payments.
-
-$$PV = \frac{PMT}{r}$$
-
-### Growing Perpetuity
-An infinite stream of payments growing at constant rate `g`, where `g < r` for convergence.
-
-$$PV = \frac{PMT}{r - g}$$
-
-This is the Gordon Growth Model when applied to dividends.
-
-### Net Present Value (NPV)
-The sum of all discounted cash flows, including the initial investment. A positive NPV indicates value creation.
-
-$$NPV = \sum_{t=0}^{T} \frac{CF_t}{(1 + r)^t}$$
-
-Typically, `CF_0` is a negative outflow (initial investment), and subsequent `CF_t` are inflows.
-
-### Internal Rate of Return (IRR)
-The discount rate `r` that makes the NPV of all cash flows exactly zero.
-
-$$0 = \sum_{t=0}^{T} \frac{CF_t}{(1 + r)^t}$$
-
-IRR is solved numerically (Newton-Raphson or bisection) since there is no closed-form solution for general cash flow streams. For conventional cash flows (one sign change), a unique IRR exists.
-
-### Amortization
-Each payment on an amortizing loan is split into an interest component and a principal component:
-
-- **Interest portion:** `Interest_t = Balance_{t-1} * r`
-- **Principal portion:** `Principal_t = PMT - Interest_t`
-- **Remaining balance:** `Balance_t = Balance_{t-1} - Principal_t`
-
-Over time, the interest portion decreases and the principal portion increases.
-
-## Key Formulas
-
-| Formula | Expression | Use Case |
-|---------|-----------|----------|
-| Future Value | `FV = PV * (1 + r)^n` | Compound a lump sum forward |
-| Present Value | `PV = FV / (1 + r)^n` | Discount a future lump sum |
-| EAR | `(1 + r_nom/m)^m - 1` | Compare rates across compounding frequencies |
-| Continuous FV | `FV = PV * e^(r*t)` | Continuous compounding |
-| Ordinary Annuity PV | `PMT * [1 - (1+r)^(-n)] / r` | Loan payments, lease valuation |
-| Annuity Due PV | `PMT * [1 - (1+r)^(-n)] / r * (1+r)` | Rent, insurance (paid in advance) |
-| Growing Annuity PV | `PMT/(r-g) * [1 - ((1+g)/(1+r))^n]` | Salary streams, growing dividends |
-| Perpetuity PV | `PMT / r` | Preferred stock, consol bonds |
-| Growing Perpetuity PV | `PMT / (r - g)` | Gordon Growth Model |
-| NPV | `sum(CF_t / (1+r)^t)` | Project/investment evaluation |
-| IRR | `solve: sum(CF_t / (1+r)^t) = 0` | Return metric for uneven cash flows |
-
-## Worked Examples
-
-### Example 1: Monthly Mortgage Payment
-**Given:** A $300,000 mortgage at a 6.5% annual interest rate, fixed for 30 years, with monthly payments (ordinary annuity).
-
-**Calculate:** The monthly payment amount.
-
-**Solution:**
-
-First, convert the annual rate to a monthly rate and years to months:
+**1. Cheque de $ 1.000.000 a 60 días, la ALYC ofrece TNA 35 %**
 ```
-r_monthly = 0.065 / 12 = 0.00541667
-n = 30 * 12 = 360 months
+factor   = 1 + 0,35 × 60 ÷ 365      = 1,057534
+recibido = 1.000.000 ÷ 1,057534     = $ 945.595,85
+costo    = 1.000.000 − 945.595,85   = $ 54.404,15  ($ 906,74 por día)
+TEA      = 1,057534 ^ (365 ÷ 60) − 1 = 40,5 %
 ```
 
-Using the ordinary annuity present value formula, solve for PMT:
+**2. Promedio ponderado de dos cheques**
 ```
-PV = PMT * [1 - (1 + r)^(-n)] / r
+A: nominal 1.000.000, recibido 945.000, 60 días → TNA 35,4 %
+B: nominal   500.000, recibido 480.000, 30 días → TNA 50,7 %
+Σ costo = 55.000 + 20.000 = 75.000
+Σ recibido × días = 945.000 × 60 + 480.000 × 30 = 71.100.000
+TNA promedio = 75.000 ÷ 71.100.000 × 365 = 38,5 %
+```
+El promedio simple de las TNA (43,0 %) exagera porque le da el mismo peso al cheque chico y corto.
 
-300,000 = PMT * [1 - (1.00541667)^(-360)] / 0.00541667
+**3. ¿Rescatar o negociar $ 5.000.000 por 30 días?** Bolsa al 38 %, FCI al 30 %:
 ```
-
-Compute the annuity factor:
-```
-(1.00541667)^360 = 6.99179
-(1.00541667)^(-360) = 0.143010
-1 - 0.143010 = 0.856990
-0.856990 / 0.00541667 = 158.2108
-```
-
-Solve for PMT:
-```
-PMT = 300,000 / 158.2108 = $1,896.20
+negociar cuesta   5.000.000 × 0,38 × 30 ÷ 365 = $ 156.164
+rescatar deja de ganar 5.000.000 × 0,30 × 30 ÷ 365 = $ 123.288
+→ conviene rescatar: se ahorran $ 32.876
 ```
 
-The monthly mortgage payment is **$1,896.20**.
+## Errores comunes
 
-Over 30 years, total payments = `360 * $1,896.20 = $682,632`, meaning total interest paid is `$682,632 - $300,000 = $382,632`.
+- Comparar una TNA con una TEA. Una TNA del 35 % a 60 días equivale a una TEA del 40,5 %.
+- Usar 360 días o capitalizar diario: la app usa interés simple sobre 365.
+- Promediar TNA sin ponderar (ver el ejemplo 2).
+- Contar los días desde la fecha de emisión del cheque: en bolsa se cuentan desde la
+  **Fecha de carga** (cuando se negoció) hasta la **Fecha de pago**.
+- Anualizar plazos muy cortos sin avisar: un cheque a 3 días con un costo fijo da una TNA enorme.
+- Mezclar cheques en pesos y en dólares en el mismo promedio.
 
-### Example 2: NPV of a Project with Uneven Cash Flows
-**Given:** A project requires an initial investment of $50,000 and produces the following cash flows:
-- Year 1: $12,000
-- Year 2: $15,000
-- Year 3: $18,000
-- Year 4: $22,000
-- Year 5: $25,000
+## Relacionadas
 
-The required rate of return (discount rate) is 10%.
-
-**Calculate:** The NPV and whether the project should be accepted.
-
-**Solution:**
-
-Discount each cash flow to present value:
-```
-PV(CF_0) = -50,000 / (1.10)^0 = -50,000.00
-PV(CF_1) =  12,000 / (1.10)^1 =  10,909.09
-PV(CF_2) =  15,000 / (1.10)^2 =  12,396.69
-PV(CF_3) =  18,000 / (1.10)^3 =  13,523.67
-PV(CF_4) =  22,000 / (1.10)^4 =  15,026.30
-PV(CF_5) =  25,000 / (1.10)^5 =  15,523.03
-```
-
-Sum all present values:
-```
-NPV = -50,000.00 + 10,909.09 + 12,396.69 + 13,523.67 + 15,026.30 + 15,523.03
-NPV = +$17,378.78
-```
-
-Since NPV is **positive ($17,378.78)**, the project creates value and should be accepted. It earns more than the 10% required rate of return.
-
-To find the IRR, we would solve for the rate where NPV = 0. Numerically, the IRR for this cash flow stream is approximately **21.2%** (21.18%), well above the 10% hurdle rate.
-
-## Common Pitfalls
-- Mismatching rate and period frequency: if payments are monthly, the discount rate must be a monthly rate. Divide the annual nominal rate by 12, do not take the 12th root of `(1 + annual rate)` unless converting from EAR.
-- Forgetting the sign convention for cash flows in IRR: outflows (investments) must be negative and inflows (returns) positive, or vice versa, but the convention must be consistent. Incorrect signs produce meaningless IRR results.
-- Confusing nominal vs effective rates: a 12% nominal rate compounded monthly produces an EAR of 12.68%, not 12%. Always clarify the compounding basis.
-- Off-by-one errors in annuity due vs ordinary annuity: an annuity due shifts all payments one period earlier. Forgetting the `(1 + r)` adjustment factor will undervalue annuity-due streams.
-- Multiple IRR solutions with non-conventional cash flows: when cash flows change sign more than once (e.g., initial outflow, inflows, then a large terminal outflow), Descartes' rule allows up to as many positive real IRR solutions as there are sign changes. In such cases, use NPV profiling or the Modified IRR (MIRR) instead.
-
-## Running the Script
-`scripts/time_value_of_money.py` implements every formula above as static methods on a `TimeValueOfMoney` class (`present_value`, `future_value`, `npv`, `irr`, `annuity_pv`, `annuity_fv`, `growing_annuity_pv`, `perpetuity_pv`, `fisher_rate`, `continuous_compounding`) plus an `AmortizationSchedule` class.
-
-- Run: `uv run scripts/time_value_of_money.py` (PEP 723 inline metadata; stdlib-only, no third-party dependencies), or simply `python3 scripts/time_value_of_money.py`.
-- Bare invocation (or `--verify`) prints a demo of all methods **and** asserts the worked-example values above (Example 1 mortgage payment = $1,896.20; Example 2 NPV = $17,378.78 and IRR = 21.18%), exiting nonzero on any mismatch.
-- `--help` lists the available methods and import usage.
-- For programmatic use, import rather than run: `from time_value_of_money import TimeValueOfMoney, AmortizationSchedule`, then call e.g. `TimeValueOfMoney.npv(...)`.
-
-## Cross-References
-- **return-calculations** (core plugin): CAGR is a special case of compound growth; portfolio MWR uses the same NPV=0 framework and lives there
-- **statistics-fundamentals** (core plugin): Discount rate estimation often relies on regression (CAPM beta) and distributional assumptions
+- **return-calculations**: rendimiento y TNA real de los FCI con suscripciones y rescates.
+- **liquidity-management**: si la plata alcanza para lo que vence.

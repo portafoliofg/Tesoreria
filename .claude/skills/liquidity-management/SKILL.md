@@ -1,138 +1,78 @@
 ---
 name: liquidity-management
-description: "Plan and manage cash flow to ensure adequate liquidity while minimizing opportunity cost of excess cash. Use when the user asks about cash flow forecasting, CD or bond laddering, liquidity tiers, income smoothing for variable earners, or sweep strategies. Also trigger when users mention 'T-bill ladder', 'where to park cash', 'irregular income budgeting', 'freelancer cash management', 'lumpy expenses', 'liquidity ratio', 'how much cash to hold', or ask how to plan for large upcoming expenses."
+description: "Liquidez y flujo de caja de Tesorería: ver si la plata alcanza para lo que vence (cheques emitidos, bolsa, compromisos, facturas) contra cuentas, FCI y cheques de terceros en cartera, semana a semana o mes a mes; colchón mínimo; qué semana falta; de dónde sacar la plata (rescatar FCI o negociar cheques). Usar al preguntar 'nos alcanza', 'qué semana falta plata', 'cuánta liquidez tenemos', 'proyección de caja', 'flujo de fondos', o al programar ese tablero o una respuesta rápida de Amaroki sobre el tema."
 ---
 
-# Liquidity Management
+# Liquidez y flujo de caja (Tesorería)
 
-## Core Concepts
+## Fuentes de la app
 
-### Cash Flow Forecasting
-Project income and expenses monthly for 12+ months:
-- **Income sources**: salary, business income, investment income, rental income, side gigs
-- **Fixed expenses**: mortgage/rent, insurance, subscriptions, loan payments
-- **Variable expenses**: food, utilities, discretionary spending
-- **Periodic lumpy expenses**: property taxes, insurance premiums, tuition, estimated taxes
-- **Net cash flow**: income - expenses per period → identifies surplus/deficit months
+| Qué | Hoja | Cómo se toma |
+|---|---|---|
+| Plata en cuentas | **Saldos** (Tipo `Cuenta`) | Último saldo de cada `Cuenta ID` |
+| FCI | **Saldos** (Tipo `FCI`) e **Inversiones FCI** | Último saldo de cada banco y moneda |
+| Cheques a cobrar | **Cheques** con `Tipo` = `De terceros` en estado abierto (vacío, Pendiente, En cartera, Custodia depositante) | Por `Fecha de Pago` |
+| Cheques a pagar | **Cheques** con `Tipo` = `Emitido` en estado abierto | Por `Fecha de Pago` |
+| Bolsa a pagar | **Inversiones Bolsa** (cheques y pagarés propios negociados) | `Monto` por `Fecha de pago`, pendientes de débito |
+| Compromisos | **Compromisos** (planes de pago, pagos mensuales, tarjetas) | `Monto` o `Monto Estimado` por `Fecha de Vencimiento` |
+| Facturas | **Facturas** con saldo (`Total − Pagado`) | Por `Vencimiento` |
 
-### Income Smoothing (Variable Earners)
-For commission, freelance, seasonal, or bonus-heavy income:
-- Compute trailing 12-month average income as "base salary equivalent"
-- Budget based on base amount, not peak months
-- Buffer surplus months into a smoothing reserve (separate from emergency fund)
-- Target smoothing reserve: 2-3 months of base expenses
-- Draw from reserve in below-average months
+Pesos y dólares siempre por separado.
 
-### Liquidity Tiers
-Classify investable assets by time to access:
+## Niveles de liquidez
 
-| Tier | Access Time | Examples | Typical Yield |
-|------|------------|---------|---------------|
-| Tier 1 — Immediate | Same day | Checking and savings at your primary bank, money market funds | Low |
-| Tier 2 — Short-term | 1-3 business days | High-yield savings at an online bank, brokerage sweep cash, T-bills, bond funds and bond ETFs | Moderate |
-| Tier 3 — Medium-term | 1-4 weeks (or penalty cost) | CDs (early-withdrawal penalty), I-bonds (after 1-year lockup) | Moderate-High |
-| Tier 4 — Long-term | 30+ days | Real estate, PE/VC, locked alternatives, retirement accounts (pre-59½) | Highest |
+| Nivel | Disponible | En Tesorería |
+|---|---|---|
+| 1. Inmediata | En el día | Saldos en cuenta corriente y caja de ahorros |
+| 2. Muy corta | 24 a 72 h | FCI de liquidez inmediata o T+1 |
+| 3. Corta | Al vencimiento | Cheques de terceros en cartera (o antes, negociándolos con costo) |
+| 4. Con costo | Cuando se decide | Negociar cheques o pagarés propios en una ALYC (ver la TNA de bolsa) |
 
-Tier notes:
-- **Tier 1 vs Tier 2 savings:** the distinction is transfer time, not product type. A savings account at your primary bank offers same-day access (Tier 1); a high-yield savings account at an online bank typically requires a 1-3 business day ACH transfer to reach your checking account (Tier 2).
-- **Bond funds and bond ETFs:** both settle T+1 (the US moved to T+1 settlement in May 2024 for equities, ETFs, and mutual funds), so sale proceeds are available in roughly 1-3 business days including transfer to a bank. They belong in Tier 2 for access time — though, unlike deposits, the sale price is subject to market risk.
+Una línea de crédito o descubierto no es liquidez propia: se puede cortar justo cuando hace falta.
 
-### CD Laddering
-Stagger CD maturities for regular access + higher yields:
-- Example: $60K split into 6 CDs maturing every 2 months
-- As each CD matures: either use the cash or reinvest at the longest rung
-- Benefit: captures term premium while maintaining periodic liquidity
-- Variant: 3/6/9/12-month ladder, renewing each at 12 months
+## Proyección semana a semana
 
-### Bond Laddering
-Similar concept with Treasury or corporate bonds:
-- Annual maturities across 1-5 or 1-10 years
-- Provides predictable cash flows and interest rate diversification
-- Rungs mature and are reinvested at prevailing rates (automatic rate averaging)
+1. Punto de partida: nivel 1 + nivel 2 de hoy.
+2. Para cada semana (de lunes a domingo, `Semana del …`):
+   - Entradas: cheques de terceros que vencen.
+   - Salidas: cheques emitidos, bolsa, compromisos y facturas que vencen.
+   - `saldo final = saldo inicial + entradas − salidas`.
+3. Marcar la **primera semana con saldo final por debajo del colchón** (o negativo): es la que
+   "falta". Decir cuánto falta y qué la provoca (los vencimientos más grandes de esa semana).
+4. Mostrar también la versión sin contar los cheques de terceros (por si se rechazan o se
+   demoran): es la proyección prudente.
 
-### T-Bill Ladder
-Short-duration, high-liquidity ladder:
-- 4/8/13/26-week T-bills rolling continuously
-- Purchased at Treasury Direct or through brokerage
-- State tax exempt (federal only)
-- Highly liquid: can sell on secondary market before maturity
+**Colchón sugerido:** lo que sale en una semana normal (promedio de salidas de las últimas 8 a
+12 semanas), o el que fije la empresa.
 
-### Liquidity Metrics
-- **Liquidity ratio**: liquid assets / monthly expenses (target ≥ 3-6)
-- **Cash reserve ratio**: cash + near-cash / total portfolio
-- **Current ratio** (business): current assets / current liabilities (target > 1.5)
-- **Quick ratio** (business): (current assets - inventory) / current liabilities
+## Cómo cubrir un faltante
 
-### Seasonal and Tax Planning
-- **Estimated taxes**: quarterly for self-employed (Q1: Apr 15, Q2: Jun 15, Q3: Sep 15, Q4: Jan 15)
-- **Property taxes**: typically semi-annual — reserve monthly for escrow-like smoothing
-- **Holiday/vacation**: set aside monthly into dedicated sub-account
-- **Annual expenses**: insurance premiums, memberships → amortize monthly
+1. Adelantar el rescate del FCI (la plata deja de rendir solo los días que se adelanta).
+2. Negociar cheques de terceros en cartera.
+3. Negociar cheques o pagarés propios.
 
-### Margin of Safety
-Maintain buffer above minimum liquidity requirements:
-- Income uncertainty → larger buffer
-- Known upcoming large expenses → pre-fund 2-3 months early
-- Market correlation: income and portfolio may both decline in recession
+Entre rescatar y negociar, usar la comparación de **time-value-of-money**: conviene rescatar si
+la TNA del FCI es menor que la TNA de bolsa.
 
-## Key Formulas
+## Indicadores
 
-| Formula | Expression | Use Case |
-|---------|-----------|----------|
-| Liquidity ratio | Liquid assets / monthly expenses | Adequacy check |
-| Net cash flow | Σ income - Σ expenses | Monthly surplus/deficit |
-| CD ladder yield | Weighted average of rung yields | Blended return on ladder |
-| Smoothing reserve | Base monthly expenses × 2-3 | Buffer for variable income |
-| Breakeven penalty | CD early withdrawal penalty / (CD rate - savings rate) | Whether to break CD |
+| Indicador | Fórmula |
+|---|---|
+| Cobertura a 30 días | `(cuentas + FCI) ÷ salidas de los próximos 30 días` (≥ 1 alcanza) |
+| Días de caja | `(cuentas + FCI) ÷ salida diaria promedio` |
+| Concentración | Salidas de la semana más pesada ÷ salidas del mes |
 
-## Worked Examples
+## Errores comunes
 
-### Example 1: CD Ladder Construction
-**Given:** $60,000 to deploy, want liquidity every 2 months, 12-month CDs yielding 4.8%
-**Calculate:** Ladder structure and blended yield
-**Solution:**
-- Split into 6 equal CDs of $10,000 each
-- Stagger maturities: 2, 4, 6, 8, 10, 12 months
-- Initial yields may vary by term: 2mo=4.2%, 4mo=4.4%, 6mo=4.5%, 8mo=4.6%, 10mo=4.7%, 12mo=4.8%
-- Blended yield ≈ average = 4.53%
-- Every 2 months one CD matures → reinvest at 12-month rate (4.8%) or use funds
-- After full cycle (12 months), all CDs are 12-month earning 4.8%
+- Contar dos veces: un cheque de bolsa también puede figurar como cheque emitido; usar el `ID`
+  o el número para no duplicarlo.
+- Tomar saldos viejos sin avisar la fecha del último saldo informado.
+- Contar cheques de terceros rechazados, anulados o caducados como entradas.
+- Usar el `Monto Estimado` de un compromiso como si fuera seguro: avisar que es estimado.
+- Sumar dólares a pesos.
 
-### Example 2: Variable Income Smoothing
-**Given:** Freelancer with monthly income ranging $3,000-$15,000, average $8,000. Monthly expenses $5,500.
-**Calculate:** Base budget and smoothing reserve target
-**Solution:**
-- Base budget: $5,500/month (essential expenses)
-- Average monthly surplus: $8,000 - $5,500 = $2,500
-- Smoothing reserve target: $5,500 × 3 = **$16,500**
-- In months earning >$8K: direct excess to smoothing reserve until funded
-- In months earning <$5.5K: draw from smoothing reserve
-- Once reserve is funded, excess above $8K goes to savings/investment goals
+## Relacionadas
 
-## Common Pitfalls
-- Illiquidity surprise: needing cash when assets are locked in alternatives or retirement accounts
-- Penalty drag from breaking CDs frequently (defeats the purpose of laddering)
-- Over-optimizing yield at the expense of access (yield chasing in illiquid instruments)
-- Not planning for estimated tax payments (large quarterly cash needs for self-employed)
-- Ignoring correlation between income loss and market decline (both happen in recessions)
-- Treating credit lines as liquidity (they can be revoked when most needed)
-
-## Cross-References
-- **emergency-fund** (wealth-management plugin): first tier of liquidity, must be funded before optimizing
-- **lending** (wealth-management plugin): margin loans, HELOCs as backup liquidity (with risks)
-- **time-value-of-money** (core plugin): CD/bond pricing, yield calculations
-- **debt-management** (wealth-management plugin): debt payments are fixed cash flow obligations
-- **savings-goals** (wealth-management plugin): multiple goals compete for available cash flow
-- **tax-efficiency** (wealth-management plugin): estimated taxes, tax-loss harvesting timing
-- **fixed-income-sovereign** (wealth-management plugin): T-bill ladder mechanics, Treasury Direct
-- **financial-planning-workflow** (advisory-practice plugin): cash flow tier structure informs the liquidity analysis in comprehensive financial plans
-- **equity-compensation** (wealth-management plugin): option exercise costs, RSU withholding gaps, and AMT bills create planned liquidity needs in vest and exercise years
-## Running the script
-Run the reference implementation directly:
-
-```
-uv run scripts/liquidity_management.py     # PEP 723 header resolves dependencies automatically
-python3 scripts/liquidity_management.py    # after: pip install numpy scipy
-```
-
-A bare run prints a demo covering liquidity ratios, a 12-month cash flow projection, cash runway, liquidity tier analysis, CD ladder construction, income smoothing, and CD breakeven analysis. Use `--verify` to recompute the demo figures and assert they match this skill's worked examples (prints PASS/FAIL, exits nonzero on mismatch), and `--help` to list the available classes and functions. The file is primarily meant to be imported as a module (`from liquidity_management import LiquidityManagement`) rather than run standalone.
+- **time-value-of-money**: costo de negociar y "¿Rescatar o negociar?".
+- **return-calculations**: TNA real del FCI.
+- **reconciliation**: confirmar que los saldos de partida coinciden con el banco.

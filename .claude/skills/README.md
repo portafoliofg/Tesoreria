@@ -7,33 +7,34 @@ desde Apps Script y no lee esta carpeta. Apps Script tampoco la publica (solo su
 Claude elige la skill solo, según la pregunta. También se puede pedir por nombre, por ejemplo
 `/liquidity-management`.
 
-## Qué hay y para qué sirve en Tesorería
+Están en español y adaptadas a Tesorería: pesos y dólares por separado, TNA con interés simple
+sobre 365 días, cheques y pagarés negociados en ALYC, FCI, facturas de ARCA, y las mismas hojas,
+columnas y funciones que usa la app (`costoBolsa`, `tnaVentana`, `emparejar`, etc.).
 
-| Skill | Origen | Para qué sirve acá |
-|---|---|---|
-| `time-value-of-money` | finance_skills | TNA, TEA, tasa efectiva por período, valor actual de un cheque, descuento y costo de negociar en bolsa, VAN y TIR. Base del simulador de negociación y de "¿Rescatar o negociar?". |
-| `return-calculations` | finance_skills | Rendimiento de los FCI: por período, anualizado, ponderado por tiempo (TWR) y por dinero (TIR con suscripciones y rescates). |
-| `performance-metrics` | finance_skills | Medir y comparar rendimientos con su riesgo (volatilidad, caída máxima, Sharpe) para los tableros de FCI y Bolsa. |
-| `statistics-fundamentals` | finance_skills | Promedios, dispersión, correlación y regresiones: tasas de cada ALYC mes a mes, valores promedio de propiedades. |
-| `liquidity-management` | finance_skills | Proyección de flujo de caja, colchón de liquidez y escalonado de vencimientos: la idea pendiente "ver si la plata alcanza" semana a semana. |
-| `reconciliation` | finance_skills | Conciliar registros propios contra el banco o la ALYC: tolerancias, diferencias por fechas, antigüedad de las partidas abiertas. Sirve para importar extractos. |
-| `data-quality` | finance_skills | Reglas de validación de datos importados (fechas, importes, duplicados, datos viejos) y manejo de excepciones. |
-| `invoice-organizer` | awesome-claude-corporate-skills | Ordenar facturas y comprobantes (PDF o fotos): extraer proveedor, número, fecha e importe y renombrarlos de forma pareja. |
-| `data-validation` | awesome-claude-corporate-skills | Revisar un análisis antes de compartirlo: si la lógica de agregación está bien, si los números cierran y si hay sesgos. |
+## Qué hay y para qué sirve
 
-## Tener en cuenta
+| Skill | Para qué sirve |
+|---|---|
+| `time-value-of-money` | TNA, TEA, costo y TNA de un cheque negociado, promedio ponderado por ALYC, "¿Rescatar o negociar?", VAN y TIR de planes de pago. |
+| `return-calculations` | Rendimiento y TNA real de los FCI con suscripciones y rescates, períodos dudosos, TWR y TIR. |
+| `performance-metrics` | Comparar fondos y ALYC por rendimiento y estabilidad: volatilidad, días negativos, caída máxima, Sharpe. |
+| `statistics-fundamentals` | Promedios ponderados, mediana, atípicos, tendencias, pocos datos: ALYC mes a mes, valores de propiedades. |
+| `liquidity-management` | Ver si la plata alcanza semana a semana, qué semana falta y cómo cubrirla. |
+| `reconciliation` | Conciliación bancaria como la hace la app, por qué no cierra, antigüedad de pendientes, FCI y bolsa. |
+| `data-quality` | Validar importaciones y cargas: fechas, importes, duplicados, CUIT, saltos imposibles. |
+| `invoice-organizer` | Leer y ordenar facturas argentinas (tipo, punto de venta, número, CUIT, neto, IVA, total, CAE). |
+| `data-validation` | Lista de control antes de mostrar un tablero, reporte o respuesta con números. |
 
-- Están escritas para Estados Unidos (SEC, FINRA, dólares, ETF). Las fórmulas sirven igual, pero
-  en Tesorería se usan las convenciones locales: pesos, TNA sobre 365 días, cheques y pagarés
-  negociados en ALYC, FCI argentinos.
-- Son guías y fórmulas, no asesoramiento financiero.
-- Los scripts de Python (`scripts/`) son de referencia; necesitan `numpy` y algunos `scipy`.
+Son guías y fórmulas, no asesoramiento financiero. Si la app cambia una fórmula o una columna,
+actualizar la skill correspondiente.
 
 ## Origen y licencia
 
-Copiadas sin cambios, ambas con licencia MIT (ver los archivos `LICENSE-*` de esta carpeta):
+Basadas en skills con licencia MIT (ver los archivos `LICENSE-*` de esta carpeta), traducidas y
+reescritas para Tesorería:
 
-- [JoelLewis/finance_skills](https://github.com/JoelLewis/finance_skills), commit `5c498ea`.
-- [w95/awesome-claude-corporate-skills](https://github.com/w95/awesome-claude-corporate-skills), commit `78dbc7c`.
-
-Para actualizarlas, volver a copiar la carpeta de la skill desde el repositorio de origen.
+- [JoelLewis/finance_skills](https://github.com/JoelLewis/finance_skills), commit `5c498ea`:
+  `time-value-of-money`, `return-calculations`, `performance-metrics`, `statistics-fundamentals`,
+  `liquidity-management`, `reconciliation`, `data-quality`.
+- [w95/awesome-claude-corporate-skills](https://github.com/w95/awesome-claude-corporate-skills),
+  commit `78dbc7c`: `invoice-organizer`, `data-validation`.
