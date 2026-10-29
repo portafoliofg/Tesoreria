@@ -1342,6 +1342,27 @@
   .sim-tit { margin: 6px 0 0; font-weight: 650; }
   @media (max-width: 700px) { .sim-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .rn-fila { flex-direction: column; align-items: flex-start; } }
   @media (prefers-reduced-motion: reduce) { .cal-dia { animation: none !important; transition: none; } }
+  /* ---------- Estadísticas ---------- */
+  .est-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 10px; }
+  .est-anio { display: flex; align-items: center; gap: 8px; }
+  .est-anio b { font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
+  .est-inicio { display: flex; align-items: center; gap: 6px; margin: 0; }
+  .est-inicio select { width: auto; margin: 0; height: 32px; }
+  .est-det-tit { margin: 10px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .est-abajo { margin-top: 16px; }
+  .est-kpis { margin-bottom: 14px; }
+  .est-kval { font-size: 17px; }
+  .est-sub { font-size: 14px; margin: 4px 0 8px; }
+  .est-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .est-tabla th { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); }
+  .est-tabla th.num, .est-tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .est-tabla td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .est-tabla td.pos { color: var(--ok); } .est-tabla td.neg { color: var(--bad); }
+  .est-tabla tr[tabindex] { cursor: pointer; }
+  .est-tabla tr[tabindex]:hover td { background: var(--surface-2); }
+  .est-tabla tr.est-sel td { background: rgba(var(--primary-rgb, 31, 78, 52), .08); font-weight: 600; }
+  .est-tabla tr.est-futuro td { color: var(--faint); }
+  .est-tabla tr.est-total td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; }
   /* ---------- Tablero de Bolsa ---------- */
   .tablero { display: grid; gap: 16px; }
   .tab-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
@@ -1535,6 +1556,7 @@
     <button class="nav-item nav-restringido" data-vista="facturas" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L4 21V5a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg>Facturas</button>
     <button class="nav-item" data-vista="calendario" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="8.5" cy="14.5" r="1"/><circle cx="12" cy="14.5" r="1"/><circle cx="15.5" cy="14.5" r="1"/></svg>Calendario</button>
     <button class="nav-item" data-vista="flujo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19h18"/><path d="M5 15l4-5 4 3 6-7"/><path d="M15 6h4v4"/></svg>Saldos y flujo</button>
+    <button class="nav-item" data-vista="estadisticas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v16h16"/><path d="M7 15l3.5-4 3 2.5L19 7"/><circle cx="19" cy="7" r="1"/></svg>Estadísticas</button>
     <button class="nav-item" data-vista="cuentas" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5L12 5l8 4.5"/><path d="M6 10v7M10 10v7M14 10v7M18 10v7"/><path d="M3.5 20h17"/></svg>Bancos y cuentas</button>
     <div class="nav-grupo">Control</div>
     <button class="nav-item" data-vista="conciliacion" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M7 20h10"/><path d="M5 7h14"/><path d="M5 7l-2.5 6a3 3 0 0 0 5 0L5 7zM19 7l-2.5 6a3 3 0 0 0 5 0L19 7z"/></svg>Conciliación</button>
@@ -1913,6 +1935,20 @@
       <div class="cal-ref"><span><i class="cal-ref-pagar"></i>A pagar (más intenso, más plata)</span><span><i class="cal-ref-cobrar"></i>A cobrar</span><span><i class="cal-ref-venc"></i>Vencido sin pagar</span></div>
     </div>
     <div class="card" id="calDia"></div>
+  </section>
+
+  <!-- ===================== VISTA: ESTADÍSTICAS ===================== -->
+  <section id="vista-estadisticas" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Estadísticas</h1>
+        <p class="sub">Cómo se movió la plata a lo largo del año: de enero a enero o por cosecha (fina y gruesa).</p>
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button id="estActualizar" class="secondary" type="button">Actualizar</button>
+      </div>
+    </div>
+    <div id="estFlujo"></div>
   </section>
 
   <!-- ===================== VISTA: FCI Y BOLSA ===================== -->
@@ -4578,7 +4614,7 @@ function setStatus(node, text, cls) {
 }
 
 // ---------------- Navegación ----------------
-const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "calendario", "flujo", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
+const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "calendario", "flujo", "estadisticas", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
 document.querySelectorAll(".nav-item").forEach(btn => {
   btn.addEventListener("click", () => mostrarVista(btn.dataset.vista));
 });
@@ -4603,6 +4639,7 @@ function mostrarVista(nombre) {
   if (nombre === "conciliacion") prepararVistaConciliacion();
   if (nombre === "inicio") cargarInicio();
   if (nombre === "flujo") cargarFlujo();
+  if (nombre === "estadisticas") cargarEstadisticas(false);
   if (nombre === "compromisos") cargarCompromisos(false);
   if (["mensuales", "tarjetas", "planes", "efectivo"].indexOf(nombre) >= 0) cargarVistaPlanilla(nombre, false);
   if (nombre === "facturas") cargarFacturas(false);
@@ -8092,7 +8129,7 @@ if (mqClaro) {
 }
 
 // ---------------- Encabezado ----------------
-const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", inversiones: "FCI y Bolsa", calendario: "Calendario de vencimientos" };
+const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", inversiones: "FCI y Bolsa", calendario: "Calendario de vencimientos", estadisticas: "Estadísticas" };
 
 function alCambiarVista(nombre) {
   actualizarBarraSeleccion();
@@ -19864,6 +19901,234 @@ function graficoIngresosEgresos(t) {
     }
   });
   tablaViz(t.tabla, ["Mes", "Ingresos", "Egresos", "Resultado"], cats.map(c => [mesLargo(c.mes), fmtImp(c.ing), fmtImp(c.egr), fmtImp(c.neto)]));
+}
+
+// ---------------- Estadísticas: flujo de caja anual ----------------
+// Doce meses de ingresos y egresos con el mismo criterio que "Mes a mes" de Inicio: movimientos
+// en pesos, sin transferencias entre cuentas propias, sin lo que va o vuelve de brokers y sin los
+// renglones de resúmenes ya conciliados (para no contarlos dos veces).
+// Períodos: enero a enero (año calendario) o por cosecha, que es una campaña de 12 meses:
+// gruesa (soja, maíz) desde mayo y fina (trigo) desde diciembre. El mes de inicio de cada
+// cosecha se puede cambiar y queda en las preferencias.
+const PERIODOS_EST = [["anio", "Enero a enero"], ["fina", "Cosecha fina"], ["gruesa", "Cosecha gruesa"]];
+const INICIO_COSECHA = { fina: 12, gruesa: 5 };
+let estPeriodo = "anio", estAnio = null, estMesSel = null;
+
+function inicioCosecha(tipo) {
+  const p = (preferencias.estadisticas || {}).inicio || {};
+  return p[tipo] >= 1 && p[tipo] <= 12 ? p[tipo] : INICIO_COSECHA[tipo];
+}
+
+// Primer mes del período (aaaa-mm-01). anio: el año en que empieza.
+function inicioPeriodoEst(periodo, anio) {
+  const m = periodo === "anio" ? 1 : inicioCosecha(periodo);
+  return anio + "-" + dosDigitos(m) + "-01";
+}
+
+// Año en que empieza el período que contiene hoy.
+function anioActualEst(periodo) {
+  const hoy = hoyIso(), y = parseInt(hoy.substring(0, 4), 10), m = parseInt(hoy.substring(5, 7), 10);
+  if (periodo === "anio") return y;
+  return m >= inicioCosecha(periodo) ? y : y - 1;
+}
+
+function nombrePeriodoEst(periodo, anio) {
+  const ini = inicioPeriodoEst(periodo, anio), fin = sumarMesesIso(ini, 11);
+  if (periodo === "anio") return "Año " + anio;
+  const camp = ini.substring(0, 4) === fin.substring(0, 4) ? ini.substring(0, 4) : ini.substring(0, 4) + "/" + fin.substring(2, 4);
+  return "Campaña " + camp + " · " + mesLargo(ini).toLowerCase() + " a " + mesLargo(fin).toLowerCase();
+}
+
+async function cargarEstadisticas(forzar) {
+  const box = $("estFlujo");
+  if (forzar || !transferenciasCargadas) {
+    box.replaceChildren(nodoCargando(true));
+    if (forzar) { transferenciasCargadas = false; }
+    await asegurarTransferencias();
+  }
+  renderEstadisticas();
+}
+
+$("estActualizar").addEventListener("click", () => cargarEstadisticas(true));
+
+function datosFlujoAnual(ini) {
+  const validos = transferenciasDatos.filter(f => !esPropia(f) && !esMovimientoFinanciero(f) && f["Moneda"] !== "USD" && !(f["Origen"] === "Resumen" && f["Conciliación"]));
+  const hoy = hoyIso().substring(0, 7);
+  let acum = 0;
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = sumarMesesIso(ini, i);
+    const del = validos.filter(f => fechaAOrden(fechaMov(f)).substring(0, 7) === m.substring(0, 7));
+    const ing = del.reduce((a, f) => a + Math.max(0, parseImporte(f["Monto"])), 0);
+    const egr = del.reduce((a, f) => a + Math.min(0, parseImporte(f["Monto"])), 0);
+    const neto = ing + egr;
+    const futuro = m.substring(0, 7) > hoy;
+    if (!futuro) acum += neto;
+    return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), movs: del, n: del.length, ing: ing, egr: egr, neto: neto, acum: futuro ? null : acum, futuro: futuro,
+      enCurso: m.substring(0, 7) === hoy,
+      linea: { ing: futuro ? null : ing, egr: futuro ? null : -egr },
+      datos: { pos: [futuro ? 0 : Math.max(0, neto), 0], neg: [0, futuro ? 0 : Math.min(0, neto)] } };
+  });
+}
+
+function renderEstadisticas() {
+  const box = $("estFlujo");
+  if (estAnio === null) estAnio = anioActualEst(estPeriodo);
+  const ini = inicioPeriodoEst(estPeriodo, estAnio);
+  const cats = datosFlujoAnual(ini);
+  const t = tarjetaViz("Flujo de caja anual", nombrePeriodoEst(estPeriodo, estAnio), null);
+  t.cuerpo.hidden = false;
+  t.btnDetalle.hidden = true;
+  t.resumen.hidden = true;
+
+  // Controles: período, año (‹ ›) y, en las cosechas, el mes en que empieza.
+  const barra = el("div", "est-barra");
+  const seg = el("div", "seg");
+  seg.setAttribute("role", "radiogroup");
+  seg.setAttribute("aria-label", "Período");
+  PERIODOS_EST.forEach(p => {
+    const lab = el("label", "seg-op");
+    const r = el("input");
+    r.type = "radio";
+    r.name = "estPeriodo";
+    r.checked = estPeriodo === p[0];
+    r.addEventListener("change", () => { estPeriodo = p[0]; estAnio = anioActualEst(estPeriodo); estMesSel = null; renderEstadisticas(); });
+    lab.append(r, document.createTextNode(p[1]));
+    seg.append(lab);
+  });
+  const nav = el("div", "est-anio");
+  const ant = el("button", "secondary small", "‹");
+  ant.type = "button";
+  ant.setAttribute("aria-label", "Período anterior");
+  ant.addEventListener("click", () => { estAnio--; estMesSel = null; renderEstadisticas(); });
+  const sig = el("button", "secondary small", "›");
+  sig.type = "button";
+  sig.setAttribute("aria-label", "Período siguiente");
+  sig.disabled = estAnio >= anioActualEst(estPeriodo);
+  sig.addEventListener("click", () => { estAnio++; estMesSel = null; renderEstadisticas(); });
+  const hoyB = el("button", "secondary small", "Actual");
+  hoyB.type = "button";
+  hoyB.disabled = estAnio === anioActualEst(estPeriodo);
+  hoyB.addEventListener("click", () => { estAnio = anioActualEst(estPeriodo); estMesSel = null; renderEstadisticas(); });
+  nav.append(ant, el("b", null, estPeriodo === "anio" ? String(estAnio) : estAnio + "/" + String(estAnio + 1).substring(2)), sig, hoyB);
+  barra.append(seg, nav);
+  if (estPeriodo !== "anio") {
+    const lab = el("label", "est-inicio");
+    lab.append(document.createTextNode("Empieza en "));
+    const selM = el("select");
+    selM.setAttribute("aria-label", "Mes en que empieza la cosecha");
+    MESES_LARGOS.forEach((m, i) => selM.append(new Option(m.charAt(0) + m.substring(1).toLowerCase(), String(i + 1))));
+    selM.value = String(inicioCosecha(estPeriodo));
+    selM.addEventListener("change", () => {
+      const pe = Object.assign({}, preferencias.estadisticas || {});
+      pe.inicio = Object.assign({}, pe.inicio || {}, { [estPeriodo]: parseInt(selM.value, 10) });
+      preferencias.estadisticas = pe;
+      guardarPreferencias();
+      estAnio = anioActualEst(estPeriodo);
+      estMesSel = null;
+      renderEstadisticas();
+    });
+    lab.append(selM);
+    barra.append(lab);
+  }
+  t.modos.replaceChildren(barra);
+
+  const pasados = cats.filter(c => !c.futuro);
+  const ing = pasados.reduce((a, c) => a + c.ing, 0), egr = pasados.reduce((a, c) => a + c.egr, 0), neto = ing + egr;
+  const conDatos = pasados.filter(c => c.n);
+  if (!conDatos.length) {
+    datoViz(t, ["No hay movimientos en este período."]);
+    vacioViz(t, "Sin movimientos para mostrar. Probá con otro período.");
+    box.replaceChildren(t.card);
+    return;
+  }
+  const mejor = conDatos.slice().sort((a, b) => b.neto - a.neto)[0], peor = conDatos.slice().sort((a, b) => a.neto - b.neto)[0];
+  datoViz(t, ["Entraron ", el("b", null, fmtImp(ing)), " y salieron ", el("b", null, fmtImp(-egr)), ". Resultado: ", el("b", null, fmtImp(neto)), "."], neto < 0);
+  const LINEAS = [{ k: "ing", label: "Ingresos", color: "var(--vz-pos)" }, { k: "egr", label: "Egresos", color: "var(--vz-neg)" }];
+  const BARRAS = [{ k: "pos", label: "Resultado positivo", color: "var(--vz-pos)" }, { k: "neg", label: "Resultado negativo", color: "var(--vz-neg)" }];
+  leyendaViz(t.leyenda, LINEAS.map(s => ({ label: s.label, color: s.color, linea: true })).concat([{ label: "Resultado del mes (barras)", color: "var(--vz-n1)" }]));
+  if (estMesSel === null || estMesSel >= cats.length || cats[estMesSel].futuro) {
+    estMesSel = cats.map((c, i) => c.futuro ? -1 : i).filter(i => i >= 0).pop();
+  }
+
+  // Detalle del mes elegido: los movimientos más grandes que entraron y salieron.
+  const verMes = i => {
+    estMesSel = i;
+    const c = cats[i];
+    t.detalle.replaceChildren();
+    const h = el("div", "viz-det-head");
+    h.append(el("b", null, mesLargo(c.mes) + (c.enCurso ? " (en curso)" : "")),
+      el("span", null, c.n + " movimiento(s) · ingresos " + fmtImp(c.ing) + " · egresos " + fmtImp(-c.egr) + " · resultado " + fmtImp(c.neto)));
+    t.detalle.append(h);
+    const grupo = (titulo, lista) => {
+      if (!lista.length) return;
+      t.detalle.append(el("div", "est-det-tit", titulo));
+      lista.slice(0, 8).forEach(f => t.detalle.append(filaDetalle(String(fechaMov(f)).substring(0, 5),
+        f["Destinatario"] || f["Contraparte"] || f["Concepto"] || "Movimiento N° " + f["N° Interno"],
+        [f["Banco"], f["Concepto"] && (f["Destinatario"] || f["Contraparte"]) ? f["Concepto"] : ""].filter(Boolean).join(" · "), parseImporte(f["Monto"]))));
+      if (lista.length > 8) t.detalle.append(el("p", "viz-mas", "… y " + (lista.length - 8) + " más (están en Movimientos)."));
+    };
+    grupo("Ingresos más grandes", c.movs.filter(f => parseImporte(f["Monto"]) > 0).sort((a, b) => parseImporte(b["Monto"]) - parseImporte(a["Monto"])));
+    grupo("Egresos más grandes", c.movs.filter(f => parseImporte(f["Monto"]) < 0).sort((a, b) => parseImporte(a["Monto"]) - parseImporte(b["Monto"])));
+    if (!c.n) t.detalle.append(el("p", "hint", "Sin movimientos este mes."));
+  };
+
+  dibujarCombo(t, {
+    aria: "Flujo de caja: ingresos y egresos por mes",
+    tituloLinea: "Ingresos y egresos de cada mes",
+    tituloBarras: "Resultado del mes (ingresos − egresos)",
+    cats: cats, lineas: LINEAS, barras: BARRAS,
+    altoLinea: 210, altoBarras: 110,
+    seleccion: estMesSel,
+    alClic: i => { if (!cats[i].futuro) renderEstadisticasSel(i); },
+    tooltip: i => {
+      const c = cats[i];
+      if (c.futuro) return { titulo: mesLargo(c.mes), filas: [], nota: "Todavía no llegó" };
+      return { titulo: mesLargo(c.mes) + (c.enCurso ? " (en curso)" : ""), filas: [
+        { color: "var(--vz-pos)", linea: true, valor: fmtImp(c.ing), label: "Ingresos" },
+        { color: "var(--vz-neg)", linea: true, valor: fmtImp(-c.egr), label: "Egresos" },
+        { total: true, valor: fmtImp(c.neto), label: "Resultado" },
+        { valor: fmtImp(c.acum), label: "Acumulado" }
+      ], nota: c.n + " movimiento(s). Tocá para ver el detalle." };
+    }
+  });
+  verMes(estMesSel);
+  t.ayuda.textContent = "Movimientos en pesos, sin transferencias entre cuentas propias ni lo que va o vuelve de brokers. Tocá un mes para ver sus movimientos.";
+
+  // Detalle debajo: indicadores y tabla mes por mes con el acumulado.
+  const kp = el("div", "kpis est-kpis");
+  [["Ingresos", fmtImp(ing), "var(--vz-pos)"], ["Egresos", fmtImp(-egr), "var(--vz-neg)"], ["Resultado", fmtImp(neto), neto < 0 ? "var(--vz-neg)" : "var(--vz-pos)"],
+    ["Mejor mes", mesCorto(mejor.mes, true) + " · " + montoCorto(mejor.neto), "var(--vz-1)"], ["Peor mes", mesCorto(peor.mes, true) + " · " + montoCorto(peor.neto), "var(--vz-2)"]].forEach(x => {
+    const k = el("div", "kpi");
+    k.style.setProperty("--tono", x[2]);
+    k.append(el("div", "k-label", x[0]), el("div", "k-val est-kval", x[1]));
+    kp.append(k);
+  });
+  const tabla = el("table", "est-tabla");
+  const trh = el("tr");
+  ["Mes", "Ingresos", "Egresos", "Resultado", "Acumulado", "Movimientos"].forEach((x, i) => trh.append(el("th", i ? "num" : "", x)));
+  tabla.append(trh);
+  cats.forEach((c, i) => {
+    const tr = el("tr", (c.futuro ? "est-futuro" : "") + (i === estMesSel ? " est-sel" : ""));
+    const num = (v, cls) => el("td", "num" + (cls ? " " + cls : ""), c.futuro ? "—" : fmtImp(v));
+    tr.append(el("td", null, mesLargo(c.mes) + (c.enCurso ? " (en curso)" : "")), num(c.ing, "pos"), num(-c.egr, "neg"),
+      num(c.neto, c.neto < 0 ? "neg" : "pos"), num(c.acum, c.acum < 0 ? "neg" : ""), el("td", "num", c.futuro ? "—" : String(c.n)));
+    if (!c.futuro) { tr.tabIndex = 0; tr.title = "Ver los movimientos de " + mesLargo(c.mes); tr.addEventListener("click", () => { verMes(i); renderEstadisticasSel(i); }); }
+    tabla.append(tr);
+  });
+  const trt = el("tr", "est-total");
+  trt.append(el("td", null, "Total"), el("td", "num pos", fmtImp(ing)), el("td", "num neg", fmtImp(-egr)), el("td", "num " + (neto < 0 ? "neg" : "pos"), fmtImp(neto)), el("td", "num", ""), el("td", "num", String(pasados.reduce((a, c) => a + c.n, 0))));
+  tabla.append(trt);
+  const abajo = el("div", "est-abajo");
+  abajo.append(kp, el("h3", "est-sub", "Mes por mes"), envolverTabla(tabla));
+  t.tabla.remove();
+  t.btnTabla.hidden = true;
+  box.replaceChildren(t.card, abajo);
+}
+
+// Elegir un mes en la tabla: lo marca en el gráfico y en la tabla sin volver a armar todo.
+function renderEstadisticasSel(i) {
+  estMesSel = i;
+  renderEstadisticas();
 }
 
 // ---------------- Inicio: accesos de "Más información" ----------------
