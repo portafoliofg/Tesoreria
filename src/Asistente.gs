@@ -764,7 +764,7 @@ function asisCheques_(a) {
     const c = x.c;
     return asisLimpio_({
       numero: c['N° de Cheque'], tipo: c['Tipo'], banco: c['Banco'], banco_emisor: c['Banco Emisor'], titular: c['Titular'], cuit: c['CUIT'],
-      emision: c['Fecha de Emisión'], pago: c['Fecha de Pago'], debito: c['Fecha de Débito'], hora_debito: c['Hora de Débito'], importe: asisRedondeo_(x.imp),
+      emision: c['Fecha de Emisión'], pago: c['Fecha de Pago'], debito: c['Fecha de Débito'], hora_debito: c['Hora de Débito'], tasa_descuento: c['Tasa de Descuento'] ? c['Tasa de Descuento'] + '% ' + c['Tipo de Tasa'] : '', neto_descontado: c['Neto Descontado'], importe: asisRedondeo_(x.imp),
       moneda: c['Moneda'] === 'USD' ? 'USD' : 'Pesos', estado: c['Estado'] || 'Pendiente', destino: c['Destino'], concepto: c['Concepto'],
       canal: c['Canal'], alyc: c['ALYC'], sgr: c['SGR / Emisor'], persona: c['Persona'], conciliado: c['Conciliación'] ? 'sí' : 'no',
       vencido_sin_pagar: x.abierto && c['Tipo'] === 'Emitido' && x.iso && x.iso < hoy ? 'sí' : ''

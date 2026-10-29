@@ -58,7 +58,10 @@ const HEADERS_CHEQUES = [
   'Banco Aceptante',
   // Hora (HH:mm) de la Fecha de Débito: cuándo se pagó, depositó, acreditó o endosó. Se elige
   // al cambiar el estado; la importación de la planilla no la trae ni la pisa.
-  'Hora de Débito'
+  'Hora de Débito',
+  // Cheque descontado: la tasa (en %, por ejemplo 45,5), su tipo (TNA, TNAV, TNAD, TEA, TEM)
+  // y lo que se recibió. Se cargan al pasar el cheque a Descontado.
+  'Tasa de Descuento', 'Tipo de Tasa', 'Neto Descontado'
 ];
 const COL_COMPROBANTE_CHEQUE = HEADERS_CHEQUES.indexOf('Comprobante');
 const COL_BANCO_CHEQUE = HEADERS_CHEQUES.indexOf('Banco');
@@ -1104,8 +1107,11 @@ function guardarCheques_(d, u) {
 // La página pide la fecha y la hora (cualquier fecha, no solo la de hoy). Si pasa a un estado
 // que mueve la cuenta y no llega fecha ni tenía una, se pone la del día.
 // d: {id (ID Planilla), banco, numero, tipo, estado, fechaDebito (dd/mm/aaaa), hora (HH:mm)}
-const ESTADOS_CHEQUE_EDITABLES = ['Pendiente', 'En cartera', 'Pagado', 'Depositado', 'Acreditado', 'Endosado', 'Anulado', 'Caducado', 'Rechazado', 'Devolución', 'Custodia depositante'];
-const ESTADOS_CON_DEBITO = ['pagado', 'depositado', 'acreditado'];
+const ESTADOS_CHEQUE_EDITABLES = ['Pendiente', 'En cartera', 'Pagado', 'Depositado', 'Acreditado', 'Endosado', 'Descontado', 'Anulado', 'Caducado', 'Rechazado', 'Devolución', 'Custodia depositante'];
+const ESTADOS_CON_DEBITO = ['pagado', 'depositado', 'acreditado', 'descontado'];
+// Tipos de tasa de un cheque descontado: TNA y TNAV (nominal anual vencida), TNAD (nominal
+// anual adelantada o de descuento), TEA (efectiva anual) y TEM (efectiva mensual).
+const TIPOS_TASA_DESCUENTO = ['TNA', 'TNAV', 'TNAD', 'TEA', 'TEM'];
 
 function actualizarEstadoCheque_(d, u) {
   const estado = String(d.estado || '').trim();
@@ -1117,6 +1123,16 @@ function actualizarEstadoCheque_(d, u) {
   }
   const horaPedida = String(d.hora || '').trim();
   if (horaPedida && !/^([01]\d|2[0-3]):[0-5]\d$/.test(horaPedida)) return { ok: false, error: 'La hora va como hh:mm (de 00:00 a 23:59).' };
+  // Descontado: tasa en % (mayor a 0 y hasta 1000), su tipo y el neto recibido (opcional).
+  const descontado = claveTexto(estado) === 'descontado';
+  const tasa = descontado ? importeANumero(d.tasa) : 0;
+  const tipoTasa = String(d.tipoTasa || '').trim().toUpperCase();
+  const neto = descontado && String(d.neto || '').trim() ? importeANumero(d.neto) : null;
+  if (descontado) {
+    if (!(tasa > 0 && tasa <= 1000)) return { ok: false, error: 'Cargá la tasa de descuento en % (por ejemplo 45,5).' };
+    if (TIPOS_TASA_DESCUENTO.indexOf(tipoTasa) < 0) return { ok: false, error: 'Elegí el tipo de tasa: ' + TIPOS_TASA_DESCUENTO.join(', ') + '.' };
+    if (neto !== null && !(neto > 0)) return { ok: false, error: 'El neto recibido tiene que ser mayor a cero.' };
+  }
   return conLock_(() => {
     const H = HEADERS_CHEQUES;
     const hoja = obtenerHoja_(SHEET_CHEQUES, H);
@@ -1139,10 +1155,18 @@ function actualizarEstadoCheque_(d, u) {
     hoja.getRange(idx + 2, iEstado + 1).setNumberFormat('@').setValue(estado);
     hoja.getRange(idx + 2, iDeb + 1).setNumberFormat('@').setValue(debito);
     hoja.getRange(idx + 2, iHora + 1).setNumberFormat('@').setValue(hora);
-    const cuando = debito && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(estado)) < 0 ? ' (' + debito + (hora ? ' ' + hora : '') + ')' : '';
+    const desc = {};
+    if (descontado) {
+      desc['Tasa de Descuento'] = String(tasa).replace('.', ',');
+      desc['Tipo de Tasa'] = tipoTasa;
+      desc['Neto Descontado'] = neto === null ? '' : neto.toFixed(2).replace('.', ',');
+      Object.keys(desc).forEach(h => hoja.getRange(idx + 2, H.indexOf(h) + 1).setNumberFormat('@').setValue(desc[h]));
+    }
+    const cuando = (debito && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(estado)) < 0 ? ' (' + debito + (hora ? ' ' + hora : '') + ')' : '') +
+      (descontado ? ' · ' + desc['Tasa de Descuento'] + '% ' + tipoTasa + (desc['Neto Descontado'] ? ' · neto $ ' + desc['Neto Descontado'] : '') : '');
     registrar_(u, 'Cambio de estado de cheque', (fila[iTipo] || 'Cheque') + ' N° ' + fila[COL_NUMERO_CHEQUE] + ' · ' + (fila[iEstado] || 'sin estado') + ' → ' + estado + cuando,
-      fila[iId] || fila[COL_NUMERO_CHEQUE], antes, { 'Estado': estado, 'Fecha de Débito': debito, 'Hora de Débito': hora });
-    return { ok: true, estado: estado, fechaDebito: debito, horaDebito: hora };
+      fila[iId] || fila[COL_NUMERO_CHEQUE], antes, Object.assign({ 'Estado': estado, 'Fecha de Débito': debito, 'Hora de Débito': hora }, desc));
+    return { ok: true, estado: estado, fechaDebito: debito, horaDebito: hora, tasa: desc['Tasa de Descuento'] || '', tipoTasa: desc['Tipo de Tasa'] || '', neto: desc['Neto Descontado'] || '' };
   });
 }
 

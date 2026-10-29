@@ -2494,6 +2494,25 @@
         <label><span id="estChFechaEt">Fecha</span><input type="date" id="estChFecha"></label>
         <label>Hora<input type="time" id="estChHora" step="60"></label>
       </div>
+      <!-- Solo para Descontado: la tasa, su tipo y lo que se recibe. -->
+      <div id="estChDescuento" hidden>
+        <div class="row">
+          <label>Tasa de descuento (%)<input type="text" id="estChTasa" inputmode="decimal" placeholder="Ej.: 45,5"></label>
+          <label>Tipo de tasa
+            <select id="estChTipoTasa">
+              <option value="TNA" title="Tasa nominal anual">TNA</option>
+              <option value="TNAV" title="Tasa nominal anual vencida (igual que TNA)">TNAV (vencida)</option>
+              <option value="TNAD" title="Tasa nominal anual adelantada o de descuento">TNAD (adelantada)</option>
+              <option value="TEA" title="Tasa efectiva anual">TEA (efectiva anual)</option>
+              <option value="TEM" title="Tasa efectiva mensual">TEM (efectiva mensual)</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Neto recibido<input type="text" id="estChNeto" inputmode="decimal" placeholder="Se calcula con la tasa"></label>
+        </div>
+        <p id="estChCalculo" class="hint"></p>
+      </div>
       <p id="estChStatus" class="hint"></p>
     </div>
     <div class="modal__foot">
@@ -3255,7 +3274,7 @@ const HEADERS_CHEQUES = [
   "Fecha de Emisión", "Fecha de Pago", "Importe", "Concepto", "N° de Cuenta", "Tipo de Cuenta",
   "Cargado por", "Conciliación", "Comprobante", "Persona", "Estado",
   "Fecha de Débito", "Destino", "Chequera", "Banco Emisor", "Canal", "ALYC", "SGR / Emisor", "Moneda", "ID Planilla", "Fecha de Ingreso",
-  "Banco Aceptante", "Hora de Débito"
+  "Banco Aceptante", "Hora de Débito", "Tasa de Descuento", "Tipo de Tasa", "Neto Descontado"
 ];
 
 // Si pdf.js no llegó a cargar (red, bloqueador, etc.) esto no debe cortar
@@ -9370,7 +9389,9 @@ function debitoDeCheque(c) {
   if (chequeAbierto(c) || ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return null;
   const iso = fechaAOrden(c["Fecha de Débito"] || "");
   if (!iso) return null;
-  return { iso: iso, importe: importeCheque(c) };
+  // Descontado: entra lo que se recibió (el neto), no el valor nominal.
+  const neto = normalizar(c["Estado"] || "").trim() === "DESCONTADO" ? parseImporte(c["Neto Descontado"]) : 0;
+  return { iso: iso, importe: neto > 0 ? neto : importeCheque(c) };
 }
 
 // Saldo de una cuenta a una fecha: último saldo informado + movimientos propios posteriores
@@ -10066,10 +10087,11 @@ function filasExcelMovimientos(lista) {
 }
 
 function filasExcelCheques(lista) {
-  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Estado", "Fecha de Débito / Acreditación", "Hora", "Concepto", "Banco Aceptante", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
+  const H = ["Banco", "Tipo", "N° de Cheque", "Titular", "CUIT", "Fecha de Emisión", "Fecha de Pago", "Importe", "Estado", "Fecha de Débito / Acreditación", "Hora", "Tasa de descuento", "Tipo de tasa", "Neto descontado", "Concepto", "Banco Aceptante", "N° de Cuenta", "Tipo de Cuenta", "Cargado por", "Conciliación", "Comprobante"];
   const filas = [H];
   lista.forEach(c => filas.push([c["Banco"], c["Tipo"], c["N° de Cheque"], c["Titular"], c["CUIT"], c["Fecha de Emisión"], c["Fecha de Pago"], Math.abs(parseImporte(c["Importe"])),
-    estadoCheque(c).texto, c["Fecha de Débito"] || "", c["Hora de Débito"] || "", c["Concepto"], c["Banco Aceptante"] || "", c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
+    estadoCheque(c).texto, c["Fecha de Débito"] || "", c["Hora de Débito"] || "",
+    c["Tasa de Descuento"] ? parseImporte(c["Tasa de Descuento"]) : "", c["Tipo de Tasa"] || "", c["Neto Descontado"] ? parseImporte(c["Neto Descontado"]) : "", c["Concepto"], c["Banco Aceptante"] || "", c["N° de Cuenta"], c["Tipo de Cuenta"], c["Cargado por"], c["Conciliación"], linkDrive(c["Comprobante"])]));
   return filas;
 }
 
@@ -10084,7 +10106,7 @@ $("repMovTodos").addEventListener("click", async () => {
 });
 $("repChequesTodos").addEventListener("click", async () => {
   await asegurarCheques();
-  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 8, 36, 18, 16, 16, 24, 18, 40] }]);
+  descargarExcel("Cheques " + hoyIso(), [{ nombre: "Cheques", filas: filasExcelCheques(chequesDatos), anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 8, 10, 10, 15, 36, 18, 16, 16, 24, 18, 40] }]);
 });
 $("repLibroExcel").addEventListener("click", () => exportarLibroBanco("excel"));
 $("repLibroPdf").addEventListener("click", () => exportarLibroBanco("pdf"));
@@ -10507,7 +10529,7 @@ function estadoCheque(c) {
   if (c["Conciliación"]) return { texto: "Conciliado", clase: "pill-ing", orden: 9 };
   if (!chequeAbierto(c)) {
     const e = normalizar(c["Estado"]);
-    const clase = ["PAGADO", "DEPOSITADO", "ACREDITADO", "RESCATADO"].indexOf(e) >= 0 ? "pill-ing" : ["ANULADO", "CADUCADO", "RECHAZADO", "DEVOLUCION"].indexOf(e) >= 0 ? "pill-egr" : "pill-neutro";
+    const clase = ["PAGADO", "DEPOSITADO", "ACREDITADO", "RESCATADO", "DESCONTADO"].indexOf(e) >= 0 ? "pill-ing" : ["ANULADO", "CADUCADO", "RECHAZADO", "DEVOLUCION"].indexOf(e) >= 0 ? "pill-egr" : "pill-neutro";
     return { texto: c["Estado"], clase: clase, orden: 8 };
   }
   const d = diasHasta(fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]));
@@ -10544,12 +10566,12 @@ try { solapaCheques = localStorage.getItem("lc-solapa-cheques") === "cerrados" ?
 
 // Estados que se pueden elegir según el tipo de cheque (los mismos que acepta el servidor).
 const ESTADOS_EMITIDO = ["Pendiente", "Pagado", "Anulado", "Rechazado", "Caducado"];
-const ESTADOS_TERCEROS = ["En cartera", "Depositado", "Acreditado", "Endosado", "Rechazado", "Devolución", "Caducado", "Custodia depositante"];
+const ESTADOS_TERCEROS = ["En cartera", "Depositado", "Acreditado", "Endosado", "Descontado", "Rechazado", "Devolución", "Caducado", "Custodia depositante"];
 
 // Color de la etiqueta según el estado: abierto, cobrado o pagado, endosado o con problema.
 function grupoEstadoCheque(estado) {
   const n = normalizar(estado || "").trim();
-  if (["PAGADO", "DEPOSITADO", "ACREDITADO"].indexOf(n) >= 0) return "est-ok";
+  if (["PAGADO", "DEPOSITADO", "ACREDITADO", "DESCONTADO"].indexOf(n) >= 0) return "est-ok";
   if (n === "ENDOSADO") return "est-endoso";
   if (["ANULADO", "RECHAZADO", "CADUCADO", "DEVOLUCION"].indexOf(n) >= 0) return "est-mal";
   return "est-abierto";
@@ -10594,6 +10616,13 @@ function selectorEstadoCheque(c) {
   return sel;
 }
 
+// "45,5% TNAD · neto $ 945.000,00" (solo los descontados).
+function textoDescuento(c) {
+  if (normalizar(c["Estado"] || "").trim() !== "DESCONTADO" || !c["Tasa de Descuento"]) return "";
+  const neto = parseImporte(c["Neto Descontado"]);
+  return c["Tasa de Descuento"] + "% " + (c["Tipo de Tasa"] || "") + (neto ? " · neto " + textoImporte(neto, monedaCheque(c)) : "");
+}
+
 function estadoAbiertoCheque(estado) {
   return ESTADOS_CHEQUE_ABIERTOS.indexOf(normalizar(estado || "").trim()) >= 0;
 }
@@ -10601,16 +10630,17 @@ function estadoAbiertoCheque(estado) {
 // Qué fecha es según el estado: "Fecha de endoso", "Fecha de depósito"…
 function etiquetaFechaEstado(estado) {
   const n = normalizar(estado || "").trim();
-  return { PAGADO: "Fecha de pago (débito)", DEPOSITADO: "Fecha de depósito", ACREDITADO: "Fecha de acreditación", ENDOSADO: "Fecha de endoso",
+  return { PAGADO: "Fecha de pago (débito)", DEPOSITADO: "Fecha de depósito", ACREDITADO: "Fecha de acreditación", ENDOSADO: "Fecha de endoso", DESCONTADO: "Fecha de descuento",
     RECHAZADO: "Fecha de rechazo", DEVOLUCION: "Fecha de devolución", ANULADO: "Fecha de anulación", CADUCADO: "Fecha de caducidad" }[n] || "Fecha";
 }
 
 /** Guarda estado, fecha (dd/mm/aaaa) y hora (HH:mm) de un cheque y refresca la lista. */
-async function guardarEstadoCheque(c, estado, fecha, hora) {
-  const res = await runJson("actualizarEstadoCheque", { id: c["ID Planilla"] || "", banco: c["Banco"] || "", numero: c["N° de Cheque"], tipo: c["Tipo"], estado: estado, fechaDebito: fecha, hora: hora });
+async function guardarEstadoCheque(c, estado, fecha, hora, extra) {
+  const res = await runJson("actualizarEstadoCheque", Object.assign({ id: c["ID Planilla"] || "", banco: c["Banco"] || "", numero: c["N° de Cheque"], tipo: c["Tipo"], estado: estado, fechaDebito: fecha, hora: hora }, extra || {}));
   c["Estado"] = res.estado;
   c["Fecha de Débito"] = res.fechaDebito || "";
   c["Hora de Débito"] = res.horaDebito || "";
+  if (res.tipoTasa) { c["Tasa de Descuento"] = res.tasa; c["Tipo de Tasa"] = res.tipoTasa; c["Neto Descontado"] = res.neto; }
   const cuando = res.fechaDebito && !estadoAbiertoCheque(res.estado) ? " (" + res.fechaDebito + (res.horaDebito ? " " + res.horaDebito : "") + ")" : "";
   toast("Cheque N° " + c["N° de Cheque"] + ": " + res.estado + cuando + ".", "ok");
   aplicarFiltrosCheques();
@@ -10633,16 +10663,78 @@ function abrirEstadoCheque(c, estado, alCancelar) {
   const ahora = new Date();
   $("estChFecha").value = isoPrevio || hoyIso();
   $("estChHora").value = mismo ? String(c["Hora de Débito"] || "") : dosDigitos(ahora.getHours()) + ":" + dosDigitos(ahora.getMinutes());
+  // Descontado: si ya lo estaba, se precargan la tasa, el tipo y el neto.
+  const yaDesc = mismo && normalizar(c["Estado"] || "").trim() === "DESCONTADO";
+  $("estChTasa").value = yaDesc ? String(c["Tasa de Descuento"] || "") : "";
+  $("estChTipoTasa").value = yaDesc && c["Tipo de Tasa"] ? c["Tipo de Tasa"] : "TNA";
+  $("estChNeto").value = yaDesc ? String(c["Neto Descontado"] || "") : "";
+  $("estChNeto").dataset.manual = yaDesc && c["Neto Descontado"] ? "si" : "";
   const pintar = () => {
     const abierto = estadoAbiertoCheque(sel.value);
     $("estChCuando").hidden = abierto;
     $("estChFechaEt").textContent = etiquetaFechaEstado(sel.value);
+    $("estChDescuento").hidden = normalizar(sel.value) !== "DESCONTADO";
+    calcularDescuentoModal();
   };
   sel.addEventListener("change", pintar);
   pintar();
   setStatus($("estChStatus"), "", "hint");
   abrirModal("modalEstadoCheque");
 }
+
+// Tasa escrita con coma o con punto decimal: "45,5" o "45.5" → 45.5.
+function numeroTasa(txt) {
+  const t = String(txt || "").replace("%", "").trim();
+  return parseFloat(t.indexOf(",") >= 0 ? t.replace(/\./g, "").replace(",", ".") : t);
+}
+
+/**
+ * Lo que se recibe al descontar un cheque de valor nominal N a d días (de la fecha de
+ * descuento a la de pago) con una tasa t (fracción) de cada tipo. Días corridos sobre 365.
+ *   TNA / TNAV (vencida):        N ÷ (1 + t × d ÷ 365)
+ *   TNAD (adelantada, descuento): N × (1 − t × d ÷ 365)
+ *   TEA:                          N ÷ (1 + t) ^ (d ÷ 365)
+ *   TEM:                          N ÷ (1 + t) ^ (d ÷ 30)
+ * Devuelve {neto, costo, tna (equivalente vencida)} o null si faltan datos.
+ */
+function netoDescuento(nominal, tasa, tipo, dias) {
+  if (!(nominal > 0) || !(tasa > 0) || !(dias >= 0)) return null;
+  let neto;
+  if (tipo === "TNAD") neto = nominal * (1 - tasa * dias / 365);
+  else if (tipo === "TEA") neto = nominal / Math.pow(1 + tasa, dias / 365);
+  else if (tipo === "TEM") neto = nominal / Math.pow(1 + tasa, dias / 30);
+  else neto = nominal / (1 + tasa * dias / 365);
+  if (!(neto > 0)) return null;
+  return { neto: neto, costo: nominal - neto, tna: dias > 0 ? (nominal / neto - 1) * 365 / dias : null };
+}
+
+function calcularDescuentoModal() {
+  const x = estadoChequeAbierto;
+  const out = $("estChCalculo");
+  if (!x || $("estChDescuento").hidden) { out.textContent = ""; return; }
+  const c = x.c;
+  const nominal = Math.abs(parseImporte(c["Importe"]));
+  const pago = fechaAOrden(c["Fecha de Pago"] || "");
+  const desde = $("estChFecha").value;
+  const dias = pago && desde ? Math.max(0, diasEntre(desde, pago)) : null;
+  const tasa = numeroTasa($("estChTasa").value) / 100;
+  const r = dias === null ? null : netoDescuento(nominal, tasa, $("estChTipoTasa").value, dias);
+  const mon = monedaCheque(c);
+  if (!r) {
+    out.textContent = !pago ? "El cheque no tiene fecha de pago: cargá el neto recibido a mano." : "Cargá la tasa para calcular lo que se recibe.";
+    return;
+  }
+  // El neto se completa solo mientras no se escriba a mano.
+  if ($("estChNeto").dataset.manual !== "si") $("estChNeto").value = r.neto.toFixed(2).replace(".", ",");
+  const neto = parseImporte($("estChNeto").value) || r.neto;
+  const tnaReal = dias > 0 ? (nominal / neto - 1) * 365 / dias : null;
+  out.textContent = "Nominal " + textoImporte(nominal, mon) + " · " + dias + " días hasta el pago · recibís " + textoImporte(neto, mon) +
+    " · costo " + textoImporte(nominal - neto, mon) + (tnaReal !== null ? " · equivale a TNA vencida " + pctTexto(tnaReal) : "") + ".";
+}
+
+["estChTasa", "estChTipoTasa", "estChFecha"].forEach(id => $(id).addEventListener("input", calcularDescuentoModal));
+$("estChTipoTasa").addEventListener("change", calcularDescuentoModal);
+$("estChNeto").addEventListener("input", () => { $("estChNeto").dataset.manual = $("estChNeto").value.trim() ? "si" : ""; calcularDescuentoModal(); });
 
 $("estChGuardar").addEventListener("click", async () => {
   const x = estadoChequeAbierto;
@@ -10652,11 +10744,18 @@ $("estChGuardar").addEventListener("click", async () => {
   const abierto = estadoAbiertoCheque(estado);
   const iso = $("estChFecha").value, hora = $("estChHora").value;
   if (!abierto && !iso) { setStatus(st, "Elegí la fecha.", "hint msg-error"); return; }
+  let extra = null;
+  if (normalizar(estado) === "DESCONTADO") {
+    const tasa = String($("estChTasa").value || "").trim();
+    if (!(numeroTasa(tasa) > 0)) { setStatus(st, "Cargá la tasa de descuento en % (por ejemplo 45,5).", "hint msg-error"); return; }
+    const neto = parseImporte($("estChNeto").value);
+    extra = { tasa: tasa, tipoTasa: $("estChTipoTasa").value, neto: neto > 0 ? neto.toFixed(2) : "" };
+  }
   const btn = $("estChGuardar");
   btn.disabled = true;
   btn.classList.add("is-loading");
   try {
-    await guardarEstadoCheque(x.c, estado, abierto ? "" : isoADma(iso), abierto ? "" : hora);
+    await guardarEstadoCheque(x.c, estado, abierto ? "" : isoADma(iso), abierto ? "" : hora, extra);
     x.guardado = true;
     cerrarModal("modalEstadoCheque");
     if (detalle && detalle.vista === "cheques") refrescarDetalle();
@@ -10943,7 +11042,7 @@ function renderDetalle(f, recargar) {
     ]));
     secciones.push(seccionDetalle(f["Tipo"] === "Emitido" ? "Beneficiario" : "Librador", [["Titular", f["Titular"]], ["CUIT", f["CUIT"], "mono"], ["Banco del cheque", f["Banco Emisor"]]]));
     secciones.push(seccionDetalle("Planilla de flujo", [
-      ["Estado", f["Estado"]], [f["Tipo"] === "Emitido" ? "Fecha de débito" : "Fecha de acreditación o endoso", f["Fecha de Débito"] ? f["Fecha de Débito"] + (f["Hora de Débito"] ? " · " + f["Hora de Débito"] + " h" : "") : ""],
+      ["Estado", f["Estado"]], ["Tasa de descuento", textoDescuento(f)], [f["Tipo"] === "Emitido" ? "Fecha de débito" : "Fecha de acreditación o endoso", f["Fecha de Débito"] ? f["Fecha de Débito"] + (f["Hora de Débito"] ? " · " + f["Hora de Débito"] + " h" : "") : ""],
       ["Destino", f["Tipo"] === "De terceros" ? f["Destino"] : ""], ["Chequera", f["Chequera"]], ["Persona", f["Persona"]],
       ["Canal", f["Canal"]], ["ALYC", f["ALYC"]], ["SGR / emisor", f["SGR / Emisor"]], ["ID en la planilla", f["ID Planilla"], "mono"]
     ]));
@@ -11171,13 +11270,13 @@ async function reporteChequesSeleccionados(formato) {
     const filas = filasExcelCheques(lista);
     filas.push([]);
     Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push(["Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", "", "", tot[k]]); });
-    descargarExcel(nombre, [{ nombre: "Cheques", filas: filas, anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 8, 36, 18, 16, 16, 24, 18, 40] }]);
+    descargarExcel(nombre, [{ nombre: "Cheques", filas: filas, anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 8, 10, 10, 15, 36, 18, 16, 16, 24, 18, 40] }]);
     return;
   }
   const rep = el("div", "rep");
   rep.append(encabezadoReporte("Cheques seleccionados", [lista.length + " cheque(s)"].concat(lineasTot)));
   const filas = lista.map(c => [c["N° de Cheque"], c["Tipo"] === "Emitido" ? "Emitido" : "De terceros", c["Banco"] || c["Banco Emisor"] || "", c["Titular"] || "",
-    c["Fecha de Emisión"] || "", c["Fecha de Pago"] || "", estadoCheque(c).texto,
+    c["Fecha de Emisión"] || "", c["Fecha de Pago"] || "", estadoCheque(c).texto + (textoDescuento(c) ? " · " + textoDescuento(c) : ""),
     (c["Fecha de Débito"] || "") + (c["Hora de Débito"] ? " " + c["Hora de Débito"] : ""), textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]);
   Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push({ clase: "rep-total", celdas: ["", "", "", "Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", textoImporte(tot[k], p[1])] }); });
   rep.append(tablaReporte(["N°", "Tipo", "Banco", "Titular", "Emisión", "Pago", "Estado", "Débito / endoso", "Importe"], filas, [8]));
