@@ -1,6 +1,6 @@
 ---
 name: return-calculations
-description: "Rendimiento de los FCI y de otras inversiones de Tesorería: cuánto rindió en pesos, TNA real entre saldos con suscripciones y rescates en el medio, rendimiento por período, mensual o anual, encadenado de períodos, rendimiento ponderado por tiempo (TWR) y por dinero (TIR), y períodos dudosos. Usar al preguntar 'cuánto rindió el FCI', 'qué tasa real dio cada banco', 'por qué la TNA da distinto', o al tocar calcularRendimientoFci, tnaVentana, rendimientoConjunto o los tableros de FCI. Para tasas de cheques, VAN o TIR de un plan de pago usar time-value-of-money."
+description: "Rendimiento de los FCI y de otras inversiones de Tesorería: cuánto rindió en pesos, TNA real entre saldos con suscripciones y rescates en el medio, rendimiento por período, mensual o anual, encadenado de períodos, rendimiento ponderado por tiempo (TWR) y por dinero (TIR), y períodos dudosos. Usar al preguntar 'cuánto rindió el FCI', 'qué tasa real dio cada banco', 'por qué la TNA da distinto', o al tocar calcularRendimientoFci, tnaVentana, rendimientoConjunto o el análisis de la pestaña FCI. Para tasas de cheques, VAN o TIR de un plan de pago usar time-value-of-money."
 ---
 
 # Cálculo de rendimientos (FCI)
