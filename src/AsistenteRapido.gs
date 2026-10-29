@@ -263,10 +263,12 @@ function asisRapidaSaldos_(t, hoy) {
 // ---------- Rendimiento del FCI ----------
 
 /**
- * Igual que en la app (FCI y Bolsa): entre dos saldos de FCI seguidos de un banco,
- * rendimiento = saldo nuevo − saldo anterior − suscripciones − rescates del medio
- * (los del mismo día del saldo nuevo van al período siguiente). TNA = rendimiento sobre
- * el capital por los días, llevado a 365. Los tramos que dan más de 0,3% diario se dejan afuera.
+ * Igual que en la app (FCI y Bolsa): entre dos saldos de FCI seguidos de un banco, en dos pasos:
+ *   1. Cierre del día anterior (23:50, hora de Argentina) = saldo de inicio + suscripciones − rescates
+ *      del medio (los del mismo día del saldo nuevo van al período siguiente).
+ *   2. Rendimiento = saldo de hoy − cierre del día anterior.
+ * Rendimiento % = rendimiento ÷ cierre del día anterior. TNA = rendimiento sobre el capital por los
+ * días, llevado a 365. Los tramos que dan más de 0,3% diario se dejan afuera.
  */
 function asisRendimientoFci_() {
   const grupos = {};
@@ -339,16 +341,19 @@ function asisRapidaRendimiento_(t, hoy) {
     return { texto: txt, voz: txt };
   }
   const filas = fondos.map(f => {
-    let rend = 0, base = 0, dudosos = 0, ini = '', fin = '';
+    let rend = 0, base = 0, dudosos = 0, ini = '', fin = '', n = 0, cierre = 0;
     f.periodos.forEach(p => {
       if (p.hasta <= desde || p.hasta > hasta) return;
       if (p.dudoso) { dudosos++; return; }
       rend += p.rend;
       base += p.capital * p.dias;
+      n++;
+      cierre = p.capital;
       if (!ini || p.desde < ini) ini = p.desde;
       if (!fin || p.hasta > fin) fin = p.hasta;
     });
-    return { f: f, rend: rend, tna: base > 0 ? rend / base * 365 : null, dudosos: dudosos, ini: ini, fin: fin };
+    // Rendimiento % sobre el cierre del día anterior: solo cuando es un tramo (un día o un fin de semana).
+    return { f: f, rend: rend, tna: base > 0 ? rend / base * 365 : null, pct: n === 1 && cierre > 0 ? rend / cierre : null, cierre: n === 1 ? cierre : null, dudosos: dudosos, ini: ini, fin: fin };
   }).filter(x => x.ini || x.dudosos).sort((a, b) => b.rend - a.rend);
   const cuando = /^(hoy|mañana|ayer|pasado|esta|la)/.test(periodo.nombre) ? periodo.nombre : 'en ' + periodo.nombre;
   if (!filas.length) {
@@ -362,10 +367,12 @@ function asisRapidaRendimiento_(t, hoy) {
   const quien = banco ? 'El FCI de ' + asisNombreBanco_(banco) : 'Los FCI';
   l.push(quien + (banco ? ' rindió ' : ' rindieron ') + asisTotalesTexto_(tot, true) + ' ' + cuando + '.');
   filas.forEach(x => {
-    l.push('- ' + x.f.banco + (x.f.moneda === 'USD' ? ' (dólares)' : '') + ': ' + asisFormato_(x.rend, x.f.moneda) + (x.tna !== null ? ' · TNA ' + pct(x.tna) : '') +
+    l.push('- ' + x.f.banco + (x.f.moneda === 'USD' ? ' (dólares)' : '') + ': ' + asisFormato_(x.rend, x.f.moneda) +
+      (x.pct !== null ? ' (' + (Math.round(x.pct * 100000) / 1000).toFixed(3).replace('.', ',') + '% sobre el cierre del día anterior de ' + asisFormato_(x.cierre, x.f.moneda) + ')' : '') +
+      (x.tna !== null ? ' · TNA ' + pct(x.tna) : '') +
       (x.ini ? ' · del ' + isoAMostrar(x.ini) + ' al ' + isoAMostrar(x.fin) : '') + (x.dudosos ? ' · ' + x.dudosos + ' tramo(s) que no cierran, sin contar' : ''));
   });
-  l.push('', 'Calculado con los saldos de FCI cargados y los rescates y suscripciones del medio.');
+  l.push('', 'Rendimiento = saldo del día − cierre del día anterior (saldo anterior + suscripciones − rescates, a las 23:50).');
   const uno = filas.length === 1 ? filas[0] : null;
   const voz = quien + (banco ? ' rindió ' : ' rindieron ') + asisTotalesVoz_(tot) + ' ' + cuando + (uno && uno.tna !== null ? ', una tasa nominal anual de ' + pct(uno.tna).replace('%', ' por ciento') : '') + '.';
   return { texto: l.join('\n'), voz: voz };

@@ -11,13 +11,18 @@ Datos: hoja **Inversiones FCI** (`Fecha`, `Banco`, `Fondo`, `Movimiento`, `Monto
 `Solicitud o rendimiento`) y saldos de tipo FCI en **Saldos**. `Movimiento` es SALDO,
 suscripción o rescate.
 
-Para cada banco y fondo, entre dos saldos consecutivos (`calcularRendimientoFci`):
+Para cada fondo (`calcularRendimientoFci`) y cada banco (`calcularRendimientoFciSaldos`), entre
+dos saldos seguidos, en dos pasos y **por fecha** (no por el orden de las filas de la hoja):
 ```
-flujos      = suscripciones − rescates del medio
-capital     = saldo anterior + flujos
-rendimiento = saldo nuevo − capital
-días        = días corridos entre los dos saldos (mínimo 1)
+paso 1: cierre del día anterior (23:50, hora de Argentina)
+        = saldo de inicio + suscripciones − rescates con fecha desde el día del saldo
+          anterior hasta el día anterior al saldo nuevo (los del mismo día del saldo
+          nuevo van al período siguiente)
+paso 2: rendimiento = saldo de hoy − cierre del día anterior
+rendimiento % = rendimiento ÷ cierre del día anterior
+días          = días corridos entre los dos saldos (mínimo 1)
 ```
+En el código el cierre del día anterior se llama `capital`. El saldo de un día es el de apertura.
 - **Período dudoso** si el capital no es positivo o `|rendimiento ÷ capital| ÷ días > 0,003`
   (más de ~0,3 % por día). Casi siempre falta cargar un movimiento. No entra en la tasa.
 - **TNA de una ventana** (`tnaVentana`): `Σ rendimiento ÷ Σ (capital × días) × 365`, solo con
@@ -65,6 +70,8 @@ existe la marca de dudoso.
 - Mezclar fondos en pesos y en dólares (`moneda === "USD"` va aparte).
 - Comparar la TNA del FCI (interés que se reinvierte solo) con una TEA sin convertir.
 - Contar dos veces un saldo cargado el mismo día: la app se queda con el último de ese día.
+- Asignar un movimiento al período por el orden de la hoja en vez de por su fecha.
+- Mostrar un rendimiento diario con un decimal: usar `pctFino` (tres decimales, 0,083 %).
 
 ## Relacionadas
 

@@ -15426,10 +15426,14 @@ $("filtro-inv-texto").addEventListener("input", () => {
 $("btnRefrescarInversiones").addEventListener("click", () => cargarInversiones(true));
 
 // ---------------- Rendimiento del FCI ----------------
-// Para cada fondo, entre dos saldos consecutivos: rendimiento = saldo nuevo − saldo anterior
-// − suscripciones + rescates del medio. La tasa se calcula sobre el capital del período
-// y se anualiza (TNA). Los períodos con saltos imposibles (más de ~0,3% por día) se
-// marcan como dudosos y no se usan para la tasa: suele faltar un movimiento.
+// Para cada fondo, entre dos saldos seguidos, en dos pasos (por fecha, no por el orden de la hoja):
+//   1. Cierre del día anterior (a las 23:50, hora de Argentina) = saldo de inicio + suscripciones
+//      − rescates con fecha desde el día del saldo anterior hasta el día anterior al saldo nuevo.
+//      Los movimientos del mismo día del saldo nuevo van al período siguiente.
+//   2. Rendimiento = saldo de hoy − cierre del día anterior.
+// Rendimiento % = rendimiento ÷ cierre del día anterior. La TNA lo lleva a 365 días.
+// Los períodos con saltos imposibles (más de ~0,3% por día) se marcan como dudosos y no se
+// usan para la tasa: suele faltar un movimiento.
 let memoRendFci = { datos: null, res: null };
 
 function calcularRendimientoFci() {
@@ -15441,29 +15445,32 @@ function calcularRendimientoFci() {
     const banco = nombreBancoCanonico(interpretarEtiqueta(f["Banco"]).bancoTexto || f["Banco"]);
     const fondo = String(f["Fondo"] || "").trim() || "Sin fondo";
     const k = banco + "|" + normalizar(fondo);
-    if (!grupos[k]) grupos[k] = { banco: banco, fondo: fondo, filas: [] };
-    grupos[k].filas.push({ iso: iso, i: f.__i, mov: normalizar(f["Movimiento"]), monto: parseImporte(f["Monto"]), inf: f["Solicitud o rendimiento"] });
+    if (!grupos[k]) grupos[k] = { banco: banco, fondo: fondo, saldos: {}, movs: [] };
+    const g = grupos[k];
+    const monto = parseImporte(f["Monto"]);
+    // Si hay dos saldos el mismo día, vale el último de la hoja.
+    if (normalizar(f["Movimiento"]) === "SALDO") { if (!g.saldos[iso] || f.__i > g.saldos[iso].i) g.saldos[iso] = { i: f.__i, monto: monto, inf: f["Solicitud o rendimiento"] }; }
+    else if (monto) g.movs.push({ iso: iso, monto: monto });
   });
   const res = Object.keys(grupos).map(k => {
     const g = grupos[k];
-    g.filas.sort((a, b) => a.iso.localeCompare(b.iso) || a.i - b.i);
+    const fechas = Object.keys(g.saldos).sort();
     const periodos = [];
-    let ant = null, flujos = 0;
-    g.filas.forEach(x => {
-      if (x.mov !== "SALDO") { if (ant) flujos += x.monto; return; }
-      if (ant && x.iso === ant.iso) { ant = x; flujos = 0; return; }
-      if (ant) {
-        const capital = ant.monto + flujos;
-        const d = Math.max(1, diasEntre(ant.iso, x.iso));
-        const rend = x.monto - capital;
-        const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
-        const informado = parseImporte(x.inf);
-        periodos.push({ desde: ant.iso, hasta: x.iso, d: d, capital: capital, rend: rend, dudoso: dudoso, informado: informado && Math.abs(informado) < Math.abs(x.monto) * 0.1 ? informado : null });
-      }
-      ant = x;
-      flujos = 0;
-    });
-    return { k: k, banco: g.banco, fondo: g.fondo, periodos: periodos, ultimo: ant ? { iso: ant.iso, saldo: ant.monto } : null };
+    for (let i = 1; i < fechas.length; i++) {
+      const desde = fechas[i - 1], hasta = fechas[i];
+      const ini = g.saldos[desde].monto, fin = g.saldos[hasta].monto;
+      let susc = 0, resc = 0;
+      g.movs.forEach(m => { if (m.iso >= desde && m.iso < hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
+      const capital = ini + susc + resc;  // paso 1: cierre del día anterior
+      const rend = fin - capital;         // paso 2
+      const d = Math.max(1, diasEntre(desde, hasta));
+      const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
+      const informado = parseImporte(g.saldos[hasta].inf);
+      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
+        pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: informado && Math.abs(informado) < Math.abs(fin) * 0.1 ? informado : null });
+    }
+    const ultima = fechas[fechas.length - 1];
+    return { k: k, banco: g.banco, fondo: g.fondo, periodos: periodos, ultimo: ultima ? { iso: ultima, saldo: g.saldos[ultima].monto } : null };
   });
   memoRendFci = { datos: fciDatos, res: res };
   return res;
@@ -16485,7 +16492,7 @@ function renderAnalisisFci(box) {
     return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), linea: linea, datos: { g: [Math.max(0, ganado), Math.min(0, ganado)] }, ganado: ganado };
   });
   leyendaViz(t.leyenda, lineas.map(s => ({ label: s.label, color: s.color, linea: true })).concat([{ label: "Ganado en el mes (todos los fondos)", color: "var(--vz-n1)" }]));
-  t.ayuda.textContent = "TNA: tasa nominal anual. Los períodos con saltos raros (suele faltar un movimiento) no se usan para la tasa.";
+  t.ayuda.textContent = "Cierre del día anterior (23:50) = saldo anterior + suscripciones − rescates. Rendimiento = saldo de hoy − ese cierre. Rendimiento % = rendimiento ÷ cierre del día anterior. TNA: tasa nominal anual. Los períodos con saltos raros (suele faltar un movimiento) no se usan para la tasa.";
   dibujarCombo(t, {
     aria: "Rendimiento mensual de los fondos", cats: cats, lineas: lineas, barras: [{ k: "g", color: "var(--vz-n1)" }],
     formatoLinea: v => pctTexto(v), tituloLinea: "TNA del mes por fondo", tituloBarras: "Ganado en el mes", altoLinea: 120, altoBarras: 90,
@@ -16499,7 +16506,7 @@ function renderAnalisisFci(box) {
   // Tabla por fondo.
   const tabla = el("table");
   const trh = el("tr");
-  ["Fondo", "Último saldo", "Ganado 30 días", "TNA 30 días", "TNA 90 días", "TNA desde enero"].forEach((h, i) => trh.append(el("th", i ? "num" : "", h)));
+  ["Fondo", "Último saldo", "Cierre día anterior", "Último rendimiento", "Rendimiento %", "Ganado 30 días", "TNA 30 días", "TNA 90 días", "TNA desde enero"].forEach((h, i) => trh.append(el("th", i ? "num" : "", h)));
   tabla.append(trh);
   filas.forEach(x => {
     const tr = el("tr");
@@ -16510,7 +16517,14 @@ function renderAnalisisFci(box) {
     const tdG = el("td", "num");
     tdG.append(el("div", null, fmtImp(x.r30.rend)));
     if (x.r30.informado !== null) tdG.append(el("div", "dt-sub", "Planilla: " + fmtImp(x.r30.informado)));
-    tr.append(tdF, tdS, tdG, el("td", "num", x.r30.tna === null ? "—" : pctTexto(x.r30.tna)), el("td", "num", x.r90.tna === null ? "—" : pctTexto(x.r90.tna)), el("td", "num", x.rAnio.tna === null ? "—" : pctTexto(x.rAnio.tna)));
+    const u = x.f.periodos[x.f.periodos.length - 1];
+    const tdC = el("td", "num");
+    tdC.append(el("div", null, fmtImp(u.capital)), el("div", "dt-sub", isoADma(sumarDiasIso(u.hasta, -1)) + " 23:50"));
+    const tdU = el("td", "num" + (u.rend < 0 ? " neg" : ""));
+    tdU.append(el("div", null, fmtImp(u.rend)));
+    if (u.dudoso) tdU.append(el("div", "dt-sub", "Dudoso: revisá si falta un movimiento"));
+    else if (u.d > 1) tdU.append(el("div", "dt-sub", u.d + " días"));
+    tr.append(tdF, tdS, tdC, tdU, el("td", "num" + (u.rend < 0 ? " neg" : ""), u.pct === null ? "—" : pctFino(u.pct)), tdG, el("td", "num", x.r30.tna === null ? "—" : pctTexto(x.r30.tna)), el("td", "num", x.r90.tna === null ? "—" : pctTexto(x.r90.tna)), el("td", "num", x.rAnio.tna === null ? "—" : pctTexto(x.rAnio.tna)));
     tabla.append(tr);
   });
   t.detalle.append(envolverTabla(tabla));
@@ -17701,9 +17715,11 @@ async function eliminarMovFci(f) {
 
 // ---------------- Rendimiento del FCI con los saldos de Inicio ----------------
 // Los saldos de FCI de cada banco que se cargan en Inicio ("Cargar saldos") son la
-// base. Entre dos saldos seguidos de un banco:
-//   rendimiento = saldo nuevo − saldo anterior − suscripciones − rescates del medio
-// (las suscripciones en positivo y los rescates en negativo, de la pestaña FCI).
+// base. Entre dos saldos seguidos de un banco, en dos pasos:
+//   1. Cierre del día anterior (a las 23:50, hora de Argentina) = saldo de inicio + suscripciones
+//      − rescates del medio (suscripciones en positivo y rescates en negativo, de la pestaña FCI).
+//   2. Rendimiento = saldo de hoy − cierre del día anterior.
+// Rendimiento % = rendimiento ÷ cierre del día anterior.
 // Como en la hoja FCI de la planilla, el saldo de un día es el de apertura: los movimientos
 // de ese mismo día van después (entran en el período siguiente). Así cierra la planilla:
 // saldo(día 2) = saldo(día 1) + movimientos desde el día 1 hasta el anterior al día 2 + rendimiento.
@@ -17747,11 +17763,12 @@ function calcularRendimientoFciSaldos() {
       const ini = parseImporte(g.porFecha[desde]["Saldo"]), fin = parseImporte(g.porFecha[hasta]["Saldo"]);
       let susc = 0, resc = 0;
       delBanco.forEach(m => { if (m.iso >= desde && m.iso < hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
-      const capital = ini + susc + resc;
+      const capital = ini + susc + resc;  // paso 1: cierre del día anterior
       const d = Math.max(1, diasEntre(desde, hasta));
-      const rend = fin - capital;
+      const rend = fin - capital;         // paso 2
       const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
-      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend, dudoso: dudoso, informado: null });
+      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
+        pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: null });
     }
     const ultima = fechas[fechas.length - 1];
     return {
@@ -17774,10 +17791,10 @@ function fciDiaPorDia(moneda, dias) {
   const porDia = {};
   bancos.forEach(b => b.periodos.forEach(p => {
     if (p.hasta <= desde) return;
-    const d = porDia[p.hasta] || (porDia[p.hasta] = { iso: p.hasta, rend: 0, susc: 0, resc: 0, base: 0, dias: 1, dudoso: false });
+    const d = porDia[p.hasta] || (porDia[p.hasta] = { iso: p.hasta, rend: 0, susc: 0, resc: 0, base: 0, cierre: 0, dias: 1, dudoso: false });
     d.susc += p.susc; d.resc += p.resc; d.dias = Math.max(d.dias, p.d);
     if (p.dudoso) d.dudoso = true;
-    else { d.rend += p.rend; d.base += p.capital * p.d; }
+    else { d.rend += p.rend; d.base += p.capital * p.d; d.cierre += p.capital; }
   }));
   // Saldo de cada banco a una fecha: el último informado hasta ese día.
   const saldoAl = iso => bancos.reduce((a, b) => {
@@ -17790,6 +17807,7 @@ function fciDiaPorDia(moneda, dias) {
     const d = porDia[k];
     d.saldo = saldoAl(k);
     d.tna = d.base > 0 ? d.rend / d.base * 365 : null;
+    d.pct = d.cierre > 0 ? d.rend / d.cierre : null;
     return d;
   });
 }
@@ -17798,7 +17816,7 @@ function fciDiaPorDia(moneda, dias) {
 function tablaFciDiaria(filas, fmt, max) {
   const tabla = el("table", "pl-tabla rf-tabla");
   const thead = el("thead"), trh = el("tr");
-  ["Día", "Saldo FCI", "Suscr. / rescates", "Rendimiento", "TNA"].forEach(h => trh.append(el("th", null, h)));
+  ["Día", "Saldo FCI", "Suscr. / rescates", "Cierre día anterior", "Rendimiento", "Rendimiento %", "TNA"].forEach(h => trh.append(el("th", null, h)));
   thead.append(trh);
   const tbody = el("tbody");
   filas.slice(0, max).forEach(d => {
@@ -17816,7 +17834,8 @@ function tablaFciDiaria(filas, fmt, max) {
       tdR.append(el("div", null, (d.rend > 0 ? "+" : "") + fmt(d.rend)));
       if (d.dudoso) tdR.append(el("div", "rf-sub", "Sin un banco que no cuadra"));
     }
-    tr.append(tdD, el("td", "num", fmt(d.saldo)), tdM, tdR, el("td", "num", d.tna === null ? "—" : pctTexto(d.tna)));
+    tr.append(tdD, el("td", "num", fmt(d.saldo)), tdM, el("td", "num", d.cierre ? fmt(d.cierre) : "—"), tdR,
+      el("td", "num" + (d.pct === null ? "" : d.rend < 0 ? " neg" : " pos"), d.pct === null ? "—" : pctFino(d.pct)), el("td", "num", d.tna === null ? "—" : pctTexto(d.tna)));
     tbody.append(tr);
   });
   tabla.append(thead, tbody);
@@ -17849,7 +17868,7 @@ function renderRendimientoFciSaldos(box) {
   else datoViz(t, ["En los últimos 30 días el FCI en pesos ganó ", el("b", null, fmtImp(ganado)), " sin contar rescates ni suscripciones."]);
   const tabla = el("table");
   const trh = el("tr");
-  ["Banco", "Saldo anterior", "Suscripciones", "Rescates", "Saldo actual", "Rendimiento", "TNA del período", "Ganado 30 días", "TNA 30 días"].forEach((h, i) => trh.append(el("th", i ? "num" : "", h)));
+  ["Banco", "Saldo anterior", "Suscripciones", "Rescates", "Cierre día anterior", "Saldo actual", "Rendimiento", "Rendimiento %", "TNA del período", "Ganado 30 días", "TNA 30 días"].forEach((h, i) => trh.append(el("th", i ? "num" : "", h)));
   tabla.append(trh);
   filas.forEach(f => {
     const fmt = f.x.moneda === "USD" ? formatUsd : fmtImp;
@@ -17862,15 +17881,17 @@ function renderRendimientoFciSaldos(box) {
       p ? conFecha(p.ini, p.desde) : el("td", "num", "—"),
       el("td", "num", p && p.susc ? fmt(p.susc) : "—"),
       el("td", "num", p && p.resc ? fmt(p.resc) : "—"),
+      p ? conFecha(p.capital, sumarDiasIso(p.hasta, -1)) : el("td", "num", "—"),
       conFecha(f.x.ultimo.saldo, f.x.ultimo.iso),
       el("td", "num " + (p && p.rend < 0 ? "neg" : ""), p ? fmt(p.rend) : "—"),
+      el("td", "num " + (p && p.rend < 0 ? "neg" : ""), p && p.pct !== null ? pctFino(p.pct) : "—"),
       el("td", "num", p && !p.dudoso ? pctTexto(p.rend / p.capital * 365 / p.d) : "—"),
       el("td", "num", fmt(f.r30.rend)),
       el("td", "num", f.r30.tna === null ? "—" : pctTexto(f.r30.tna)));
     tabla.append(tr);
   });
   t.detalle.append(envolverTabla(tabla));
-  t.ayuda.textContent = "Rendimiento = saldo actual − saldo anterior − suscripciones − rescates. TNA = rendimiento ÷ capital × 365 ÷ días.";
+  t.ayuda.textContent = "Paso 1: cierre del día anterior (23:50) = saldo anterior + suscripciones − rescates. Paso 2: rendimiento = saldo actual − cierre del día anterior. Rendimiento % = rendimiento ÷ cierre del día anterior. TNA = rendimiento % × 365 ÷ días.";
 
   // Día por día: saldo y rendimiento diario de los últimos 30 días, en pesos y en dólares.
   const td = tarjetaViz("FCI día por día", "Saldo total de los fondos cada día y lo que rindió desde el día anterior (sin contar rescates ni suscripciones).", "fciDiario");
@@ -17884,7 +17905,7 @@ function renderRendimientoFciSaldos(box) {
   datoViz(td, ganadoDia ? ["Último día (" + isoADma(ganadoDia.iso) + "): el FCI en pesos ", el("b", null, (ganadoDia.rend >= 0 ? "ganó " : "perdió ") + fmtImp(Math.abs(ganadoDia.rend))), ganadoDia.tna === null ? "." : " (TNA " + pctTexto(ganadoDia.tna) + ")."] : ["Solo hay FCI en dólares."]);
   if (diaPesos.length) { td.detalle.append(el("div", "viz-det-head", "Pesos · últimos 30 días")); td.detalle.append(tablaFciDiaria(diaPesos, fmtImp, 30)); }
   if (diaUsd.length) { td.detalle.append(el("div", "viz-det-head", "Dólares · últimos 30 días")); td.detalle.append(tablaFciDiaria(diaUsd, formatUsd, 30)); }
-  td.ayuda.textContent = "Rendimiento del día = saldo del día − saldo del día anterior − suscripciones − rescates, sumado entre bancos. Después de un fin de semana o feriado el rendimiento es el de todo el tramo.";
+  td.ayuda.textContent = "Cierre del día anterior (23:50) = saldo del día anterior + suscripciones − rescates. Rendimiento = saldo del día − ese cierre, sumado entre bancos. Rendimiento % = rendimiento ÷ cierre del día anterior. Después de un fin de semana o feriado el rendimiento es el de todo el tramo.";
 }
 
 // ---------------- Reporte mensual automático ----------------
@@ -19102,6 +19123,11 @@ function semanasProyectadas(saldoHoy, ajustes) {
 
 function pctTexto(x) {
   return (x * 100).toFixed(1).split(".").join(",") + "%";
+}
+
+// Para rendimientos de un día o de pocos días (0,083%): tres decimales.
+function pctFino(x) {
+  return (x * 100).toFixed(3).split(".").join(",") + "%";
 }
 
 // Opciones para cubrir el faltante de la semana más ajustada. Es una simulación:
