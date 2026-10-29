@@ -1,5 +1,5 @@
 # Publica src/ en Google Apps Script cada vez que cambia en main.
-# Antes de subir guarda un respaldo (versión) del código que está en Apps Script
+# Cada publicación crea una sola versión (Apps Script admite 200 por proyecto)
 # y respeta el manifiesto (appsscript.json) que ya tiene el proyecto.
 # Necesita los secretos CLASPRC_JSON, SCRIPT_ID y DEPLOYMENT_ID; si falta alguno no hace nada.
 name: Publicar en Apps Script
@@ -55,13 +55,15 @@ jobs:
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
           printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
 
-      - name: Respaldar lo que está hoy en Apps Script
+      # Se respeta el manifiesto (appsscript.json) que ya tiene el proyecto. No se crea una
+      # versión de respaldo: Apps Script admite 200 versiones y cada una cuenta; el código
+      # anterior ya queda en el historial de GitHub y en la versión publicada anterior.
+      - name: Traer el manifiesto que está hoy en Apps Script
         run: |
           mkdir -p /tmp/actual && cd /tmp/actual
           printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
           clasp pull
           cp appsscript.json "$GITHUB_WORKSPACE/src/appsscript.json"
-          clasp version "Respaldo antes de GitHub ${GITHUB_SHA::7}"
 
       - name: Subir el código y publicar una versión nueva
         run: |
