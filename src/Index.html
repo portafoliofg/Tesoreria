@@ -873,7 +873,8 @@
   .pl-head .card-title { margin: 0; }
   .pl-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .pl-acciones input[type=date] { width: auto; margin: 0; height: 34px; }
-  .pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+  /* Pesos arriba y dólares abajo, como la imagen que se comparte (no una al lado de la otra). */
+  .pl-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .pl-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .pl-tabla th { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); text-align: right; padding: 6px 8px; border-bottom: 2px solid var(--border); }
   .pl-tabla th:first-child { text-align: left; }
@@ -950,6 +951,13 @@
   .pl-tabla .pl-total { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pl-tabla tfoot td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 600; padding-top: 8px; text-align: right; font-variant-numeric: tabular-nums; }
   .pl-tabla tfoot td:first-child { text-align: left; }
+  /* Planilla de Saldos: las dos tablas (pesos y dólares) con las mismas columnas, como la imagen. */
+  .pl-saldos { table-layout: fixed; }
+  .pl-saldos th:nth-child(1) { width: 31%; }
+  .pl-saldos th:nth-child(n+2) { width: 23%; }
+  .pl-saldos td.pl-cta { white-space: normal; overflow-wrap: anywhere; }
+  .pl-saldos input { min-width: 0; }
+  .pl-saldos input:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
   .fondos-card .card-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
   .fondos-link { font-size: 13px; }
   .fondos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
@@ -16906,14 +16914,43 @@ function inputPlanilla(item, alCambiar) {
     alCambiar();
   });
   inp.addEventListener("blur", () => { if (item.valor !== null) inp.value = textoSaldo(item.valor); });
-  inp.addEventListener("keydown", e => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const todos = Array.from(document.querySelectorAll("#inicioPlanilla .pl-tabla input"));
-    const sig = todos[todos.indexOf(inp) + 1];
-    if (sig) { sig.focus(); sig.select(); }
-  });
+  inp.addEventListener("focus", () => inp.select());
+  inp.addEventListener("keydown", e => moverEnPlanilla(e, inp));
   return inp;
+}
+
+// ----- Moverse por la planilla de Saldos como en Excel -----
+// Dos columnas que se pueden editar: Saldos (una casilla por cuenta) y FCI (una por banco).
+// ↑ ↓, Enter y Shift+Enter: casilla de arriba o de abajo en la misma columna, pasando de la
+// tabla de pesos a la de dólares. ← →: a la otra columna cuando el cursor está en el borde del
+// texto (o el texto está todo seleccionado, como al llegar a la casilla). Escape: deshace lo
+// escrito en la casilla. planillaNav lo arma renderPlanillaInicio.
+let planillaNav = { saldos: [], fci: [], grupoDe: new Map(), primeraDe: new Map() };
+
+function moverEnPlanilla(e, inp) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const nav = planillaNav;
+  const enFci = nav.fci.indexOf(inp) >= 0;
+  const col = enFci ? nav.fci : nav.saldos;
+  const i = col.indexOf(inp);
+  if (i < 0) return;
+  const todo = inp.selectionStart === 0 && inp.selectionEnd === inp.value.length;
+  const alInicio = todo || (inp.selectionStart === 0 && inp.selectionEnd === 0);
+  const alFinal = todo || (inp.selectionStart === inp.value.length && inp.selectionEnd === inp.value.length);
+  let destino = null;
+  if (e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey)) destino = col[i + 1];
+  else if (e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey)) destino = col[i - 1];
+  else if (e.key === "ArrowRight" && !enFci && alFinal) destino = nav.grupoDe.get(inp);
+  else if (e.key === "ArrowLeft" && enFci && alInicio) destino = nav.primeraDe.get(inp);
+  else if (e.key === "Escape" && inp.dataset.inicial !== undefined) {
+    e.preventDefault();
+    inp.value = inp.dataset.inicial;
+    inp.dispatchEvent(new Event("input"));
+    inp.select();
+    return;
+  } else return;
+  e.preventDefault();
+  if (destino) { destino.focus(); destino.select(); }
 }
 
 // ----- Rendimiento del FCI (cuadro de Inicio) -----
@@ -17064,10 +17101,11 @@ function renderPlanillaInicio() {
   }
   const grid = el("div", "pl-grid");
   const recalculos = [];
+  planillaNav = { saldos: [], fci: [], grupoDe: new Map(), primeraDe: new Map() };
   [["Pesos", "$", formatMonto], ["USD", "U$D", formatMonto]].forEach(m => {
     const gs = grupos.filter(g => g.moneda === m[0]);
     if (!gs.length) return;
-    const tabla = el("table", "pl-tabla");
+    const tabla = el("table", "pl-tabla pl-saldos");
     const thead = el("thead");
     const trh = el("tr");
     ["Cuenta " + m[1], "Saldos", "FCI", "TOTAL"].forEach(h => trh.append(el("th", null, h)));
@@ -17106,6 +17144,8 @@ function renderPlanillaInicio() {
         const idx = filasPegar.push(fila) - 1;
         if (x) {
           fila.inpC = inputPlanilla(x, () => recalculos.forEach(r => r()));
+          fila.inpC.dataset.inicial = fila.inpC.value;
+          planillaNav.saldos.push(fila.inpC);
           fila.inpC.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, false));
           tdS.append(fila.inpC);
         } else tdS.append(el("span", "dt-sub", "Sin cuentas"));
@@ -17115,6 +17155,8 @@ function renderPlanillaInicio() {
           const tdF = el("td", "pl-grupo");
           tdF.rowSpan = filas;
           g.inpF = inputPlanilla(g.fci, () => recalculos.forEach(r => r()));
+          g.inpF.dataset.inicial = g.inpF.value;
+          planillaNav.fci.push(g.inpF);
           g.inpF.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, true));
           tdF.append(g.inpF);
           g.tdTotal = el("td", "pl-grupo pl-total");
@@ -17123,6 +17165,12 @@ function renderPlanillaInicio() {
         }
         tbody.append(tr);
       }
+    });
+    // → desde un saldo va al FCI de su banco; ← desde el FCI vuelve al primer saldo del banco.
+    gs.forEach(g => {
+      const primera = filasPegar.find(f => f.g === g && f.inpC);
+      filasPegar.filter(f => f.g === g && f.inpC).forEach(f => planillaNav.grupoDe.set(f.inpC, g.inpF));
+      if (primera) planillaNav.primeraDe.set(g.inpF, primera.inpC);
     });
     tabla.append(thead, tbody, tfoot);
     grid.append(envolverTabla(tabla));
