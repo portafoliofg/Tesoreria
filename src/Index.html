@@ -1819,6 +1819,18 @@
               </label>
             </div>
             <div class="row">
+              <label>Situación
+                <select id="filtro-cheques-situacion">
+                  <option value="">Todas</option>
+                  <option value="avencer">A vencer (7 días)</option>
+                  <option value="pendientes">Pendientes</option>
+                  <option value="cartera">En cartera</option>
+                  <option value="vencidos">Vencidos sin conciliar</option>
+                  <option value="conciliados">Conciliados</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
               <label>Estado en la planilla<select id="filtro-cheques-estado"></select></label>
               <label>Conciliación
                 <select id="filtro-cheques-conciliacion">
@@ -2898,6 +2910,8 @@
 <!-- ===================== BARRA DE SELECCIÓN ===================== -->
 <div class="barra-sel" id="barraSeleccion" hidden>
   <span id="selTexto"></span>
+  <button id="selExcel" class="secondary" type="button" title="Reporte en Excel con los cheques seleccionados">Excel</button>
+  <button id="selPdf" class="secondary" type="button" title="Reporte en PDF con los cheques seleccionados">PDF</button>
   <button id="selCambiarCuenta" type="button">Cambiar cuenta</button>
   <button id="selLimpiar" class="secondary" type="button">Quitar selección</button>
 </div>
@@ -6057,7 +6071,7 @@ const CAMPOS_FILTRO = ["banco", "cuenta", "tipoCuenta", "condicion", "texto", "d
 // Filtros que existen solo en Cheques (ver FECHAS_CHEQUE y cumpleFiltroCheque).
 function CAMPOS_FILTRO_CHEQUES() {
   return ["campoFecha", "emisionDesde", "emisionHasta", "pagoDesde", "pagoHasta", "debitoDesde", "debitoHasta", "ingresoDesde", "ingresoHasta",
-    "vence", "emitido", "tipo", "moneda", "conciliacion", "chequera", "bancoEmisor", "canal"];
+    "vence", "emitido", "tipo", "moneda", "situacion", "conciliacion", "chequera", "bancoEmisor", "canal"];
 }
 
 function filtroEl(prefijo, campo) {
@@ -6516,6 +6530,7 @@ function cumpleFiltroCheque(c, f) {
   }
   if (f.tipo && c["Tipo"] !== f.tipo) return false;
   if (f.moneda && monedaCheque(c) !== f.moneda) return false;
+  if (f.situacion && SITUACIONES_CHEQUE[f.situacion] && !SITUACIONES_CHEQUE[f.situacion](c)) return false;
   if (f.conciliacion === "si" && !c["Conciliación"]) return false;
   if (f.conciliacion === "no" && c["Conciliación"]) return false;
   if (f.chequera && (c["Chequera"] || "Sin chequera") !== f.chequera) return false;
@@ -10171,7 +10186,7 @@ const estadoTablas = {};
 
 function celdaSeleccion(vista, f, tr) {
   const td = el("td", "col-sel");
-  if (f["Conciliación"]) {
+  if (f["Conciliación"] && vista !== "cheques") {
     delete seleccion[vista][idSeleccion(vista, f)];
     const bloq = el("input");
     bloq.type = "checkbox";
@@ -10215,7 +10230,8 @@ function renderTabla(box, cfg) {
   const trh = el("tr");
   if (cfg.seleccion) {
     const th = el("th", "col-sel");
-    const movibles = filas.filter(f => !f["Conciliación"]);
+    // Cheques: también los conciliados (para el reporte); Cambiar cuenta avisa y no los mueve.
+    const movibles = cfg.seleccion === "cheques" ? filas : filas.filter(f => !f["Conciliación"]);
     if (movibles.length) th.append(casillaSeleccion(cfg.seleccion, movibles, true));
     trh.append(th);
   }
@@ -10335,6 +10351,7 @@ function renderChipsFiltros(prefijo, aplicar) {
     if (f.emitido) chips.push({ t: "Emitido: " + textoSel("emitido").toLowerCase(), campos: ["emitido"] });
     if (f.tipo) chips.push({ t: f.tipo, campos: ["tipo"] });
     if (f.moneda) chips.push({ t: f.moneda, campos: ["moneda"] });
+    if (f.situacion) chips.push({ t: textoSel("situacion"), campos: ["situacion"] });
     if (f.estado) chips.push({ t: "Estado: " + f.estado, campos: ["estado"] });
     if (f.conciliacion) chips.push({ t: textoSel("conciliacion"), campos: ["conciliacion"] });
     if (f.persona) chips.push({ t: "Persona: " + f.persona, campos: ["persona"] });
@@ -10505,13 +10522,16 @@ function estadoCheque(c) {
 const RAPIDAS_CHEQUES = [
   { id: "todos", titulo: "Todos", f: () => true },
   { id: "emitidos", titulo: "Emitidos", f: c => c["Tipo"] === "Emitido" },
-  { id: "terceros", titulo: "De terceros", f: c => c["Tipo"] === "De terceros" },
-  { id: "avencer", titulo: "A vencer (7 días)", f: c => { const e = estadoCheque(c); return e.orden >= 1 && e.orden <= 2; } },
-  { id: "pendientes", titulo: "Pendientes", f: c => chequeAbierto(c) },
-  { id: "cartera", titulo: "En cartera", f: c => c["Tipo"] === "De terceros" && chequeAbierto(c) },
-  { id: "vencidos", titulo: "Vencidos sin conciliar", f: c => estadoCheque(c).orden === 0 },
-  { id: "conciliados", titulo: "Conciliados", f: c => !!c["Conciliación"] }
+  { id: "terceros", titulo: "De terceros", f: c => c["Tipo"] === "De terceros" }
 ];
+// Situación (en Más filtros): antes eran solapas de vista rápida.
+const SITUACIONES_CHEQUE = {
+  avencer: c => { const e = estadoCheque(c); return e.orden >= 1 && e.orden <= 2; },
+  pendientes: c => chequeAbierto(c),
+  cartera: c => c["Tipo"] === "De terceros" && chequeAbierto(c),
+  vencidos: c => estadoCheque(c).orden === 0,
+  conciliados: c => !!c["Conciliación"]
+};
 let ultimasFilasCheques = [];
 
 function importeCheque(c) {
@@ -11093,6 +11113,7 @@ function actualizarBarraSeleccion() {
   const filas = datos.filter(f => lista.indexOf(idSeleccion(vista, f)) >= 0);
   const total = filas.reduce((a, f) => a + (vista === "cheques" ? importeCheque(f) : parseImporte(f["Monto"])), 0);
   $("selTexto").textContent = lista.length + (vista === "cheques" ? " cheque(s)" : " movimiento(s)") + " seleccionado(s) · " + formatImporte(total);
+  $("selExcel").hidden = $("selPdf").hidden = vista !== "cheques";
 }
 
 function casillaSeleccion(vista, filas, esEncabezado) {
@@ -11130,6 +11151,51 @@ $("selLimpiar").addEventListener("click", () => {
   seleccion[vista] = {};
   if (vista === "cheques") aplicarFiltrosCheques(); else aplicarFiltrosTransferencias();
 });
+
+// ----- Reporte de los cheques seleccionados (Excel o PDF) -----
+function chequesSeleccionados() {
+  const ids = seleccionados("cheques");
+  return chequesDatos.filter(c => ids.indexOf(idSeleccion("cheques", c)) >= 0)
+    .sort((a, b) => (fechaAOrden(a["Fecha de Pago"]) || "9999").localeCompare(fechaAOrden(b["Fecha de Pago"]) || "9999"));
+}
+
+async function reporteChequesSeleccionados(formato) {
+  const lista = chequesSeleccionados();
+  if (!lista.length) { toast("Seleccioná al menos un cheque.", "error"); return; }
+  const nombre = "Cheques seleccionados " + hoyIso();
+  // Totales por tipo y moneda (no se mezclan pesos y dólares).
+  const tot = {};
+  lista.forEach(c => { const k = c["Tipo"] + "|" + monedaCheque(c); tot[k] = (tot[k] || 0) + Math.abs(parseImporte(c["Importe"])); });
+  const lineasTot = Object.keys(tot).sort().map(k => { const p = k.split("|"); return (p[0] === "Emitido" ? "Emitidos" : "De terceros") + " (" + p[1] + "): " + textoImporte(tot[k], p[1]); });
+  if (formato === "excel") {
+    const filas = filasExcelCheques(lista);
+    filas.push([]);
+    Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push(["Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", "", "", tot[k]]); });
+    descargarExcel(nombre, [{ nombre: "Cheques", filas: filas, anchos: [12, 11, 12, 30, 15, 12, 12, 15, 24, 14, 8, 36, 18, 16, 16, 24, 18, 40] }]);
+    return;
+  }
+  const rep = el("div", "rep");
+  rep.append(encabezadoReporte("Cheques seleccionados", [lista.length + " cheque(s)"].concat(lineasTot)));
+  const filas = lista.map(c => [c["N° de Cheque"], c["Tipo"] === "Emitido" ? "Emitido" : "De terceros", c["Banco"] || c["Banco Emisor"] || "", c["Titular"] || "",
+    c["Fecha de Emisión"] || "", c["Fecha de Pago"] || "", estadoCheque(c).texto,
+    (c["Fecha de Débito"] || "") + (c["Hora de Débito"] ? " " + c["Hora de Débito"] : ""), textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]);
+  Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push({ clase: "rep-total", celdas: ["", "", "", "Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", textoImporte(tot[k], p[1])] }); });
+  rep.append(tablaReporte(["N°", "Tipo", "Banco", "Titular", "Emisión", "Pago", "Estado", "Débito / endoso", "Importe"], filas, [8]));
+  const b = $("selPdf");
+  b.disabled = true;
+  b.classList.add("is-loading");
+  try {
+    await descargarPdfDeNodo(rep, nombre);
+  } catch (err) {
+    toast("No se pudo generar el PDF: " + msgErr(err), "error");
+  } finally {
+    b.disabled = false;
+    b.classList.remove("is-loading");
+  }
+}
+
+$("selExcel").addEventListener("click", () => reporteChequesSeleccionados("excel"));
+$("selPdf").addEventListener("click", () => reporteChequesSeleccionados("pdf"));
 
 $("selCambiarCuenta").addEventListener("click", () => {
   const vista = vistaActual();
@@ -18221,7 +18287,7 @@ function renderPendientesCierre(d) {
     sinFci.length, "Cargar FCI", () => { mostrarVista("inversiones"); abrirMovFci().then(() => traerMovFciDeMovimientos()); });
   const vencidos = chequesDatos.filter(c => chequeAbierto(c) && estadoCheque(c).orden === 0);
   item("Cheques vencidos sin debitar ni acreditar", vencidos.length ? vencidos.length + " cheque(s): marcá su estado (pagado, depositado…) en Cheques." : "No hay cheques vencidos abiertos.",
-    vencidos.length, "Ver cheques", () => { solapaCheques = "curso"; rapida.cheques = "vencidos"; mostrarVista("cheques"); });
+    vencidos.length, "Ver cheques", () => { solapaCheques = "curso"; rapida.cheques = "todos"; $("filtro-cheques-situacion").value = "vencidos"; mostrarVista("cheques"); });
   const pendConc = d.conciliar.reduce((a, p) => a + p.n, 0);
   item("Movimientos del banco sin conciliar", pendConc ? pendConc + " movimiento(s) en " + d.conciliar.length + " cuenta(s)." : "Todo conciliado.", pendConc, "Conciliar", () => mostrarVista("conciliacion"));
   const compVenc = compromisosDatos.filter(c => c["Estado"] !== "Pagado" && fechaAOrden(c["Fecha de Vencimiento"]) && fechaAOrden(c["Fecha de Vencimiento"]) < d.fecha);
