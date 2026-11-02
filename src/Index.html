@@ -1660,6 +1660,18 @@
   .fi-total-v { font-size: clamp(32px, 5vw, 44px); font-weight: 800; letter-spacing: -.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
   .fi-total-d { font-size: 13px; color: var(--muted); }
   @media (max-width: 1023px) { :root[data-interfaz="bolsillo"] .masthead { position: relative; } }
+  /* En la computadora la barra flotante va al costado: una píldora vertical a la izquierda. */
+  @media (min-width: 1024px) {
+    :root[data-interfaz="bolsillo"] body { padding-left: 92px; padding-bottom: 0; }
+    :root[data-interfaz="bolsillo"] .masthead-in { max-width: none; padding: 0 24px; }
+    :root[data-interfaz="bolsillo"] .buscador { flex: 1 1 0; min-width: 120px; }
+    :root[data-interfaz="bolsillo"] .navbar { top: 50%; bottom: auto; left: calc(16px + env(safe-area-inset-left, 0px)); transform: translateY(-50%); max-width: none; max-height: calc(100vh - 32px); border-radius: 30px; display: flex; flex-direction: column; }
+    :root[data-interfaz="bolsillo"] .navbar-in { flex-direction: column; padding: 7px; gap: 3px; overflow-x: hidden; overflow-y: auto; }
+    :root[data-interfaz="bolsillo"] .nav-grupo { display: block; flex-shrink: 0; height: 1px; margin: 5px 10px; padding: 0; font-size: 0; background: var(--side-line); }
+    :root[data-interfaz="bolsillo"] .nav-grupo:first-child { display: none; }
+    :root[data-interfaz="bolsillo"] .nav-item, :root[data-interfaz="bolsillo"] .nav-item.active { width: 46px; height: 46px; padding: 0; gap: 0; font-size: 0; }
+    :root[data-interfaz="bolsillo"] .nav-item.active { box-shadow: 0 6px 16px -6px rgba(var(--accent-rgb), .7); }
+  }
 </style>
 <script>
 // Aplica tema y modo guardados antes de dibujar la página (evita el parpadeo).
