@@ -1664,6 +1664,12 @@
   @media (min-width: 1024px) {
     :root[data-interfaz="bolsillo"] body { padding-left: 92px; padding-bottom: 0; }
     :root[data-interfaz="bolsillo"] .masthead-in { max-width: none; padding: 0 24px; }
+    /* El contenido usa todo el ancho que deja la barra lateral. */
+    :root[data-interfaz="bolsillo"] main, :root[data-interfaz="bolsillo"] .pie-in { max-width: none; }
+    :root[data-interfaz="bolsillo"] main { padding-left: 24px !important; padding-right: 32px !important; }
+    /* Con espacio de sobra, las tarjetas se ven todas juntas en vez de deslizarse. */
+    :root[data-interfaz="bolsillo"] .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); overflow: visible; }
+    :root[data-interfaz="bolsillo"] .ini-widget[data-widget="kpis"] { grid-column: 1 / -1; }
     :root[data-interfaz="bolsillo"] .buscador { flex: 1 1 0; min-width: 120px; }
     :root[data-interfaz="bolsillo"] .navbar { top: 50%; bottom: auto; left: calc(16px + env(safe-area-inset-left, 0px)); transform: translateY(-50%); max-width: none; max-height: calc(100vh - 32px); border-radius: 30px; display: flex; flex-direction: column; }
     :root[data-interfaz="bolsillo"] .navbar-in { flex-direction: column; padding: 7px; gap: 3px; overflow-x: hidden; overflow-y: auto; }
