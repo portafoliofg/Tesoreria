@@ -2745,9 +2745,11 @@
             <select id="manualFciMov">
               <option value="Suscripción">Suscripción (entra al fondo)</option>
               <option value="Rescate">Rescate (sale del fondo)</option>
+              <option value="Saldo">Saldo del FCI (para el rendimiento)</option>
             </select>
           </label>
         </div>
+        <p class="hint" id="manualFciNotaSaldo" hidden>El saldo es el del FCI del banco (todos sus fondos juntos), igual que la columna FCI de la planilla de Inicio. Si ya había uno ese día, se reemplaza, y se recalculan el cierre y el rendimiento.</p>
         <div class="row">
           <label>Monto<input id="manualFciMonto" class="monto monto-grande" type="text" inputmode="decimal" placeholder="1.000.000,00"></label>
           <label>Moneda
@@ -6181,10 +6183,52 @@ function prepararFciManual() {
   const banco = $("manualFciBanco").value;
   llenarSelect($("manualFciBanco"), bancosParaFci().map(b => ({ value: b, label: b })), "Elegí el banco");
   if (banco) $("manualFciBanco").value = banco;
-  const fondos = {};
-  fciDatos.forEach(f => { if (String(f["Fondo"] || "").trim()) fondos[String(f["Fondo"]).trim()] = true; });
-  $("manualFciFondos").replaceChildren(...Object.keys(fondos).sort().map(f => new Option(f, f)));
+  llenarListaFondos($("manualFciFondos"), $("manualFciBanco").value);
+  pintarMovFciManual();
 }
+
+/**
+ * Fondos para sugerir al cargar un rescate o suscripción: primero los del banco elegido (los
+ * usados más recientemente arriba), después el resto. Los de los FCI con saldo hoy van primero.
+ */
+function fondosFciSugeridos(banco) {
+  const nb = banco ? normalizar(nombreBancoCanonico(banco) || banco) : "";
+  const conSaldo = {};
+  fciQueSuma(fciVigentes(hoyIso())).forEach(f => { conSaldo[normalizar(nombreBancoCanonico(f.banco) || f.banco)] = true; });
+  const por = {};
+  fciDatos.forEach(f => {
+    const nombre = String(f["Fondo"] || "").trim();
+    if (!nombre || /^FCI del banco$/i.test(nombre)) return;
+    const k = normalizar(nombre);
+    const b = normalizar(nombreBancoCanonico(interpretarEtiqueta(f["Banco"]).bancoTexto || f["Banco"]) || f["Banco"]);
+    const iso = fechaAOrden(f["Fecha"]) || "";
+    const x = por[k] || (por[k] = { nombre: nombre, bancos: {}, iso: "" });
+    x.bancos[b] = true;
+    if (iso > x.iso) x.iso = iso;
+  });
+  const lista = Object.keys(por).map(k => por[k]);
+  const puntaje = x => (nb && x.bancos[nb] ? 2 : 0) + (Object.keys(x.bancos).some(b => conSaldo[b]) ? 1 : 0);
+  lista.sort((a, b) => puntaje(b) - puntaje(a) || b.iso.localeCompare(a.iso) || a.nombre.localeCompare(b.nombre));
+  return lista.map(x => ({ nombre: x.nombre, banco: Object.keys(x.bancos).length === 1 ? Object.keys(x.bancos)[0] : "" , ultimo: x.iso }));
+}
+
+function llenarListaFondos(datalist, banco) {
+  datalist.replaceChildren(...fondosFciSugeridos(banco).map(f => {
+    const o = new Option(f.nombre, f.nombre);
+    if (f.ultimo) o.label = "Último movimiento " + isoADma(f.ultimo);
+    return o;
+  }));
+}
+
+// Con "Saldo" no hacen falta el fondo ni el comprobante.
+function pintarMovFciManual() {
+  const saldo = $("manualFciMov").value === "Saldo";
+  $("manualFciNotaSaldo").hidden = !saldo;
+  $("manualFciFondo").closest("label").hidden = saldo;
+  $("manualFciComprobante").closest("label").hidden = saldo;
+}
+$("manualFciMov").addEventListener("change", pintarMovFciManual);
+$("manualFciBanco").addEventListener("change", () => llenarListaFondos($("manualFciFondos"), $("manualFciBanco").value));
 
 async function guardarFciManual() {
   const st = $("manualStatus");
@@ -6195,6 +6239,24 @@ async function guardarFciManual() {
   const btn = $("modalManualGuardar");
   btn.disabled = true;
   btn.classList.add("is-loading");
+  if ($("manualFciMov").value === "Saldo") {
+    // Va a los saldos de FCI (los mismos de la planilla de Inicio): de ahí salen el cierre y el rendimiento.
+    try {
+      const fecha = isoADma($("manualFciFecha").value || hoyIso());
+      const res = await runJson("guardarSaldos", { fecha: fecha, origen: "Entrada manual", saldos: [],
+        fci: [{ banco: $("manualFciBanco").value, moneda: $("manualFciMoneda").value, saldo: montoTexto(monto) }] });
+      setStatus(st, "Saldo de FCI de " + $("manualFciBanco").value + " al " + fecha + ": " + fmtImp(monto) + (res.reemplazados ? " (reemplazó al que había)." : "."), "hint msg-ok");
+      $("manualFciMonto").value = "";
+      cargarInicio();
+      if ($("vista-inversiones").classList.contains("active")) asegurarInversiones(true).then(renderInversiones).catch(() => {});
+    } catch (err) {
+      setStatus(st, msgErr(err), "hint msg-error");
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+    }
+    return;
+  }
   try {
     const res = await runJson("guardarMovimientosFci", { movs: [{
       fecha: isoADma($("manualFciFecha").value || hoyIso()), banco: $("manualFciBanco").value, fondo: $("manualFciFondo").value.trim(),
@@ -16359,6 +16421,48 @@ function ultimoFciPorBanco() {
 // Filas de la ventana FCI: las de la planilla más los saldos de FCI cargados a mano
 // (Saldos / Inicio) como filas SALDO, salvo que la planilla ya traiga el saldo de ese
 // banco en esa fecha. Se arma una vez por versión de los datos (el análisis compara la lista).
+// Filas calculadas de la ventana FCI (no se guardan): por banco,
+//   "Cierre": el del día del saldo y el de cada día con rescates o suscripciones = saldo de inicio
+//             ± movimientos hasta ese día (sin el rendimiento del tramo, que todavía no se conoce);
+//   "Rendimiento": en cada saldo nuevo, saldo − cierre anterior, con los días y la TNA.
+let memoCierreFci = {};
+function filasCierreFci() {
+  const bancos = calcularRendimientoFciSaldos();
+  if (memoCierreFci.bancos === bancos) return memoCierreFci.res;
+  const res = [];
+  let i = 1e7;
+  bancos.forEach(b => {
+    const usd = b.moneda === "USD";
+    const fmt = usd ? formatUsd : formatImporte;
+    const fila = (iso, mov, monto, texto) => res.push({ "Persona": "", "Fecha": isoADma(iso), "Banco": b.banco, "Fondo": "FCI del banco", "Movimiento": mov,
+      "Solicitud o rendimiento": texto, "Moneda": usd ? "USD" : "Pesos", "Monto": montoTexto(monto), __i: i++, __virtual: true });
+    const tramos = b.saldos.map((x, j) => ({ desde: x.iso, saldo: x.saldo, hasta: b.saldos[j + 1] ? b.saldos[j + 1].iso : "9999-12-31" }));
+    tramos.forEach(t => {
+      const movs = b.movs.filter(m => m.iso >= t.desde && m.iso < t.hasta).sort((x, y) => x.iso.localeCompare(y.iso));
+      const dias = [t.desde].concat(movs.map(m => m.iso)).filter((d, j, a) => a.indexOf(d) === j);
+      let acum = t.saldo;
+      dias.forEach(d => {
+        const delDia = movs.filter(m => m.iso === d).reduce((a, m) => a + m.monto, 0);
+        acum += delDia;
+        // Sin movimientos ese día el cierre es el mismo saldo de inicio (ya está su fila SALDO).
+        if (!delDia) return;
+        const partes = [d === t.desde ? "Saldo de inicio " + fmt(t.saldo) : "Cierre anterior ± movimientos"];
+        if (delDia) partes.push((delDia > 0 ? "+ suscripción " : "− rescate ") + fmt(Math.abs(delDia)));
+        if (d !== t.desde) partes.push("sin el rendimiento del tramo");
+        fila(d, "Cierre", acum, partes.join(" · "));
+      });
+    });
+    b.periodos.forEach(p => {
+      const tna = !p.dudoso && !p.sinDias && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
+      fila(p.hasta, "Rendimiento", p.rend, p.dudoso
+        ? "No cuadra: saldo " + fmt(p.fin) + " contra cierre " + fmt(p.capital) + ". Revisá rescates y suscripciones."
+        : "Saldo " + fmt(p.fin) + " − cierre " + fmt(p.capital) + " (" + isoADma(p.desde).substring(0, 5) + ") · " + p.d + (p.d === 1 ? " día" : " días") + (tna === null ? "" : " · TNA " + pctTexto(tna)));
+    });
+  });
+  memoCierreFci = { bancos: bancos, res: res };
+  return res;
+}
+
 let memoFilasFci = {};
 function filasFciConSaldos() {
   if (memoFilasFci.fci === fciDatos && memoFilasFci.saldos === saldosGuardados) return memoFilasFci.res;
@@ -16407,6 +16511,7 @@ function renderInversiones() {
   const unicos = campo => { const o = {}; datos.forEach(f => { o[f[campo] || ""] = true; }); return Object.keys(o).filter(Boolean).sort(); };
   const tipos = unicos(campoTipo);
   if (!esFci && datos.some(f => !f["Condicion"])) tipos.unshift("Pendiente");
+  if (esFci) ["Cierre", "Rendimiento"].forEach(t => { if (tipos.indexOf(t) < 0) tipos.push(t); });
   llenarFiltroInv("filtro-inv-tipo", tipos, esFci ? "Todos los movimientos" : "Todas las condiciones");
   llenarFiltroInv("filtro-inv-banco", unicos(campoBanco), esFci ? "Todos los bancos" : "Todas las ALYC");
   const anios = {};
@@ -16414,13 +16519,16 @@ function renderInversiones() {
   llenarFiltroInv("filtro-inv-anio", Object.keys(anios).sort().reverse(), "Todos los años");
   const fTipo = $("filtro-inv-tipo").value, fBanco = $("filtro-inv-banco").value, fAnio = $("filtro-inv-anio").value;
   const fTexto = normalizar($("filtro-inv-texto").value || "").trim();
-  const filas = datos.filter(f => {
+  const pasa = f => {
     if (fTipo && (fTipo === "Pendiente" && !esFci ? !!f["Condicion"] : (f[campoTipo] || "") !== fTipo)) return false;
     if (fBanco && (f[campoBanco] || "") !== fBanco) return false;
     if (fAnio && fechaAOrden(f[campoFecha]).substring(0, 4) !== fAnio) return false;
     if (fTexto && normalizar(cols.map(k => f[k] || "").join(" ")).indexOf(fTexto) < 0) return false;
     return true;
-  });
+  };
+  // FCI: además de lo cargado, el cierre de cada día y lo que rindió cada tramo, calculados con los
+  // saldos y los movimientos (se rehacen solos al cargar movimientos de días anteriores).
+  const filas = datos.filter(pasa).concat(esFci ? filasCierreFci().filter(pasa) : []);
 
   // Indicadores
   const mes = hoyIso().substring(0, 7);
@@ -18882,7 +18990,7 @@ const RE_FCI_MOV = /\bFCI\b|FONDO COMUN|FONDOS COMUNES|RESCATE|SUSCRIP/;
 
 function tipoMovFci(f) {
   const n = normalizar(f["Movimiento"] || "").trim();
-  if (n === "SALDO") return "SALDO";
+  if (n === "SALDO" || n === "CIERRE" || n === "RENDIMIENTO") return n;
   const m = parseImporte(f["Monto"]);
   if (m < 0) return "RESCATE";
   if (m > 0) return "SUSCRIPCION";
@@ -18892,7 +19000,7 @@ function tipoMovFci(f) {
 function pillMovFci(f) {
   const t = tipoMovFci(f);
   const texto = f["Movimiento"] || (t === "RESCATE" ? "Rescate" : t === "SUSCRIPCION" ? "Suscripción" : "—");
-  return pill(texto, t === "RESCATE" ? "pill-egr" : t === "SUSCRIPCION" ? "pill-ing" : "pill-neutro");
+  return pill(texto, t === "RESCATE" ? "pill-egr" : t === "SUSCRIPCION" || t === "RENDIMIENTO" ? "pill-ing" : "pill-neutro");
 }
 
 function bancosParaFci() {
@@ -18916,6 +19024,13 @@ function filaMovFci(m) {
   const fondo = el("input");
   fondo.type = "text";
   fondo.value = m.fondo || "";
+  fondo.placeholder = "Elegí o escribí el fondo";
+  // Los fondos que ya se usaron (primero los del banco de la fila), como en la entrada manual.
+  const lista = el("datalist");
+  lista.id = "fondosMovFci-" + (++filaMovFci.n);
+  fondo.setAttribute("list", lista.id);
+  llenarListaFondos(lista, m.banco || "");
+  banco.addEventListener("change", () => llenarListaFondos(lista, banco.value));
   const moneda = el("select");
   [["Pesos", "Pesos"], ["USD", "Dólares"]].forEach(x => moneda.append(new Option(x[1], x[0])));
   moneda.value = m.moneda === "USD" ? "USD" : "Pesos";
@@ -18940,11 +19055,13 @@ function filaMovFci(m) {
     if (x[1]) x[0].dataset.campo = x[1];
     const td = el("td", x[0] === monto ? "num" : "");
     td.append(x[0]);
+    if (x[0] === fondo) td.append(lista);
     tr.append(td);
   });
   if (m.desc) tr.title = m.desc;
   $("movFciFilas").append(tr);
 }
+filaMovFci.n = 0;
 
 async function abrirMovFci() {
   $("movFciFilas").replaceChildren();
