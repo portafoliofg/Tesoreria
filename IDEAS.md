@@ -20,6 +20,15 @@ ni su enlace en `docs/index.html`.
 - **ALYC mes a mes** (tablero de Bolsa): TNA de cada ALYC por mes y lo negociado, diferencia entre la
   más cara y la más barata, y mapa de tasas de los últimos 6 meses.
 
+- **Inicio para la carga**: planilla de saldos tipo Excel (coma decimal, punto del teclado numérico,
+  Tab, formato número) y "Rendimiento del día" de los FCI con saldo, en vivo; métricas plegadas.
+- **FCI**: TNA por días de devengamiento hábiles (o corridos), cierres y rendimientos calculados en el
+  listado, saldo desde la entrada manual y fondos sugeridos en la carga masiva.
+- **Cheques**: filtros rápidos por solapa, concepto en pagados, conceptos históricos, imagen al
+  portapapeles; el listado de e-cheqs actualiza los ya cargados.
+- **Filtros por columna** como Excel en todas las tablas, **Posición al** (31/12) y **Parte del día**
+  para WhatsApp (4 imágenes).
+
 Pendiente de estas: respuesta rápida de Amaroki "¿me conviene rescatar o negociar?".
 
 ## Más adelante
@@ -27,7 +36,6 @@ Pendiente de estas: respuesta rápida de Amaroki "¿me conviene rescatar o negoc
 - Ver si la plata alcanza para los pagos que vienen (cheques emitidos y bolsa contra cuentas + FCI), avisando qué semana falta.
 - Tasa de referencia (plazo fijo, caución) cargada a mano para comparar el FCI.
 - Amaroki: entender repreguntas ("¿y en noviembre?") sin Gemini; más respuestas rápidas (deuda en bolsa, ALYC más barata, ingresos y egresos del mes).
-- Parte diario por WhatsApp a la mañana.
 - Salida de cheques desde el archivo del banco (Excel / CSV / PDF) en vez de foto.
 - Importar saldos desde el extracto del banco.
 - Dividir `src/Index.html` en varios archivos.

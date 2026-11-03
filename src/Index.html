@@ -6181,6 +6181,22 @@ function abrirModal(id) {
   if (primero) setTimeout(() => primero.focus(), 250);
 }
 
+// Carga ágil en todos los cuadros: Ctrl+Enter toca el botón principal (Guardar) del cuadro
+// abierto, y en los campos de importe el punto del teclado numérico escribe la coma decimal.
+document.addEventListener("keydown", e => {
+  const t = e.target;
+  if (e.code === "NumpadDecimal" && t && t.tagName === "INPUT" && t.type === "text" && !t.closest(".pl-tabla") &&
+      (t.inputMode === "decimal" || t.classList.contains("monto") || /^(Importe|Monto|Saldo)$/.test(t.dataset.campo || ""))) {
+    teclaDecimalExcel(e, t);
+    return;
+  }
+  if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return;
+  const abierto = Array.from(document.querySelectorAll(".modal-overlay.is-open")).pop();
+  if (!abierto) return;
+  const btn = Array.from(abierto.querySelectorAll(".modal__foot button:not(.secondary):not([disabled])")).filter(b => b.offsetParent !== null).pop();
+  if (btn) { e.preventDefault(); btn.click(); }
+});
+
 function cerrarModal(id) {
   $(id).classList.remove("is-open");
   // Cerrar el cuadro de estado sin guardar deja el selector de la fila como estaba.
