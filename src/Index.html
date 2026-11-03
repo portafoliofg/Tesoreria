@@ -2464,10 +2464,11 @@
           <label>Hasta<input type="date" id="repGenHasta"></label>
         </div>
         <div class="actions">
-          <button id="repGenPdf" type="button">PDF</button>
+          <button id="repGenPdf" type="button">Descargar PDF</button>
           <button id="repGenExcel" class="secondary" type="button">Excel</button>
+          <button id="repGenImprimir" class="secondary" type="button">Imprimir</button>
         </div>
-        <p class="hint">Ingresos contra egresos de movimientos y cheques, el desfasaje entre ambos, la inyección de fondos que lo cubrió (FCI, descuento y bolsa, cuentas propias y brokers), cheques emitidos y en cartera, saldos de cuentas y los montos más relevantes del período. Solo pesos.</p>
+        <p class="hint">Filtra por la fecha de cada movimiento y por la de débito o acreditación de cada cheque. Ingresos contra egresos de movimientos y cheques, el desfasaje entre ambos, la inyección de fondos que lo cubrió (FCI, descuento y bolsa, cuentas propias y brokers), cheques emitidos y en cartera, saldos de cuentas y los montos más relevantes del período. Solo pesos.</p>
       </div>
       <div class="card">
         <div class="card-title">Reporte mensual automático</div>
@@ -6354,7 +6355,8 @@ function fechaAOrden(str) {
 function fechaAOrdenBase(str) {
   const partes = String(str || "").trim().split("/");
   if (partes.length !== 3) return "";
-  const d = partes[0], m = partes[1], y = partes[2];
+  // "dd/mm/aaaa hh:mm:ss" (fecha de carga): la hora no es parte del año.
+  const d = partes[0], m = partes[1], y = partes[2].split(" ")[0];
   if (!d || !m || !y) return "";
   return y.padStart(4, "0") + "-" + m.padStart(2, "0") + "-" + d.padStart(2, "0");
 }
@@ -10452,6 +10454,28 @@ function tieneClave(texto, claves) {
   return claves.some(k => texto.indexOf(k) >= 0);
 }
 
+// Fecha a aaaa-mm-dd aceptando "dd/mm/aaaa", "dd/mm/aaaa hh:mm:ss", "d/m/aa" y "aaaa-mm-dd(...)".
+// fechaAOrden no corta la hora: "05/10/2026 09:12" quedaba fuera de cualquier período.
+function isoFechaRep(v) {
+  let t = String(v || "").trim();
+  if (!t) return "";
+  const corte = Math.min(t.indexOf(" ") < 0 ? t.length : t.indexOf(" "), t.indexOf("T") < 0 ? t.length : t.indexOf("T"));
+  t = t.substring(0, corte);
+  let y, m, d;
+  if (t.indexOf("/") > 0) {
+    const p = t.split("/");
+    if (p.length !== 3) return "";
+    d = +p[0]; m = +p[1]; y = +p[2];
+    if (p[2].length === 2) y += 2000;
+  } else if (t.indexOf("-") > 0) {
+    const p = t.split("-");
+    if (p.length !== 3 || p[0].length !== 4) return "";
+    y = +p[0]; m = +p[1]; d = +p[2];
+  } else return "";
+  if (!(y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return "";
+  return y + "-" + dosDigitos(m) + "-" + dosDigitos(d);
+}
+
 function lunesDe(iso) {
   const p = iso.split("-");
   const dia = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
@@ -10463,6 +10487,7 @@ function datosResumenGeneral(desde, hasta) {
   const ingresos = [], egresos = [];
   const usd = { mov: 0, cheques: 0 };
   const omitidos = { n: 0, importe: 0 };
+  let sinFecha = 0;
   const fciMov = [];
   const iny = { rescates: [], suscripciones: [], descTerceros: [], bolsaRecibido: [], bolsaPagado: [], bolsaSinRecibido: 0,
     propiasEnt: [], propiasSal: [], brokersEnt: [], brokersSal: [] };
@@ -10471,12 +10496,13 @@ function datosResumenGeneral(desde, hasta) {
 
   // Movimientos
   transferenciasDatos.forEach(f => {
-    const iso = fechaAOrden(fechaMov(f));
+    const iso = isoFechaRep(f["Fecha del Movimiento"]) || isoFechaRep(f["Fecha de Carga"]);
+    if (!iso) { sinFecha++; return; }
     if (!enPer(iso) || (f["Origen"] === "Resumen" && f["Conciliación"])) return;
     const m = parseImporte(f["Monto"]);
     if (!m) return;
     if (f["Moneda"] === "USD") { usd.mov++; return; }
-    const item = { iso: iso, fecha: fechaMov(f), origen: "Movimiento", banco: f["Banco"] || "", texto: f["Concepto"] || "Movimiento",
+    const item = { iso: iso, fecha: isoADma(iso), origen: "Movimiento", banco: f["Banco"] || "", texto: f["Concepto"] || "Movimiento",
       contraparte: m > 0 ? (f["Ordenante"] || f["Contraparte"] || "") : (f["Destinatario"] || f["Contraparte"] || ""), importe: m };
     if (esPropia(f)) { (m > 0 ? iny.propiasEnt : iny.propiasSal).push(item); return; }
     if (esMovimientoFinanciero(f)) { (m > 0 ? iny.brokersEnt : iny.brokersSal).push(item); return; }
@@ -10491,22 +10517,24 @@ function datosResumenGeneral(desde, hasta) {
     const imp = Math.abs(parseImporte(c["Importe"]));
     if (!imp || c["Canal"] === "Bolsa") return;
     const estado = normalizar(c["Estado"] || "").trim();
-    const isoEmi = fechaAOrden(c["Fecha de Emisión"] || "");
-    const isoPago = fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"] || "");
+    const isoEmi = isoFechaRep(c["Fecha de Emisión"] || "");
+    const isoPago = isoFechaRep(c["Fecha de Pago"] || c["Fecha de Emisión"] || "");
     const abierto = chequeAbierto(c);
     // Cerrado sin fecha de débito cargada: se toma la de pago.
-    const isoEf = fechaAOrden(c["Fecha de Débito"] || "") || (abierto ? "" : isoPago);
+    const isoEf = isoFechaRep(c["Fecha de Débito"] || "") || (abierto ? "" : isoPago);
     if (monedaCheque(c) === "USD") { if (enPer(isoEf) || enPer(isoEmi)) usd.cheques++; return; }
     const sinEfecto = ESTADOS_CHEQUE_SIN_EFECTO.indexOf(estado) >= 0;
     const base = { fecha: isoEf ? isoADma(isoEf) : (c["Fecha de Pago"] || ""), banco: c["Banco"] || "", contraparte: c["Titular"] || "", estado: estadoCheque(c).texto };
     if (c["Tipo"] === "Emitido") {
       base.texto = "Cheque emitido N° " + c["N° de Cheque"];
       if (enPer(isoEmi)) { ch.emitidosN++; ch.emitidosImp += imp; }
-      if (abierto) {
+      // Pendiente al cierre: emitido hasta esa fecha y sin debitar a esa fecha (los anulados no).
+      const pendCierre = (!isoEmi || isoEmi <= hasta) && (abierto || (!sinEfecto && isoEf > hasta));
+      if (pendCierre && (isoEmi || abierto)) {
         ch.abiertosN++; ch.abiertosImp += imp;
-        if (enPer(isoPago)) ch.pendPeriodo.push(Object.assign({}, base, { fecha: c["Fecha de Pago"] || "", importe: -imp }));
-        return;
+        if (enPer(isoPago)) ch.pendPeriodo.push(Object.assign({}, base, { fecha: isoPago ? isoADma(isoPago) : "", importe: -imp }));
       }
+      if (abierto) return;
       if (!sinEfecto && enPer(isoEf)) {
         const x = Object.assign({ iso: isoEf, origen: "Cheque emitido", importe: -imp }, base);
         egresos.push(x); ch.debitados.push(x);
@@ -10514,9 +10542,11 @@ function datosResumenGeneral(desde, hasta) {
       return;
     }
     base.texto = "Cheque de terceros N° " + c["N° de Cheque"];
-    const isoIng = fechaAOrden(c["Fecha de Ingreso"] || "") || isoEmi;
+    const isoIng = isoFechaRep(c["Fecha de Ingreso"] || "") || isoEmi;
     if (enPer(isoIng)) { ch.recibidosN++; ch.recibidosImp += imp; }
-    if (abierto) { ch.carteraN++; ch.carteraImp += imp; return; }
+    // En cartera al cierre: ya recibido a esa fecha y todavía sin depositar, endosar ni descontar.
+    if ((!isoIng || isoIng <= hasta) && (isoIng || abierto) && (abierto || isoEf > hasta)) { ch.carteraN++; ch.carteraImp += imp; }
+    if (abierto) return;
     if (!enPer(isoEf)) return;
     if (estado === "DESCONTADO") {
       const neto = parseImporte(c["Neto Descontado"]);
@@ -10531,7 +10561,7 @@ function datosResumenGeneral(desde, hasta) {
 
   // FCI: rescates y suscripciones de la pestaña FCI y Bolsa; si no hay, los de Movimientos.
   fciDatos.forEach(f => {
-    const iso = fechaAOrden(f["Fecha"]);
+    const iso = isoFechaRep(f["Fecha"]);
     if (!enPer(iso) || f["Moneda"] === "USD") return;
     const mov = normalizar(f["Movimiento"] || "").trim();
     const m = Math.abs(parseImporte(f["Monto"]));
@@ -10547,13 +10577,13 @@ function datosResumenGeneral(desde, hasta) {
     if (b["Moneda"] === "USD") return;
     const nominal = Math.abs(parseImporte(b["Monto"]));
     const texto = "Cheque N° " + (b["Numero de cheque"] || b["ID"] || "") + (b["ALYC"] ? " · " + b["ALYC"] : "");
-    const isoCarga = fechaAOrden(b["Fecha de carga"]);
+    const isoCarga = isoFechaRep(b["Fecha de carga"]);
     if (enPer(isoCarga)) {
       const rec = parseImporte(b["Importe recibido"]);
       if (rec > 0) iny.bolsaRecibido.push({ iso: isoCarga, fecha: isoADma(isoCarga), texto: texto, importe: rec, nominal: nominal });
       else iny.bolsaSinRecibido++;
     }
-    const isoDeb = fechaAOrden(b["Fecha de debito"]);
+    const isoDeb = isoFechaRep(b["Fecha de debito"]);
     if (parseImporte(b["Monto"]) < 0 && !bolsaAbierta(b) && enPer(isoDeb)) iny.bolsaPagado.push({ iso: isoDeb, fecha: isoADma(isoDeb), texto: texto, importe: -nominal });
   });
 
@@ -10574,7 +10604,7 @@ function datosResumenGeneral(desde, hasta) {
   ingresos.forEach(x => { sumar(semanas, lunesDe(x.iso), "ing", x.importe); sumar(dias, x.iso, "ing", x.importe); });
   egresos.forEach(x => { sumar(semanas, lunesDe(x.iso), "egr", x.importe); sumar(dias, x.iso, "egr", x.importe); });
   iny.rescates.concat(iny.descTerceros, iny.bolsaRecibido).forEach(x => sumar(semanas, lunesDe(x.iso), "iny", x.importe));
-  const listaSemanas = Object.keys(semanas).sort().map(k => semanas[k]);
+  const listaSemanas = Object.keys(semanas).sort().map(k => Object.assign(semanas[k], { desdeIso: k < desde ? desde : k, hastaIso: sumarDiasIso(k, 6) > hasta ? hasta : sumarDiasIso(k, 6) }));
   const peoresDias = Object.keys(dias).map(k => dias[k]).filter(d => d.ing + d.egr < 0).sort((a, b) => (a.ing + a.egr) - (b.ing + b.egr)).slice(0, 5);
 
   // Montos más relevantes y contrapartes
@@ -10612,7 +10642,7 @@ function datosResumenGeneral(desde, hasta) {
     costoDesc: costoDesc, salidasFin: salidasFin, propias: Object.keys(propias).map(k => propias[k]).sort((a, b) => b.ent - a.ent),
     propiasEnt: tot(iny.propiasEnt), ch: ch, semanas: listaSemanas, peoresDias: peoresDias,
     topIng: top(ingresos, 10), topEgr: top(egresos, 10), contIng: porContraparte(ingresos), contEgr: porContraparte(egresos),
-    saldos: saldos, fciIni: fciEn(antes), fciFin: fciEn(hasta), usd: usd, omitidos: omitidos
+    saldos: saldos, fciIni: fciEn(antes), fciFin: fciEn(hasta), usd: usd, omitidos: omitidos, sinFecha: sinFecha
   };
 }
 
@@ -10624,6 +10654,7 @@ function notasResumenGeneral(d) {
   const n = [];
   if (d.omitidos.n) n.push(d.omitidos.n + " línea(s) del extracto sin conciliar que parecen cheques o FCI (" + fmtImp(d.omitidos.importe) + ") no se sumaron: esos importes salen de Cheques y de FCI y Bolsa.");
   if (d.iny.bolsaSinRecibido) n.push(d.iny.bolsaSinRecibido + " cheque(s) negociado(s) en bolsa en el período no tienen cargado el importe recibido: no suman en la inyección.");
+  if (d.sinFecha) n.push(d.sinFecha + " movimiento(s) sin fecha válida no se tuvieron en cuenta.");
   if (d.usd.mov || d.usd.cheques) n.push("En dólares (no sumados): " + d.usd.mov + " movimiento(s) y " + d.usd.cheques + " cheque(s).");
   n.push("Los cheques cuentan en la fecha en que se debitaron o acreditaron. Los saldos de cuentas son estimados: último saldo informado más lo registrado después.");
   return n;
@@ -10682,7 +10713,7 @@ function reporteResumenGeneralNodo(d) {
     ["Emitidos en el período", String(c.emitidosN), f(-c.emitidosImp)],
     ["Debitados en el período", String(c.debitados.length), f(d.chEgr)],
     ["Con fecha de pago en el período y todavía sin debitar", String(c.pendPeriodo.length), f(c.pendPeriodo.reduce((a, x) => a + x.importe, 0))],
-    { clase: "rep-destacada", celdas: ["Pendientes de débito hoy (todos)", String(c.abiertosN), f(-c.abiertosImp)] }
+    { clase: "rep-destacada", celdas: ["Pendientes de débito al " + isoADma(d.hasta), String(c.abiertosN), f(-c.abiertosImp)] }
   ], [1, 2]));
   rep.append(tablaReporte(["Cheques de terceros (recibidos)", "Cantidad", "Importe"], [
     ["Recibidos en el período", String(c.recibidosN), f(c.recibidosImp)],
@@ -10690,7 +10721,7 @@ function reporteResumenGeneralNodo(d) {
     ["Descontados en el período (nominal)", String(d.iny.descTerceros.length), f(d.iny.descTerceros.reduce((a, x) => a + x.nominal, 0))],
     ["Endosados a proveedores en el período", String(c.endosados.length), f(c.endosados.reduce((a, x) => a + x.importe, 0))],
     ["Rechazados, devueltos o caducados en el período", String(c.rechazados.length), f(c.rechazados.reduce((a, x) => a + x.importe, 0))],
-    { clase: "rep-destacada", celdas: ["En cartera hoy (todos)", String(c.carteraN), f(c.carteraImp)] }
+    { clase: "rep-destacada", celdas: ["En cartera al " + isoADma(d.hasta), String(c.carteraN), f(c.carteraImp)] }
   ], [1, 2]));
   rep.append(el("p", "rep-nota", "Los endosados pagan a un proveedor sin pasar por el banco: no entran en ingresos ni egresos."));
 
@@ -10702,7 +10733,7 @@ function reporteResumenGeneralNodo(d) {
   rep.append(tablaReporte(["Cuenta", "Al " + isoADma(sumarDiasIso(d.desde, -1)), "Al " + isoADma(d.hasta), "Variación"], filasSaldos, [1, 2, 3]));
 
   rep.append(el("h2", null, "5. Por semana"));
-  rep.append(tablaReporte(["Semana del", "Ingresos", "Egresos", "Desfasaje", "Inyección"], d.semanas.map(s => [isoADma(s.k), f(s.ing), f(s.egr), s.ing + s.egr < 0 ? f(-(s.ing + s.egr)) : "-", f(s.iny)]), [1, 2, 3, 4]));
+  rep.append(tablaReporte(["Semana", "Ingresos", "Egresos", "Desfasaje", "Inyección"], d.semanas.map(s => [isoADma(s.desdeIso).substring(0, 5) + " al " + isoADma(s.hastaIso).substring(0, 5), f(s.ing), f(s.egr), s.ing + s.egr < 0 ? f(-(s.ing + s.egr)) : "-", f(s.iny)]), [1, 2, 3, 4]));
   if (d.peoresDias.length) {
     rep.append(el("p", "rep-nota", "Días con mayor desfasaje:"));
     rep.append(tablaReporte(["Día", "Ingresos", "Egresos", "Desfasaje"], d.peoresDias.map(x => [isoADma(x.k), f(x.ing), f(x.egr), f(-(x.ing + x.egr))]), [1, 2, 3]));
@@ -10744,11 +10775,11 @@ function excelResumenGeneral(d) {
     ["Cheques", "Cantidad", "Importe"],
     ["Emitidos en el período", d.ch.emitidosN, -d.ch.emitidosImp], ["Emitidos debitados en el período", d.ch.debitados.length, d.chEgr],
     ["Emitidos con pago en el período sin debitar", d.ch.pendPeriodo.length, d.ch.pendPeriodo.reduce((a, x) => a + x.importe, 0)],
-    ["Emitidos pendientes de débito hoy", d.ch.abiertosN, -d.ch.abiertosImp],
+    ["Emitidos pendientes de débito al cierre", d.ch.abiertosN, -d.ch.abiertosImp],
     ["De terceros recibidos en el período", d.ch.recibidosN, d.ch.recibidosImp], ["De terceros acreditados en el período", d.ch.acreditados.length, d.chIng],
     ["De terceros endosados en el período", d.ch.endosados.length, d.ch.endosados.reduce((a, x) => a + x.importe, 0)],
     ["De terceros rechazados o caducados en el período", d.ch.rechazados.length, d.ch.rechazados.reduce((a, x) => a + x.importe, 0)],
-    ["De terceros en cartera hoy", d.ch.carteraN, d.ch.carteraImp], [],
+    ["De terceros en cartera al cierre", d.ch.carteraN, d.ch.carteraImp], [],
     ["Notas"]].concat(notasResumenGeneral(d).map(t => [t]));
   const det = l => l.map(x => [x.fecha, x.origen || "", x.texto, x.contraparte || "", x.banco || "", x.importe]);
   const H = ["Fecha", "Origen", "Concepto", "Contraparte", "Banco", "Importe"];
@@ -10762,14 +10793,14 @@ function excelResumenGeneral(d) {
     .concat(d.iny.brokersEnt.concat(d.iny.brokersSal).map(x => ["Broker / ALYC", x.fecha, x.contraparte || x.texto, x.importe, ""]));
   const saldos = [["Cuenta", "Saldo inicial", "Saldo final", "Variación"]].concat(d.saldos.map(s => [s.cuenta, s.ini === null ? "" : s.ini, s.fin === null ? "" : s.fin, s.ini === null || s.fin === null ? "" : s.fin - s.ini]))
     .concat([["FCI", d.fciIni, d.fciFin, d.fciFin - d.fciIni]]);
-  const semanas = [["Semana del", "Ingresos", "Egresos", "Desfasaje", "Inyección"]].concat(d.semanas.map(s => [isoADma(s.k), s.ing, s.egr, Math.max(0, -(s.ing + s.egr)), s.iny]));
+  const semanas = [["Desde", "Hasta", "Ingresos", "Egresos", "Desfasaje", "Inyección"]].concat(d.semanas.map(s => [isoADma(s.desdeIso), isoADma(s.hastaIso), s.ing, s.egr, Math.max(0, -(s.ing + s.egr)), s.iny]));
   descargarExcel("Resumen general " + d.desde + " a " + d.hasta, [
     { nombre: "Resumen", filas: resumen, anchos: [52, 14, 18, 90] },
     { nombre: "Ingresos", filas: [H].concat(det(d.ingresos)), anchos: [11, 18, 40, 30, 12, 16] },
     { nombre: "Egresos", filas: [H].concat(det(d.egresos)), anchos: [11, 18, 40, 30, 12, 16] },
     { nombre: "Inyección", filas: inyFilas, anchos: [24, 11, 50, 16, 16] },
     { nombre: "Saldos", filas: saldos, anchos: [36, 16, 16, 16] },
-    { nombre: "Por semana", filas: semanas, anchos: [12, 16, 16, 16, 16] }
+    { nombre: "Por semana", filas: semanas, anchos: [12, 12, 16, 16, 16, 16] }
   ]);
 }
 
@@ -10781,7 +10812,20 @@ async function exportarResumenGeneral(formato) {
       runJson("obtenerSaldos", {}).then(r => { saldosGuardados = r.saldos || []; })]);
     const d = datosResumenGeneral(desde, hasta);
     if (formato === "excel") excelResumenGeneral(d);
-    else imprimir(reporteResumenGeneralNodo(d));
+    else if (formato === "imprimir") imprimir(reporteResumenGeneralNodo(d));
+    else {
+      const btn = $("repGenPdf");
+      btn.disabled = true;
+      btn.classList.add("is-loading");
+      try {
+        await descargarPdfDeNodo(reporteResumenGeneralNodo(d), "Resumen general " + isoADma(desde).split("/").join("-") + " al " + isoADma(hasta).split("/").join("-"));
+      } catch (e) {
+        throw new Error(msgErr(e) + ". Probá con Imprimir y elegí “Guardar como PDF”");
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove("is-loading");
+      }
+    }
   } catch (err) {
     toast("No se pudo generar el resumen: " + msgErr(err), "error");
   }
@@ -10789,6 +10833,7 @@ async function exportarResumenGeneral(formato) {
 
 $("repGenPdf").addEventListener("click", () => exportarResumenGeneral("pdf"));
 $("repGenExcel").addEventListener("click", () => exportarResumenGeneral("excel"));
+$("repGenImprimir").addEventListener("click", () => exportarResumenGeneral("imprimir"));
 
 function prepararVistaReportes() {
   cargarReporteConfig();
