@@ -104,6 +104,8 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: var(--bg); color: var(--text); }
+  /* Más compacto en la compu: se ve como el navegador al 90% (en el celular, tamaño normal). */
+  @media (min-width: 900px) { html { zoom: .9; } }
   body { min-height: 100vh; font-family: var(--font); font-size: 14px; line-height: 1.5; letter-spacing: -0.006em; -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1, "cv11" 1; }
   ::selection { background: rgba(var(--primary-rgb), .2); }
   .mono { font-family: var(--font-code); font-size: 12.5px; letter-spacing: 0; }
@@ -461,9 +463,9 @@
 
   /* ---------- Tablas tipo libro ---------- */
   .tabla-card { padding: 0; overflow: visible; }
-  .rapidas { display: flex; gap: 2px; padding: 4px 12px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .rapidas { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 12px 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .rapidas::-webkit-scrollbar { display: none; }
-  .rapida { height: 44px; padding: 0 12px; gap: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-weight: 500; box-shadow: none; white-space: nowrap; }
+  .rapida { height: 38px; padding: 0 10px; gap: 8px; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-weight: 500; box-shadow: none; white-space: nowrap; }
   .rapida:hover { color: var(--text); background: transparent; }
   .rapida.activa { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
   .rapida-n { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 99px; background: var(--surface-3); color: var(--muted); font-size: 11.5px; font-weight: 600; display: inline-grid; place-items: center; }
@@ -501,7 +503,7 @@
 
   .dt-wrap { overflow-x: auto; border-top: 1px solid var(--border); }
   table.dt { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13.5px; }
-  .dt thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); padding: 0 12px; height: 40px; font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--muted); border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  .dt thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); padding: 0 9px; height: 38px; font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--muted); border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
   .dt th.num, .dt td.num { text-align: right; }
   .dt th.num .th-btn { flex-direction: row-reverse; }
   .dt th { white-space: nowrap; }
@@ -529,7 +531,7 @@
   .th-btn.activo { color: var(--text); }
   .th-btn.activo::after { opacity: .75; }
   .th-btn.activo.asc::after { transform: rotate(180deg); }
-  .dt td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; background: var(--surface); }
+  .dt td { padding: 8px 9px; border-bottom: 1px solid var(--border); vertical-align: middle; background: var(--surface); }
   .dt-fila { cursor: pointer; }
   .dt-fila:hover td { background: var(--surface-2); }
   .dt-fila:focus-visible { outline: 2px solid rgba(var(--primary-rgb), .45); outline-offset: -2px; }
@@ -538,7 +540,7 @@
   .dt-fila.activa td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
   .dt-n { font-family: var(--font-code); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
   .dt thead th.dt-n { font-family: inherit; font-size: 12px; }
-  .dt-concepto { min-width: 220px; max-width: 420px; }
+  .dt-concepto { min-width: 150px; max-width: 320px; }
   .dt-principal { font-weight: 500; color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .dt-sub { font-size: 12px; color: var(--faint); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
   .dt-estado { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -909,8 +911,11 @@
   .posicion-banda { background: var(--primary-soft); border: 1px solid var(--primary); color: var(--primary); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-bottom: 12px; }
   #posicionBox .rep-tabla { margin-bottom: 14px; }
   #posicionBox h2 { font-size: 15px; margin: 14px 0 6px; }
-  .rapidas-img { margin-left: auto; display: inline-flex; align-items: center; flex-shrink: 0; padding: 0 0 6px 12px; }
-  .rapidas-img .botones-imagen { flex-wrap: nowrap; }
+  .tb-img { display: inline-flex; flex-shrink: 0; }
+  .ch-num { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .ch-num .pill { font-family: var(--font); font-size: 10.5px; }
+  .tb-img .botones-imagen { flex-wrap: nowrap; }
+  .tb-img button { height: 38px; }
   .rd-ganado { font-size: 15px; font-weight: 650; }
   .rd-tna { font-size: 11.5px; color: var(--muted); }
   .rd-vivo { font-size: 11px; color: var(--primary); font-weight: 600; }
@@ -2085,6 +2090,7 @@
           </select>
           <input type="date" id="filtro-cheques-desde" aria-label="Desde" title="Desde"><span class="tb-guion">–</span><input type="date" id="filtro-cheques-hasta" aria-label="Hasta" title="Hasta">
         </div>
+        <span class="tb-img" id="chequesImagen"></span>
         <button class="secondary" id="btnAgruparCheques" type="button" aria-pressed="false" title="Ver los cheques separados por chequera, con su rango de números y los que faltan">Agrupar por chequera</button>
         <div class="tb-mas">
           <button class="secondary" id="btnMas-cheques" type="button">Más filtros</button>
@@ -11309,6 +11315,11 @@ function pasaFiltrosCol(est, cfg, f, salvo) {
   return true;
 }
 
+function zoomPagina() {
+  const z = parseFloat(getComputedStyle(document.documentElement).zoom);
+  return z > 0 ? z : 1;
+}
+
 function cerrarMenuFiltroCol() {
   const m = document.querySelector(".fc-menu");
   if (m) m.remove();
@@ -11419,10 +11430,12 @@ function abrirMenuFiltroCol(boton, box, cfg, est, c) {
   menu.append(buscar, todos, lista, pie);
   pintar();
   document.body.append(menu);
+  // Con el zoom de la página (90% en la compu) las medidas de pantalla y las de la página difieren.
+  const z = zoomPagina();
   const r = boton.getBoundingClientRect();
   const ancho = 270;
-  menu.style.left = Math.max(8, Math.min(window.innerWidth - ancho - 8, r.left + window.scrollX)) + "px";
-  menu.style.top = (r.bottom + window.scrollY + 4) + "px";
+  menu.style.left = Math.max(8, Math.min(window.innerWidth / z - ancho - 8, r.left / z + window.scrollX / z)) + "px";
+  menu.style.top = (r.bottom / z + window.scrollY / z + 4) + "px";
   buscar.focus();
 }
 
@@ -12165,7 +12178,7 @@ $("iniParteWsp").addEventListener("click", abrirParteWsp);
 $("parteWspTodo").addEventListener("click", async () => {
   const archivos = [];
   for (const it of parteWspLista) {
-    const b = await new Promise(ok => it.armar().toBlob(ok, "image/png"));
+    const b = await imagenLiviana(it.armar()).catch(() => null);
     if (b) archivos.push(new File([b], it.nombre, { type: "image/png" }));
   }
   const enCelular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -12291,10 +12304,9 @@ function renderCheques(filas) {
   renderRapidas("cheques", defsRap, deSolapa, () => renderCheques(ultimasFilasCheques));
   const visibles = deSolapa.filter(def.f);
   // Lo que se ve, como imagen para WhatsApp (por ejemplo, "Pagados hoy" con su concepto).
-  const imgBox = el("span", "rapidas-img");
-  imgBox.append(botonesImagen(() => imagenCheques(visibles, (solapaCheques === "cerrados" ? "Cheques pagados y cerrados" : "Cheques en curso") + (def.id === "todos" ? "" : " · " + def.titulo)),
+  $("chequesImagen").replaceChildren(botonesImagen(() => imagenCheques(visibles, (solapaCheques === "cerrados" ? "Cheques pagados y cerrados" : "Cheques en curso") + (def.id === "todos" ? "" : " · " + def.titulo)),
     () => "Cheques " + def.titulo.toLowerCase() + " " + isoADma(hoyIso()).split("/").join("-") + ".png", "Cheques"));
-  $("rapidas-cheques").append(imgBox);
+  $("chequesImagen").title = "Imagen de los " + visibles.length + " cheque(s) que se ven (" + def.titulo + ")";
 
   const cfg = {
     id: "cheques",
@@ -12304,10 +12316,14 @@ function renderCheques(filas) {
     alClic: c => abrirDetalle("cheques", c),
     vacio: chequesDatos.length ? "Ningún cheque coincide con los filtros." : "Todavía no hay cheques guardados.",
     columnas: [
-      { clave: "emision", titulo: "Fecha de emisión", clase: "nowrap", orden: c => fechaAOrden(c["Fecha de Emisión"]) || "9999", celda: c => c["Fecha de Emisión"] },
-      { clave: "pago", titulo: "Fecha de pago", clase: "nowrap", orden: c => fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]) || "9999", celda: c => c["Fecha de Pago"] },
-      { clave: "numero", titulo: "N° de cheque", clase: "dt-n", orden: c => soloDigitos(c["N° de Cheque"]).padStart(12, "0"), celda: c => c["N° de Cheque"] },
-      { clave: "tipo", titulo: "Tipo", orden: c => c["Tipo"] || "", celda: c => pill(c["Tipo"] || "—", c["Tipo"] === "Emitido" ? "pill-egr" : "pill-ing") },
+      { clave: "emision", titulo: "Emisión", clase: "nowrap", orden: c => fechaAOrden(c["Fecha de Emisión"]) || "9999", celda: c => c["Fecha de Emisión"] },
+      { clave: "pago", titulo: "Pago", clase: "nowrap", orden: c => fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]) || "9999", celda: c => c["Fecha de Pago"] },
+      // El tipo va debajo del número (una columna menos: la tabla entra sin desplazarse).
+      { clave: "numero", titulo: "N° / tipo", clase: "dt-n", orden: c => soloDigitos(c["N° de Cheque"]).padStart(12, "0"), filtro: c => c["N° de Cheque"] || "", celda: c => {
+        const box = el("div", "ch-num");
+        box.append(el("div", null, c["N° de Cheque"] || "—"), pill(c["Tipo"] || "—", c["Tipo"] === "Emitido" ? "pill-egr" : "pill-ing"));
+        return box;
+      } },
       { clave: "titular", titulo: "Titular", clase: "dt-concepto", orden: c => normalizar(c["Titular"] || ""), filtro: c => c["Titular"] || "Sin titular", celda: c => {
         const box = el("div");
         box.append(el("div", "dt-principal", c["Titular"] || "Sin titular"));
@@ -12331,7 +12347,7 @@ function renderCheques(filas) {
     pie: lista => {
       const neto = lista.reduce((a, c) => a + importeCheque(c), 0);
       return [
-        { texto: "Total de " + lista.length + " cheque(s) · emitidos en negativo", colspan: 8, clase: "dt-total-label" },
+        { texto: "Total de " + lista.length + " cheque(s) · emitidos en negativo", colspan: 7, clase: "dt-total-label" },
         { texto: textoImporte(neto, "Pesos"), clase: "num dt-total " + (neto < 0 ? "neg" : "pos") }
       ];
     }
@@ -19199,7 +19215,7 @@ async function copiarImagenPlanilla(grupos, fechaIso, boton) {
  */
 async function compartirCanvas(canvas, nombre, titulo, boton, aviso, descargar) {
   aviso = aviso || "";
-  const blob = new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error("No se pudo generar la imagen.")), "image/png"));
+  const blob = imagenLiviana(canvas);
   const enCelular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const bajar = async () => {
     const url = URL.createObjectURL(await blob);
@@ -19235,17 +19251,43 @@ async function compartirCanvas(canvas, nombre, titulo, boton, aviso, descargar) 
   }
 }
 
+/** PNG del canvas de menos de ~4 MB (WhatsApp no acepta imágenes pegadas de más de 16 MB): si pesa más, se achica. */
+async function imagenLiviana(canvas) {
+  const aBlob = cv => new Promise((ok, mal) => cv.toBlob(b => b ? ok(b) : mal(new Error("No se pudo generar la imagen.")), "image/png"));
+  const LIMITE = 4 * 1024 * 1024;
+  let cv = canvas, b = await aBlob(cv);
+  for (let i = 0; i < 5 && b.size > LIMITE; i++) {
+    const f = Math.max(0.4, Math.sqrt(LIMITE / b.size) * 0.9);
+    const chico = document.createElement("canvas");
+    chico.width = Math.max(1, Math.round(cv.width * f));
+    chico.height = Math.max(1, Math.round(cv.height * f));
+    const g = chico.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(cv, 0, 0, chico.width, chico.height);
+    cv = chico;
+    b = await aBlob(cv);
+  }
+  return b;
+}
+
 /**
  * Tabla dibujada en un canvas, en alta resolución y con colores claros fijos (se lee bien en
  * WhatsApp). def: {titulo, subtitulo, columnas: [texto], derecha: [índices de columnas numéricas],
  * filas: [[celdas]] o [{celdas, clase: "total"|"sub"|"neg"|"pos"}], nota}.
  */
+// Tope de filas: una imagen para WhatsApp con cientos de cheques pesa muchos MB y no se puede pegar.
+const MAX_FILAS_IMAGEN = 60;
 function imagenTabla(def) {
-  const ESC = 2;
   const fuente = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
   const C = { fondo: "#ffffff", texto: "#111814", tenue: "#5f665d", linea: "#a9a397", fuerte: "#3d423b",
     primario: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#1c4a2c", banda: "#f4f1eb", pos: "#1d7a3e", neg: "#b42318" };
-  const filas = def.filas.map(f => Array.isArray(f) ? { celdas: f } : f);
+  let filas = def.filas.map(f => Array.isArray(f) ? { celdas: f } : f);
+  const totales = filas.filter(f => f.clase === "total"), comunes = filas.filter(f => f.clase !== "total");
+  if (comunes.length > MAX_FILAS_IMAGEN) {
+    filas = comunes.slice(0, MAX_FILAS_IMAGEN).concat(totales);
+    def = Object.assign({}, def, { nota: "Se muestran " + MAX_FILAS_IMAGEN + " de " + comunes.length + " filas (el total es de todas). Filtrá para ver menos, por ejemplo Pagados hoy." + (def.nota ? " " + def.nota : "") });
+  }
+  const ESC = filas.length > 30 ? 1.5 : 2;
   const der = def.derecha || [];
   const medir = document.createElement("canvas").getContext("2d");
   const ancho = (txt, peso, tam) => { medir.font = peso + " " + tam + "px " + fuente; return medir.measureText(String(txt)).width; };
