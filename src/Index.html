@@ -504,6 +504,24 @@
   .dt thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); padding: 0 12px; height: 40px; font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--muted); border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
   .dt th.num, .dt td.num { text-align: right; }
   .dt th.num .th-btn { flex-direction: row-reverse; }
+  .dt th { white-space: nowrap; }
+  .fc-btn { height: 22px; min-width: 20px; padding: 0 4px; margin-left: 2px; background: transparent; border: 1px solid transparent; box-shadow: none; color: var(--faint); font-size: 11px; vertical-align: middle; border-radius: 4px; }
+  .fc-btn:hover { border-color: var(--border); color: var(--text); background: var(--surface); }
+  .fc-btn.activo { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+  .fc-menu { position: absolute; z-index: 400; width: 270px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .fc-orden { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .fc-item { background: transparent; border: none; box-shadow: none; color: var(--text); text-align: left; justify-content: flex-start; height: 28px; padding: 0 6px; font-weight: 500; }
+  .fc-item:hover { background: var(--surface-3); }
+  .fc-rango { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .fc-rango .fc-sub { grid-column: 1 / -1; }
+  .fc-rango input, .fc-buscar { margin: 0; height: 30px; font-size: 12.5px; }
+  .fc-lista { max-height: 230px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
+  .fc-op { display: flex; align-items: center; gap: 6px; padding: 2px 4px; font-weight: 400; margin: 0; cursor: pointer; }
+  .fc-op span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fc-op input { width: auto; height: auto; margin: 0; }
+  .fc-n { color: var(--faint); font-size: 11px; }
+  .fc-sub { color: var(--muted); font-size: 11.5px; }
+  .fc-pie { display: flex; justify-content: space-between; gap: 6px; }
   .th-btn { height: 40px; padding: 0; background: transparent; border: none; box-shadow: none; color: inherit; font: inherit; font-weight: 600; gap: 5px; }
   .th-btn:hover { background: transparent; color: var(--text); }
   .th-btn::after { content: ""; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; opacity: 0; transition: opacity .15s, transform .15s; }
@@ -11183,10 +11201,175 @@ function celdaSeleccion(vista, f, tr) {
   return td;
 }
 
+// ----- Filtros por columna, como en Excel -----
+// Cada encabezado tiene un ▾ con los valores de esa columna (con buscador y tildes), orden A→Z o
+// Z→A y, en las de fecha o importe, un rango. Se combinan con los filtros de arriba. Quedan
+// guardados mientras la página está abierta (estadoTablas[id].filtrosCol).
+const cacheTextoCol = new WeakMap();
+function textoColumna(c, f) {
+  let m = cacheTextoCol.get(f);
+  if (!m) { m = {}; cacheTextoCol.set(f, m); }
+  if (m[c.clave] !== undefined) return m[c.clave];
+  let t;
+  if (c.filtro) t = c.filtro(f);
+  else {
+    const v = c.celda(f);
+    if (v && typeof v === "object" && v.nodeType) {
+      // Los selectores (estado del cheque) se leen por la opción elegida, no por todas.
+      v.querySelectorAll && v.querySelectorAll("select").forEach(sel => { const o = sel.options[sel.selectedIndex]; sel.replaceWith(document.createTextNode(o ? o.text + " " : "")); });
+      t = v.textContent;
+    } else t = v;
+  }
+  t = String(t == null ? "" : t).replace(/\s+/g, " ").trim() || "(Vacías)";
+  m[c.clave] = t;
+  return t;
+}
+
+function pasaFiltrosCol(est, cfg, f, salvo) {
+  const fc = est.filtrosCol || {};
+  for (const k in fc) {
+    if (k === salvo) continue;
+    const c = cfg.columnas.find(x => x.clave === k);
+    if (!c) continue;
+    const r = fc[k];
+    if (r.valores && !r.valores.has(textoColumna(c, f))) return false;
+    if (r.min !== undefined || r.max !== undefined) {
+      const o = c.orden ? c.orden(f) : null;
+      if (typeof o === "number") {
+        if (r.min !== undefined && Math.abs(o) < r.min) return false;
+        if (r.max !== undefined && Math.abs(o) > r.max) return false;
+      } else if (typeof o === "string" && /^\d{4}-\d{2}-\d{2}/.test(o)) {
+        if (r.min !== undefined && o < r.min) return false;
+        if (r.max !== undefined && o > r.max) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function cerrarMenuFiltroCol() {
+  const m = document.querySelector(".fc-menu");
+  if (m) m.remove();
+}
+document.addEventListener("mousedown", e => { const m = document.querySelector(".fc-menu"); if (m && !m.contains(e.target) && !e.target.closest(".fc-btn")) m.remove(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenuFiltroCol(); });
+
+function abrirMenuFiltroCol(boton, box, cfg, est, c) {
+  cerrarMenuFiltroCol();
+  est.filtrosCol = est.filtrosCol || {};
+  const actual = est.filtrosCol[c.clave] || {};
+  // Valores de las filas que pasan los demás filtros por columna (como Excel), con su cantidad.
+  const cuenta = new Map(), ordenDe = new Map();
+  cfg.filas.forEach(f => {
+    if (!pasaFiltrosCol(est, cfg, f, c.clave)) return;
+    const t = textoColumna(c, f);
+    cuenta.set(t, (cuenta.get(t) || 0) + 1);
+    if (c.orden && !ordenDe.has(t)) ordenDe.set(t, c.orden(f));
+  });
+  const valores = Array.from(cuenta.keys()).sort((a, b) => {
+    const oa = ordenDe.get(a), ob = ordenDe.get(b);
+    if (oa !== undefined && ob !== undefined && oa !== ob) return oa < ob ? -1 : 1;
+    return a.localeCompare(b, "es");
+  });
+  const muestra = cfg.filas.find(f => c.orden);
+  const tipoOrden = muestra && c.orden ? typeof c.orden(muestra) : "";
+  const esFecha = tipoOrden === "string" && /^\d{4}-\d{2}-\d{2}/.test(c.orden(muestra) || "");
+  const esNumero = tipoOrden === "number" && /importe|monto|saldo|total|neto|recibido/i.test(c.titulo + " " + c.clave);
+
+  const menu = el("div", "fc-menu");
+  menu.setAttribute("role", "dialog");
+  menu.setAttribute("aria-label", "Filtrar " + c.titulo);
+  if (c.orden) {
+    const ord = el("div", "fc-orden");
+    [["asc", esFecha ? "Más viejo primero" : esNumero ? "Menor a mayor" : "Ordenar A → Z"], ["desc", esFecha ? "Más nuevo primero" : esNumero ? "Mayor a menor" : "Ordenar Z → A"]].forEach(o => {
+      const b = el("button", "fc-item", o[1]);
+      b.type = "button";
+      b.addEventListener("click", () => { est.clave = c.clave; est.dir = o[0]; est.pagina = 0; cerrarMenuFiltroCol(); renderTabla(box, cfg); });
+      ord.append(b);
+    });
+    menu.append(ord);
+  }
+  let rMin = null, rMax = null;
+  if (esFecha || esNumero) {
+    const r = el("div", "fc-rango");
+    rMin = el("input"); rMax = el("input");
+    if (esFecha) { rMin.type = rMax.type = "date"; }
+    else { rMin.type = rMax.type = "text"; rMin.inputMode = rMax.inputMode = "decimal"; rMin.placeholder = "Desde"; rMax.placeholder = "Hasta"; }
+    rMin.setAttribute("aria-label", "Desde"); rMax.setAttribute("aria-label", "Hasta");
+    if (actual.min !== undefined) rMin.value = esFecha ? actual.min : textoSaldo(actual.min);
+    if (actual.max !== undefined) rMax.value = esFecha ? actual.max : textoSaldo(actual.max);
+    r.append(el("span", "fc-sub", esFecha ? "Entre fechas" : "Importe entre"), rMin, rMax);
+    menu.append(r);
+  }
+  const buscar = el("input", "fc-buscar");
+  buscar.type = "search";
+  buscar.placeholder = "Buscar";
+  const lista = el("div", "fc-lista");
+  const marcados = new Set(actual.valores ? Array.from(actual.valores).filter(v => cuenta.has(v)) : valores);
+  const todos = el("label", "fc-op fc-todos");
+  const chkTodos = el("input");
+  chkTodos.type = "checkbox";
+  todos.append(chkTodos, el("span", null, "(Seleccionar todo)"));
+  const pintar = () => {
+    const q = normalizar(buscar.value).trim();
+    lista.replaceChildren();
+    const vis = valores.filter(v => !q || normalizar(v).indexOf(q) >= 0);
+    chkTodos.checked = vis.length > 0 && vis.every(v => marcados.has(v));
+    chkTodos.indeterminate = !chkTodos.checked && vis.some(v => marcados.has(v));
+    vis.slice(0, 500).forEach(v => {
+      const lab = el("label", "fc-op");
+      const ch = el("input");
+      ch.type = "checkbox";
+      ch.checked = marcados.has(v);
+      ch.addEventListener("change", () => { if (ch.checked) marcados.add(v); else marcados.delete(v); pintar(); });
+      lab.append(ch, el("span", null, v), el("span", "fc-n", String(cuenta.get(v))));
+      lista.append(lab);
+    });
+    if (vis.length > 500) lista.append(el("div", "fc-sub", "Hay " + vis.length + " valores: buscá para achicar la lista."));
+  };
+  chkTodos.addEventListener("change", () => {
+    const q = normalizar(buscar.value).trim();
+    valores.filter(v => !q || normalizar(v).indexOf(q) >= 0).forEach(v => { if (chkTodos.checked) marcados.add(v); else marcados.delete(v); });
+    pintar();
+  });
+  buscar.addEventListener("input", pintar);
+  const pie = el("div", "fc-pie");
+  const limpiar = el("button", "secondary small", "Quitar filtro");
+  limpiar.type = "button";
+  limpiar.addEventListener("click", () => { delete est.filtrosCol[c.clave]; est.pagina = 0; cerrarMenuFiltroCol(); renderTabla(box, cfg); });
+  const aceptar = el("button", "small", "Aceptar");
+  aceptar.type = "button";
+  const aplicar = () => {
+    const r = {};
+    if (marcados.size < valores.length) r.valores = new Set(marcados);
+    if (rMin && rMin.value.trim()) r.min = esFecha ? rMin.value : importeTipeado(rMin.value);
+    if (rMax && rMax.value.trim()) r.max = esFecha ? rMax.value : importeTipeado(rMax.value);
+    if (r.min === null) delete r.min;
+    if (r.max === null) delete r.max;
+    if (Object.keys(r).length) est.filtrosCol[c.clave] = r; else delete est.filtrosCol[c.clave];
+    est.pagina = 0;
+    cerrarMenuFiltroCol();
+    renderTabla(box, cfg);
+  };
+  aceptar.addEventListener("click", aplicar);
+  menu.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.tagName === "INPUT" && e.target.type !== "checkbox") { e.preventDefault(); aplicar(); } });
+  pie.append(limpiar, aceptar);
+  menu.append(buscar, todos, lista, pie);
+  pintar();
+  document.body.append(menu);
+  const r = boton.getBoundingClientRect();
+  const ancho = 270;
+  menu.style.left = Math.max(8, Math.min(window.innerWidth - ancho - 8, r.left + window.scrollX)) + "px";
+  menu.style.top = (r.bottom + window.scrollY + 4) + "px";
+  buscar.focus();
+}
+
 function renderTabla(box, cfg) {
   const est = estadoTablas[cfg.id] || (estadoTablas[cfg.id] = { clave: cfg.orden.clave, dir: cfg.orden.dir, pagina: 0 });
   const col = cfg.columnas.find(c => c.clave === est.clave && c.orden) || cfg.columnas.find(c => c.orden);
-  const filas = cfg.filas.slice().sort((a, b) => {
+  const conFiltrosCol = cfg.filtrosColumna !== false;
+  const hayFiltrosCol = conFiltrosCol && est.filtrosCol && Object.keys(est.filtrosCol).length > 0;
+  const filas = (hayFiltrosCol ? cfg.filas.filter(f => pasaFiltrosCol(est, cfg, f)) : cfg.filas.slice()).sort((a, b) => {
     const va = col.orden(a), vb = col.orden(b);
     let r = va < vb ? -1 : va > vb ? 1 : 0;
     if (!r && cfg.desempate) r = cfg.desempate(a, b);
@@ -11201,7 +11384,13 @@ function renderTabla(box, cfg) {
   box.replaceChildren();
   if (!filas.length) {
     const v = el("div", "dt-vacio");
-    v.append(icono(ICO.buscar), el("div", null, cfg.vacio || "No hay registros."));
+    v.append(icono(ICO.buscar), el("div", null, hayFiltrosCol ? "Ninguna fila coincide con los filtros de las columnas." : (cfg.vacio || "No hay registros.")));
+    if (hayFiltrosCol) {
+      const q = el("button", "secondary small", "Quitar los filtros de las columnas");
+      q.type = "button";
+      q.addEventListener("click", () => { est.filtrosCol = {}; renderTabla(box, cfg); });
+      v.append(q);
+    }
     box.append(v);
     return;
   }
@@ -11232,6 +11421,16 @@ function renderTabla(box, cfg) {
       th.append(b);
     } else {
       th.textContent = c.titulo;
+    }
+    if (conFiltrosCol && c.filtrable !== false) {
+      const activo = !!(est.filtrosCol && est.filtrosCol[c.clave]);
+      const fb = el("button", "fc-btn" + (activo ? " activo" : ""));
+      fb.type = "button";
+      fb.innerHTML = activo ? "&#x29E9;" : "&#9662;";
+      fb.title = activo ? "Filtro activo en " + c.titulo : "Filtrar " + c.titulo;
+      fb.setAttribute("aria-label", fb.title);
+      fb.addEventListener("click", e => { e.stopPropagation(); abrirMenuFiltroCol(fb, box, cfg, est, c); });
+      th.append(fb);
     }
     trh.append(th);
   });
@@ -11276,6 +11475,13 @@ function renderTabla(box, cfg) {
 
   const pag = el("div", "dt-pag");
   pag.append(el("span", null, "Mostrando " + (est.pagina * porPagina + 1) + "–" + (est.pagina * porPagina + visibles.length) + " de " + filas.length));
+  if (hayFiltrosCol) {
+    const nombres = Object.keys(est.filtrosCol).map(k => (cfg.columnas.find(c => c.clave === k) || {}).titulo).filter(Boolean);
+    const q = el("button", "link-btn", "Quitar filtros de columnas (" + nombres.join(", ") + ")");
+    q.type = "button";
+    q.addEventListener("click", () => { est.filtrosCol = {}; est.pagina = 0; renderTabla(box, cfg); });
+    pag.append(q);
+  }
   if (paginas > 1) {
     const nav = el("div", "dt-pag-nav");
     const ant = el("button", "secondary small", "Anterior");
@@ -11820,7 +12026,7 @@ function renderCheques(filas) {
       { clave: "pago", titulo: "Fecha de pago", clase: "nowrap", orden: c => fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]) || "9999", celda: c => c["Fecha de Pago"] },
       { clave: "numero", titulo: "N° de cheque", clase: "dt-n", orden: c => soloDigitos(c["N° de Cheque"]).padStart(12, "0"), celda: c => c["N° de Cheque"] },
       { clave: "tipo", titulo: "Tipo", orden: c => c["Tipo"] || "", celda: c => pill(c["Tipo"] || "—", c["Tipo"] === "Emitido" ? "pill-egr" : "pill-ing") },
-      { clave: "titular", titulo: "Titular", clase: "dt-concepto", orden: c => normalizar(c["Titular"] || ""), celda: c => {
+      { clave: "titular", titulo: "Titular", clase: "dt-concepto", orden: c => normalizar(c["Titular"] || ""), filtro: c => c["Titular"] || "Sin titular", celda: c => {
         const box = el("div");
         box.append(el("div", "dt-principal", c["Titular"] || "Sin titular"));
         if (c["CUIT"]) box.append(el("div", "dt-sub", "CUIT " + c["CUIT"]));
@@ -11828,7 +12034,7 @@ function renderCheques(filas) {
       } },
       { clave: "concepto", titulo: "Concepto", clase: "dt-concepto", orden: c => normalizar(c["Concepto"] || "~"), celda: c => c["Concepto"] ? el("div", "dt-principal", c["Concepto"]) : el("span", "dt-sub", "—") },
       { clave: "cuenta", titulo: "Cuenta", orden: c => (c["Banco"] || "") + (c["N° de Cuenta"] || ""), celda: celdaCuenta },
-      { clave: "estado", titulo: "Estado", orden: c => estadoCheque(c).orden, celda: c => {
+      { clave: "estado", titulo: "Estado", orden: c => estadoCheque(c).orden, filtro: c => c["Estado"] || (c["Tipo"] === "De terceros" ? "En cartera" : "Pendiente"), celda: c => {
         const e = estadoCheque(c);
         const box = el("div", "dt-estado");
         // El estado es la etiqueta misma (se cambia tocándola); los conciliados no se tocan.
