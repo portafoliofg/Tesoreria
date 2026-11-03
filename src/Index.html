@@ -2468,7 +2468,7 @@
           <button id="repGenExcel" class="secondary" type="button">Excel</button>
           <button id="repGenImprimir" class="secondary" type="button">Imprimir</button>
         </div>
-        <p class="hint">Filtra por la fecha de cada movimiento y por la de débito o acreditación de cada cheque. Ingresos contra egresos de movimientos y cheques, el desfasaje entre ambos, la inyección de fondos que lo cubrió (FCI, descuento y bolsa, cuentas propias y brokers), cheques emitidos y en cartera, saldos de cuentas y los montos más relevantes del período. Solo pesos.</p>
+        <p class="hint">Filtra por la fecha de cada movimiento y por la de débito o acreditación de cada cheque. Ingresos contra egresos de movimientos y cheques, el desfasaje entre ambos, la inyección de fondos entre cuentas propias, cheques emitidos y en cartera, saldos de cuentas y los montos más relevantes del período. Solo pesos.</p>
       </div>
       <div class="card">
         <div class="card-title">Reporte mensual automático</div>
@@ -10442,7 +10442,7 @@ const CLAVES_EXTRACTO_FCI = ["FCI", "FONDO COMUN", "FDO COMUN", "RESCATE", "SUSC
 const TEXTOS_INYECCION = {
   fci: "Plata que estaba invertida en los fondos comunes (FCI) de los bancos y se pasó a la cuenta. No es un ingreso nuevo: es plata propia que estaba invertida y se usó para pagar.",
   descuento: "Financiamiento con cheques: cheques de terceros vendidos al banco antes de su fecha de pago (entra el neto) y cheques o pagarés propios negociados en bolsa con una ALYC (entra lo recibido y al vencimiento se paga el nominal). Tiene costo: la diferencia entre el nominal y lo recibido.",
-  propias: "Plata pasada de una cuenta propia a otra para cubrir la que no tenía fondos. No suma plata a la empresa (sale de una cuenta y entra en otra), por eso no entra en el total de inyección; sirve para ver qué cuentas hubo que cubrir y desde dónde.",
+  propias: "Plata pasada de una cuenta propia a otra para cubrir la que no tenía fondos: qué cuentas hubo que cubrir y desde dónde.",
   brokers: "Plata que entró desde cuentas de inversión en brokers o ALYC (Cocos, Balanz, IOL, Allaria, etc.). Se le resta lo que ya corresponde a cheques negociados en bolsa, que se cuenta en el punto anterior, para no sumarlo dos veces."
 };
 
@@ -10615,6 +10615,38 @@ function datosResumenGeneral(desde, hasta) {
     if (parseImporte(b["Monto"]) < 0 && !bolsaAbierta(b) && enPer(isoDeb)) iny.bolsaPagado.push({ iso: isoDeb, fecha: isoADma(isoDeb), texto: texto, importe: -nominal });
   });
 
+  // Inyección: transferencias entre cuentas propias del período. Si las dos puntas están cargadas
+  // (la que sale y la que entra) se cuenta una sola vez, por la que entra.
+  const pares = conciliarPropias(transferenciasDatos);
+  const porInterno = {};
+  transferenciasDatos.forEach(f => { if (f["N° Interno"]) porInterno[f["N° Interno"]] = f; });
+  const nombreCuenta = f => { const c = cuentaDeFila(f); return c ? cuentaTexto(c) : ((f["Banco"] || "") + " " + (f["N° de Cuenta"] || "")).trim() || "Sin cuenta"; };
+  const transferencias = [];
+  transferenciasDatos.forEach(f => {
+    if (!esPropia(f) || f["Moneda"] === "USD") return;
+    const iso = isoFechaRep(fechaMov(f));
+    if (!enPer(iso)) return;
+    const m = parseImporte(f["Monto"]);
+    if (!m) return;
+    const par = pares[f["N° Interno"]] ? porInterno[pares[f["N° Interno"]]] : null;
+    if (par && m < 0) return;
+    const propia = nombreCuenta(f);
+    let desde, hacia;
+    if (m > 0) { hacia = propia; desde = par ? nombreCuenta(par) : (f["Ordenante"] || f["Contraparte"] || "Otra cuenta propia (sin la otra punta cargada)"); }
+    else {
+      desde = propia;
+      const dest = ((f["Banco Destino"] || "") + " " + (f["Cuenta Destino"] || "")).trim();
+      hacia = dest || f["Destinatario"] || f["Contraparte"] || "Otra cuenta propia (sin la otra punta cargada)";
+    }
+    transferencias.push({ iso: iso, fecha: isoADma(iso), desde: desde, hacia: hacia, texto: f["Concepto"] || "", importe: Math.abs(m), apareada: !!par });
+  });
+  transferencias.sort((a, b) => a.iso.localeCompare(b.iso) || b.importe - a.importe);
+  const agrupar = campo => {
+    const g = {};
+    transferencias.forEach(x => { const k = x[campo]; const y = g[k] || (g[k] = { nombre: k, n: 0, importe: 0 }); y.n++; y.importe += x.importe; });
+    return Object.keys(g).map(k => g[k]).sort((a, b) => b.importe - a.importe);
+  };
+
   // Totales
   const tot = l => l.reduce((a, x) => a + x.importe, 0);
   const totIng = tot(ingresos), totEgr = tot(egresos);
@@ -10622,7 +10654,7 @@ function datosResumenGeneral(desde, hasta) {
   const rescates = tot(iny.rescates), descT = tot(iny.descTerceros), bolsaRec = tot(iny.bolsaRecibido);
   const brokersEnt = tot(iny.brokersEnt);
   const brokersNeto = Math.max(0, brokersEnt - bolsaRec);
-  const inyeccion = rescates + descT + bolsaRec + brokersNeto;
+  const inyeccion = tot(transferencias);
   const costoDesc = iny.descTerceros.reduce((a, x) => a + (x.nominal - x.importe), 0) + iny.bolsaRecibido.reduce((a, x) => a + Math.max(0, x.nominal - x.importe), 0);
   const salidasFin = tot(iny.suscripciones) + tot(iny.bolsaPagado) + tot(iny.brokersSal);
 
@@ -10630,7 +10662,7 @@ function datosResumenGeneral(desde, hasta) {
   const semanas = {}, dias = {};
   const sumar = (mapa, k, campo, v) => { const s = mapa[k] || (mapa[k] = { k: k, ing: 0, egr: 0, iny: 0 }); s[campo] += v; };
   p1.forEach(x => { const k = x.importe > 0 ? "ing" : "egr"; sumar(semanas, lunesDe(x.iso), k, x.importe); sumar(dias, x.iso, k, x.importe); });
-  iny.rescates.concat(iny.descTerceros, iny.bolsaRecibido).forEach(x => sumar(semanas, lunesDe(x.iso), "iny", x.importe));
+  transferencias.forEach(x => sumar(semanas, lunesDe(x.iso), "iny", x.importe));
   const listaSemanas = Object.keys(semanas).sort().map(k => Object.assign(semanas[k], { desdeIso: k < desde ? desde : k, hastaIso: sumarDiasIso(k, 6) > hasta ? hasta : sumarDiasIso(k, 6) }));
   const peoresDias = Object.keys(dias).map(k => dias[k]).filter(d => d.ing + d.egr < 0).sort((a, b) => (a.ing + a.egr) - (b.ing + b.egr)).slice(0, 5);
 
@@ -10670,6 +10702,7 @@ function datosResumenGeneral(desde, hasta) {
     movIng: tot(ingresos.filter(x => x.origen === "Movimiento")), movEgr: tot(egresos.filter(x => x.origen === "Movimiento")),
     chIng: tot(ch.acreditados), chEgr: tot(ch.debitados),
     iny: iny, rescates: rescates, descT: descT, bolsaRec: bolsaRec, brokersEnt: brokersEnt, brokersNeto: brokersNeto, inyeccion: inyeccion,
+    transferencias: transferencias, porDestino: agrupar("hacia"), porOrigen: agrupar("desde"),
     costoDesc: costoDesc, salidasFin: salidasFin, propias: Object.keys(propias).map(k => propias[k]).sort((a, b) => b.ent - a.ent),
     propiasEnt: tot(iny.propiasEnt), ch: ch, semanas: listaSemanas, peoresDias: peoresDias,
     p1: p1, topIng: top(p1.filter(x => x.importe > 0), 10), topEgr: top(p1.filter(x => x.importe < 0), 10),
@@ -10727,32 +10760,16 @@ function reporteResumenGeneralNodo(d) {
     "Cheques: los que vencen en el período (fecha de pago), como la pestaña Cheques con el filtro Vencimiento, sumando En curso y Pagados y cerrados; no cuentan los anulados, rechazados, devueltos ni caducados. " +
     "Desfasaje = egresos − ingresos."));
 
-  rep.append(el("h2", null, "2. Inyección de fondos"));
-  rep.append(tablaReporte(["Tipo", "Cantidad", "Importe"], [
-    ["2.1 Rescates de FCI", String(d.iny.rescates.length), f(d.rescates)],
-    ["2.2 Cheques de terceros descontados (neto recibido)", String(d.iny.descTerceros.length), f(d.descT)],
-    ["2.2 Cheques y pagarés propios negociados en bolsa (recibido)", String(d.iny.bolsaRecibido.length), f(d.bolsaRec)],
-    ["2.3 Brokers / ALYC (entradas, sin lo de bolsa)", String(d.iny.brokersEnt.length), f(d.brokersNeto)],
-    { clase: "rep-total", celdas: ["Total de inyección", "", f(d.inyeccion)] },
-    ["2.4 Entre cuentas propias (aparte: no suma al total)", String(d.iny.propiasEnt.length), f(d.propiasEnt)]
-  ], [1, 2]));
-  [["2.1 Rescates de FCI", TEXTOS_INYECCION.fci], ["2.2 Descuento de cheques y bolsa", TEXTOS_INYECCION.descuento + (d.costoDesc > 0 ? " Costo en el período: " + f(d.costoDesc) + "." : "")],
-    ["2.3 Brokers / ALYC", TEXTOS_INYECCION.brokers + (d.brokersEnt > d.brokersNeto ? " Entradas brutas: " + f(d.brokersEnt) + "." : "") + " Estas entradas también figuran dentro de los ingresos de Movimientos del punto 1."],
-    ["2.4 Entre cuentas propias", TEXTOS_INYECCION.propias]]
-    .forEach(x => { const p = el("p", "rep-nota"); p.append(el("b", null, x[0] + ": ")); p.append(document.createTextNode(x[1])); rep.append(p); });
-  if (d.propias.length) {
-    rep.append(el("p", "rep-nota", "Movimientos entre cuentas propias por banco:"));
-    rep.append(tablaReporte(["Banco", "Entró", "Salió"], d.propias.map(p => [p.banco, f(p.ent), f(p.sal)]), [1, 2]));
+  rep.append(el("h2", null, "2. Inyección de fondos (transferencias entre cuentas propias)"));
+  rep.append(el("p", "rep-nota", TEXTOS_INYECCION.propias));
+  rep.append(tablaReporte(["Cuenta que recibió la plata", "Cantidad", "Importe"], d.porDestino.map(x => [x.nombre, String(x.n), f(x.importe)])
+    .concat([{ clase: "rep-total", celdas: ["Total de inyección", String(d.transferencias.length), f(d.inyeccion)] }]), [1, 2]));
+  rep.append(tablaReporte(["Cuenta de donde salió", "Cantidad", "Importe"], d.porOrigen.map(x => [x.nombre, String(x.n), f(x.importe)]), [1, 2]));
+  if (d.transferencias.length) {
+    rep.append(el("p", "rep-nota", "Detalle de cada transferencia:"));
+    rep.append(tablaReporte(["Fecha", "Desde", "Hacia", "Concepto", "Importe"], d.transferencias.map(x => [x.fecha, x.desde, x.hacia, x.texto, f(x.importe)]), [4]));
   }
-  const detalleIny = d.iny.rescates.map(x => ({ v: x.importe, fila: [x.fecha, "Rescate FCI", x.texto, f(x.importe)] }))
-    .concat(d.iny.descTerceros.map(x => ({ v: x.importe, fila: [x.fecha, "Descuento", x.texto + (x.contraparte ? " · " + x.contraparte : ""), f(x.importe)] })))
-    .concat(d.iny.bolsaRecibido.map(x => ({ v: x.importe, fila: [x.fecha, "Bolsa", x.texto, f(x.importe)] })))
-    .concat(d.iny.brokersEnt.map(x => ({ v: x.importe, fila: [x.fecha, "Broker / ALYC", (x.contraparte || x.texto), f(x.importe)] })));
-  if (detalleIny.length) {
-    rep.append(el("p", "rep-nota", "Detalle de la inyección (los 15 mayores):"));
-    const orden = detalleIny.sort((a, b) => b.v - a.v).slice(0, 15).map(x => x.fila);
-    rep.append(tablaReporte(["Fecha", "Tipo", "Detalle", "Importe"], orden, [3]));
-  }
+  if (d.transferencias.some(x => !x.apareada)) rep.append(el("p", "rep-nota", "Cuando están cargadas las dos puntas de una transferencia (la salida de una cuenta y la entrada en la otra) se cuenta una sola vez. Las que tienen una sola punta cargada se cuentan por esa."));
 
   rep.append(el("h2", null, "3. Cheques"));
   const v = d.venc, g = (x, signo) => [String(x.n), f(signo * x.imp)];
@@ -10828,14 +10845,9 @@ function excelResumenGeneral(d) {
     ["Total", tt.movNIng + tt.chNIng, tt.ing, tt.movNEgr + tt.chNEgr, tt.egr, tt.ing + tt.egr], [],
     ["Desfasaje (egresos − ingresos)", tt.desfasaje], ["Inyección de fondos (total)", d.inyeccion],
     ["Cobertura del desfasaje", tt.desfasaje > 0 ? d.inyeccion / tt.desfasaje : ""], [],
-    ["Inyección por tipo", "Cantidad", "Importe", "Qué es"],
-    ["Rescates de FCI", d.iny.rescates.length, d.rescates, TEXTOS_INYECCION.fci],
-    ["Cheques de terceros descontados (neto)", d.iny.descTerceros.length, d.descT, TEXTOS_INYECCION.descuento],
-    ["Cheques y pagarés propios en bolsa (recibido)", d.iny.bolsaRecibido.length, d.bolsaRec, ""],
-    ["Entre cuentas propias (no suma al total)", d.iny.propiasEnt.length, d.propiasEnt, TEXTOS_INYECCION.propias],
-    ["Brokers / ALYC (sin lo de bolsa)", d.iny.brokersEnt.length, d.brokersNeto, TEXTOS_INYECCION.brokers],
-    ["Total de inyección", "", d.inyeccion, ""],
-    ["Costo del descuento y la bolsa", "", d.costoDesc, ""], [],
+    ["Inyección: cuenta que recibió", "Cantidad", "Importe"]].concat(d.porDestino.map(x => [x.nombre, x.n, x.importe])).concat([
+    ["Total de inyección", d.transferencias.length, d.inyeccion], [],
+    ["Inyección: cuenta de donde salió", "Cantidad", "Importe"]]).concat(d.porOrigen.map(x => [x.nombre, x.n, x.importe])).concat([[],
     ["Cheques con vencimiento en el período (estado de hoy)", "Cantidad", "Importe"],
     ["Emitidos: vencen en el período", d.venc.emit.tot.n, -d.venc.emit.tot.imp], ["Emitidos: debitados o pagados", d.venc.emit.pagados.n, -d.venc.emit.pagados.imp],
     ["Emitidos: pendientes sin debitar", d.venc.emit.pend.n, -d.venc.emit.pend.imp], ["Emitidos: anulados, rechazados o caducados", d.venc.emit.baja.n, -d.venc.emit.baja.imp],
@@ -10847,17 +10859,10 @@ function excelResumenGeneral(d) {
     ["De terceros recibidos (por ingreso)", d.ch.recibidosN, d.ch.recibidosImp], ["De terceros acreditados (por acreditación)", d.ch.acreditados.length, d.chIng],
     ["De terceros endosados", d.ch.endosados.length, d.ch.endosados.reduce((a, x) => a + x.importe, 0)],
     ["De terceros rechazados o caducados", d.ch.rechazados.length, d.ch.rechazados.reduce((a, x) => a + x.importe, 0)], [],
-    ["Notas"]].concat(notasResumenGeneral(d).map(t => [t]));
+    ["Notas"]]).concat(notasResumenGeneral(d).map(t => [t]));
   const det = l => l.map(x => [x.fecha, x.origen || "", x.texto, x.contraparte || "", x.banco || "", x.importe]);
   const H = ["Fecha", "Origen", "Concepto", "Contraparte", "Banco", "Importe"];
-  const inyFilas = [["Tipo", "Fecha", "Detalle", "Importe", "Nominal"]]
-    .concat(d.iny.rescates.map(x => ["Rescate FCI", x.fecha, x.texto, x.importe, ""]))
-    .concat(d.iny.suscripciones.map(x => ["Suscripción FCI (salida)", x.fecha, x.texto, x.importe, ""]))
-    .concat(d.iny.descTerceros.map(x => ["Cheque descontado", x.fecha, x.texto + (x.contraparte ? " · " + x.contraparte : ""), x.importe, x.nominal]))
-    .concat(d.iny.bolsaRecibido.map(x => ["Bolsa recibido", x.fecha, x.texto, x.importe, x.nominal]))
-    .concat(d.iny.bolsaPagado.map(x => ["Bolsa pagado (salida)", x.fecha, x.texto, x.importe, ""]))
-    .concat(d.iny.propiasEnt.concat(d.iny.propiasSal).map(x => ["Entre cuentas propias", x.fecha, (x.banco ? x.banco + " · " : "") + x.texto, x.importe, ""]))
-    .concat(d.iny.brokersEnt.concat(d.iny.brokersSal).map(x => ["Broker / ALYC", x.fecha, x.contraparte || x.texto, x.importe, ""]));
+  const inyFilas = [["Fecha", "Desde", "Hacia", "Concepto", "Importe"]].concat(d.transferencias.map(x => [x.fecha, x.desde, x.hacia, x.texto, x.importe]));
   const saldos = [["Cuenta", "Saldo inicial", "Saldo final", "Variación"]].concat(d.saldos.map(s => [s.cuenta, s.ini === null ? "" : s.ini, s.fin === null ? "" : s.fin, s.ini === null || s.fin === null ? "" : s.fin - s.ini]))
     .concat([["FCI", d.fciIni === null ? "" : d.fciIni, d.fciFin === null ? "" : d.fciFin, d.fciIni === null || d.fciFin === null ? "" : d.fciFin - d.fciIni]]);
   const semanas = [["Desde", "Hasta", "Ingresos", "Egresos", "Desfasaje", "Inyección"]].concat(d.semanas.map(s => [isoADma(s.desdeIso), isoADma(s.hastaIso), s.ing, s.egr, Math.max(0, -(s.ing + s.egr)), s.iny]));
@@ -10865,7 +10870,7 @@ function excelResumenGeneral(d) {
     { nombre: "Resumen", filas: resumen, anchos: [52, 14, 18, 90] },
     { nombre: "Ingresos", filas: [H].concat(det(d.p1.filter(x => x.importe > 0))), anchos: [11, 18, 40, 30, 12, 16] },
     { nombre: "Egresos", filas: [H].concat(det(d.p1.filter(x => x.importe < 0))), anchos: [11, 18, 40, 30, 12, 16] },
-    { nombre: "Inyección", filas: inyFilas, anchos: [24, 11, 50, 16, 16] },
+    { nombre: "Inyección", filas: inyFilas, anchos: [11, 34, 34, 40, 16] },
     { nombre: "Saldos", filas: saldos, anchos: [36, 16, 16, 16] },
     { nombre: "Por semana", filas: semanas, anchos: [12, 12, 16, 16, 16, 16] }
   ]);
