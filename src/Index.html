@@ -899,6 +899,10 @@
   .rd-card .pl-head { flex-wrap: wrap; gap: 8px; }
   .rd-pie, .botones-imagen { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .rd-pie { margin-top: 10px; }
+  .parte-wsp { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .parte-item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); }
+  .parte-item-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .parte-item img { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
   .posicion-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
   .posicion-barra label { max-width: 200px; margin: 0; }
   .posicion-atajos { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1863,6 +1867,7 @@
       <button class="secondary small btn-entrada-manual" data-tipo-default="FCI" type="button">FCI (rescate, suscripción o saldo)</button>
       <button class="secondary small" id="iniRapMovFci" type="button">Varios rescates y suscripciones</button>
       <button class="secondary small" id="iniRapSalida" type="button">Salida de cheques</button>
+      <button class="small" id="iniParteWsp" type="button" title="Las 4 imágenes de todas las mañanas: resumen del día, rendimientos FCI, cheques ingresados y detalle de ingresos">Parte del día (WhatsApp)</button>
     </div>
     <div class="ini-metricas-bar">
       <button class="link-btn" id="iniVerMetricas" type="button" aria-expanded="false" aria-controls="iniTablero">Ver tablero y métricas</button>
@@ -3112,6 +3117,18 @@
       <button class="secondary" data-cerrar="modalSugBolsa" type="button">Cancelar</button>
       <button id="sugBolsaGuardar" type="button">Guardar las marcadas</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: PARTE DEL DÍA PARA WHATSAPP ===================== -->
+<div class="modal-overlay" id="modalParteWsp">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="parteWspTitulo">
+    <div class="modal__head">
+      <div><h3 id="parteWspTitulo">Parte del día para WhatsApp</h3><div class="sub-dato">Las cuatro imágenes de la mañana, armadas con la planilla de saldos (aunque no esté guardada) y los cheques cargados. Copiá una, pegala en WhatsApp con Ctrl+V y seguí con la siguiente.</div></div>
+      <button class="modal__close" data-cerrar="modalParteWsp" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body"><div class="parte-wsp" id="parteWspBox"></div></div>
+    <div class="modal__foot"><button class="secondary" id="parteWspTodo" type="button" title="Descarga las cuatro imágenes juntas (en el celular, las comparte)">Descargar o compartir las 4</button></div>
   </div>
 </div>
 
@@ -12084,6 +12101,69 @@ function hojaPosicion(p) {
   return rep;
 }
 
+// ----- Parte del día para WhatsApp -----
+// 1) Resumen del día: la planilla de saldos de Inicio. 2) Rendimientos FCI: el cuadro "Rendimiento
+// del día". 3) Cheques ingresados: los de terceros recibidos ese día con su numeración. 4) Detalle
+// de ingresos: los mismos con el registro interno (librador, concepto, destino y estado).
+function imagenesParteDia() {
+  const fechaIso = planillaFecha || hoyIso();
+  const f = isoADma(fechaIso).split("/").join("-");
+  const recibidos = chequesDatos.filter(c => c["Tipo"] === "De terceros" && fechaAOrden(c["Fecha de Ingreso"] || c["Fecha de Emisión"] || "") === fechaIso)
+    .sort((a, b) => soloDigitos(a["N° de Cheque"]).localeCompare(soloDigitos(b["N° de Cheque"])));
+  const total = l => { const t = {}; l.forEach(c => { const m = monedaCheque(c); t[m] = (t[m] || 0) + Math.abs(parseImporte(c["Importe"])); }); return t; };
+  const tot = total(recibidos);
+  const filasTot = (n) => Object.keys(tot).map(m => ({ clase: "total", celdas: ["Total " + (m === "USD" ? "U$D" : "$"), recibidos.length + " cheque(s)"].concat(new Array(n - 3).fill("")).concat([textoImporte(tot[m], m)]) }));
+  const ingresados = () => imagenTabla({ titulo: "Cheques ingresados", subtitulo: nombreDia(fechaIso), columnas: ["N° de cheque", "Banco emisor", "Fecha de pago", "Importe"], derecha: [3],
+    filas: recibidos.length ? recibidos.map(c => [c["N° de Cheque"], c["Banco Emisor"] || c["Banco Aceptante"] || "", c["Fecha de Pago"] || "", textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]).concat(filasTot(4)) : [["—", "No ingresaron cheques", "", ""]] });
+  const detalle = () => imagenTabla({ titulo: "Detalle de ingresos", subtitulo: nombreDia(fechaIso), columnas: ["N° de cheque", "Librador", "Concepto", "Destino", "Fecha de pago", "Importe"], derecha: [5],
+    filas: recibidos.length ? recibidos.map(c => [c["N° de Cheque"], c["Titular"] || "", c["Concepto"] || "", c["Destino"] || c["Persona"] || "", c["Fecha de Pago"] || "", textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]).concat(filasTot(6)) : [["—", "No ingresaron cheques", "", "", "", ""]] });
+  return [
+    { titulo: "1. Resumen del día", nombre: "Resumen del día " + f + ".png", armar: () => dibujarImagenPlanilla(planillaGrupos, fechaIso) },
+    { titulo: "2. Rendimientos FCI", nombre: "Rendimientos FCI " + f + ".png", armar: renderRendDiaInicio.imagen || (() => imagenTabla({ titulo: "Rendimientos FCI", subtitulo: nombreDia(fechaIso), columnas: ["FCI"], filas: [["Sin FCI con saldo"]] })) },
+    { titulo: "3. Cheques ingresados", nombre: "Cheques ingresados " + f + ".png", armar: ingresados },
+    { titulo: "4. Detalle de ingresos", nombre: "Detalle de ingresos " + f + ".png", armar: detalle }
+  ];
+}
+
+let parteWspLista = [];
+async function abrirParteWsp() {
+  await asegurarCheques().catch(() => {});
+  const box = $("parteWspBox");
+  box.replaceChildren();
+  parteWspLista = imagenesParteDia();
+  parteWspLista.forEach(it => {
+    const caja = el("div", "parte-item");
+    const cab = el("div", "parte-item-cab");
+    cab.append(el("b", null, it.titulo), botonesImagen(it.armar, () => it.nombre, it.titulo));
+    const img = el("img");
+    img.alt = it.titulo;
+    try { img.src = it.armar().toDataURL("image/png"); } catch (e) { img.alt = "No se pudo armar: " + msgErr(e); }
+    caja.append(cab, img);
+    box.append(caja);
+  });
+  const cambios = (planillaGrupos || []).some(g => g.fci.cambio || g.cuentas.some(x => x.cambio));
+  if (cambios) box.prepend(el("p", "hint msg-error", "La planilla tiene cambios sin guardar: las imágenes los incluyen, pero acordate de tocar Guardar saldos."));
+  abrirModal("modalParteWsp");
+}
+$("iniParteWsp").addEventListener("click", abrirParteWsp);
+$("parteWspTodo").addEventListener("click", async () => {
+  const archivos = [];
+  for (const it of parteWspLista) {
+    const b = await new Promise(ok => it.armar().toBlob(ok, "image/png"));
+    if (b) archivos.push(new File([b], it.nombre, { type: "image/png" }));
+  }
+  const enCelular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  if (enCelular && navigator.canShare && navigator.canShare({ files: archivos })) {
+    try { await navigator.share({ files: archivos, title: "Parte del día" }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  archivos.forEach((a, i) => setTimeout(() => {
+    const url = URL.createObjectURL(a);
+    const l = el("a"); l.href = url; l.download = a.name; document.body.append(l); l.click(); l.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, i * 400));
+  toast("Se descargan las " + archivos.length + " imágenes.", "ok");
+});
+
 let posicionActual = null;
 async function abrirPosicion(iso) {
   const anio = parseInt(hoyIso().substring(0, 4), 10);
@@ -18730,6 +18810,7 @@ function renderRendDiaInicio() {
   acc.append(selDias);
   head.append(tit, acc);
   card.append(head);
+  renderRendDiaInicio.imagen = null;
   if (!filas.length) {
     card.append(el("p", "hint", "Ningún FCI tiene saldo al " + isoADma(fechaIso) + ". Escribilo en la columna FCI de la planilla."));
     box.replaceChildren(card);
@@ -18792,11 +18873,12 @@ function renderRendDiaInicio() {
   card.append(envolverTabla(tabla));
   if (tot.falta) card.append(el("p", "dt-sub", tot.falta + " FCI sin el saldo de hoy: el ganado aparece cuando lo escribís."));
   const pie = el("div", "pl-acciones rd-pie");
-  pie.append(botonesImagen(() => imagenTabla({
+  renderRendDiaInicio.imagen = () => imagenTabla({
     titulo: "Rendimientos FCI", subtitulo: nombreDia(fechaIso),
     columnas: ["FCI", "Cierre anterior", "Susc. / resc.", "Saldo de hoy", "Ganado", "TNA"], derecha: [1, 2, 3, 4, 5], filas: img,
     nota: "Ganado = saldo de hoy − (cierre anterior ± suscripciones y rescates)."
-  }), () => "Rendimientos FCI " + isoADma(fechaIso).split("/").join("-") + ".png", "Rendimientos FCI"));
+  });
+  pie.append(botonesImagen(renderRendDiaInicio.imagen, () => "Rendimientos FCI " + isoADma(fechaIso).split("/").join("-") + ".png", "Rendimientos FCI"));
   card.append(pie);
   box.replaceChildren(card);
 }
