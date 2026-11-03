@@ -10488,54 +10488,77 @@ function datosResumenGeneral(desde, hasta) {
   const usd = { mov: 0, cheques: 0 };
   const omitidos = { n: 0, importe: 0 };
   let sinFecha = 0;
+  const puente = { ing: 0, egr: 0, concIng: 0, concEgr: 0, extIng: 0, extEgr: 0 };
   const fciMov = [];
   const iny = { rescates: [], suscripciones: [], descTerceros: [], bolsaRecibido: [], bolsaPagado: [], bolsaSinRecibido: 0,
     propiasEnt: [], propiasSal: [], brokersEnt: [], brokersSal: [] };
-  const ch = { emitidosN: 0, emitidosImp: 0, debitados: [], pendPeriodo: [], abiertosN: 0, abiertosImp: 0,
-    recibidosN: 0, recibidosImp: 0, acreditados: [], endosados: [], rechazados: [], carteraN: 0, carteraImp: 0 };
+  const ch = { emitidosN: 0, emitidosImp: 0, debitados: [], recibidosN: 0, recibidosImp: 0, acreditados: [], endosados: [], rechazados: [] };
+  // Por vencimiento (Fecha de Pago en el período), como la pestaña Cheques; estado de hoy.
+  const nuevoGrupo = () => ({ n: 0, imp: 0 });
+  const venc = {
+    emit: { tot: nuevoGrupo(), pagados: nuevoGrupo(), pend: nuevoGrupo(), baja: nuevoGrupo() },
+    terc: { tot: nuevoGrupo(), acred: nuevoGrupo(), endos: nuevoGrupo(), desc: nuevoGrupo(), rech: nuevoGrupo(), cartera: nuevoGrupo() }
+  };
+  const sumarGrupo = (g, imp) => { g.n++; g.imp += imp; };
 
   // Movimientos
   transferenciasDatos.forEach(f => {
     const iso = isoFechaRep(f["Fecha del Movimiento"]) || isoFechaRep(f["Fecha de Carga"]);
     if (!iso) { sinFecha++; return; }
-    if (!enPer(iso) || (f["Origen"] === "Resumen" && f["Conciliación"])) return;
+    if (!enPer(iso)) return;
     const m = parseImporte(f["Monto"]);
     if (!m) return;
-    if (f["Moneda"] === "USD") { usd.mov++; return; }
+    if (f["Moneda"] === "USD") { if (!esPropia(f)) usd.mov++; return; }
+    const conciliadaResumen = f["Origen"] === "Resumen" && f["Conciliación"];
+    // Lo mismo que suma la pestaña Movimientos: todo lo del período en pesos, sin cuentas propias.
+    if (!esPropia(f)) { if (m > 0) puente.ing += m; else puente.egr += m; }
+    if (conciliadaResumen) { if (!esPropia(f)) { if (m > 0) puente.concIng += m; else puente.concEgr += m; } return; }
     const item = { iso: iso, fecha: isoADma(iso), origen: "Movimiento", banco: f["Banco"] || "", texto: f["Concepto"] || "Movimiento",
       contraparte: m > 0 ? (f["Ordenante"] || f["Contraparte"] || "") : (f["Destinatario"] || f["Contraparte"] || ""), importe: m };
     if (esPropia(f)) { (m > 0 ? iny.propiasEnt : iny.propiasSal).push(item); return; }
     if (esMovimientoFinanciero(f)) { (m > 0 ? iny.brokersEnt : iny.brokersSal).push(item); return; }
     if (f["Instrumento"] === "FCI") { fciMov.push(item); return; }
     const t = textoDeMov(f);
-    if (f["Origen"] === "Resumen" && (tieneClave(t, CLAVES_EXTRACTO_CHEQUE) || tieneClave(t, CLAVES_EXTRACTO_FCI))) { omitidos.n++; omitidos.importe += m; return; }
+    if (f["Origen"] === "Resumen" && (tieneClave(t, CLAVES_EXTRACTO_CHEQUE) || tieneClave(t, CLAVES_EXTRACTO_FCI))) {
+      omitidos.n++; omitidos.importe += m;
+      if (m > 0) puente.extIng += m; else puente.extEgr += m;
+      return;
+    }
     (m > 0 ? ingresos : egresos).push(item);
   });
 
-  // Cheques (los negociados en bolsa van con Bolsa)
+  // Cheques. Los negociados en bolsa no entran en el flujo (van con Bolsa), pero sí en los
+  // conteos por vencimiento, igual que en la pestaña Cheques.
   chequesDatos.forEach(c => {
     const imp = Math.abs(parseImporte(c["Importe"]));
-    if (!imp || c["Canal"] === "Bolsa") return;
+    if (!imp) return;
     const estado = normalizar(c["Estado"] || "").trim();
     const isoEmi = isoFechaRep(c["Fecha de Emisión"] || "");
-    const isoPago = isoFechaRep(c["Fecha de Pago"] || c["Fecha de Emisión"] || "");
+    const isoVto = isoFechaRep(c["Fecha de Pago"] || "");
     const abierto = chequeAbierto(c);
     // Cerrado sin fecha de débito cargada: se toma la de pago.
-    const isoEf = isoFechaRep(c["Fecha de Débito"] || "") || (abierto ? "" : isoPago);
-    if (monedaCheque(c) === "USD") { if (enPer(isoEf) || enPer(isoEmi)) usd.cheques++; return; }
+    const isoEf = isoFechaRep(c["Fecha de Débito"] || "") || (abierto ? "" : (isoVto || isoEmi));
+    if (monedaCheque(c) === "USD") { if (enPer(isoEf) || enPer(isoVto)) usd.cheques++; return; }
+    const emitido = c["Tipo"] === "Emitido";
     const sinEfecto = ESTADOS_CHEQUE_SIN_EFECTO.indexOf(estado) >= 0;
+    const rech = ["RECHAZADO", "DEVOLUCION", "CADUCADO", "ANULADO"].indexOf(estado) >= 0;
+
+    if (enPer(isoVto)) {
+      if (emitido) {
+        sumarGrupo(venc.emit.tot, imp);
+        sumarGrupo(abierto ? venc.emit.pend : rech ? venc.emit.baja : venc.emit.pagados, imp);
+      } else {
+        sumarGrupo(venc.terc.tot, imp);
+        sumarGrupo(abierto ? venc.terc.cartera : estado === "DESCONTADO" ? venc.terc.desc : estado === "ENDOSADO" ? venc.terc.endos : rech ? venc.terc.rech : venc.terc.acred, imp);
+      }
+    }
+    if (c["Canal"] === "Bolsa") return;
+
     const base = { fecha: isoEf ? isoADma(isoEf) : (c["Fecha de Pago"] || ""), banco: c["Banco"] || "", contraparte: c["Titular"] || "", estado: estadoCheque(c).texto };
-    if (c["Tipo"] === "Emitido") {
+    if (emitido) {
       base.texto = "Cheque emitido N° " + c["N° de Cheque"];
       if (enPer(isoEmi)) { ch.emitidosN++; ch.emitidosImp += imp; }
-      // Pendiente al cierre: emitido hasta esa fecha y sin debitar a esa fecha (los anulados no).
-      const pendCierre = (!isoEmi || isoEmi <= hasta) && (abierto || (!sinEfecto && isoEf > hasta));
-      if (pendCierre && (isoEmi || abierto)) {
-        ch.abiertosN++; ch.abiertosImp += imp;
-        if (enPer(isoPago)) ch.pendPeriodo.push(Object.assign({}, base, { fecha: isoPago ? isoADma(isoPago) : "", importe: -imp }));
-      }
-      if (abierto) return;
-      if (!sinEfecto && enPer(isoEf)) {
+      if (!abierto && !sinEfecto && enPer(isoEf)) {
         const x = Object.assign({ iso: isoEf, origen: "Cheque emitido", importe: -imp }, base);
         egresos.push(x); ch.debitados.push(x);
       }
@@ -10544,15 +10567,12 @@ function datosResumenGeneral(desde, hasta) {
     base.texto = "Cheque de terceros N° " + c["N° de Cheque"];
     const isoIng = isoFechaRep(c["Fecha de Ingreso"] || "") || isoEmi;
     if (enPer(isoIng)) { ch.recibidosN++; ch.recibidosImp += imp; }
-    // En cartera al cierre: ya recibido a esa fecha y todavía sin depositar, endosar ni descontar.
-    if ((!isoIng || isoIng <= hasta) && (isoIng || abierto) && (abierto || isoEf > hasta)) { ch.carteraN++; ch.carteraImp += imp; }
-    if (abierto) return;
-    if (!enPer(isoEf)) return;
+    if (abierto || !enPer(isoEf)) return;
     if (estado === "DESCONTADO") {
       const neto = parseImporte(c["Neto Descontado"]);
       iny.descTerceros.push(Object.assign({ iso: isoEf, importe: neto > 0 ? neto : imp, nominal: imp }, base));
     } else if (estado === "ENDOSADO") ch.endosados.push(Object.assign({ iso: isoEf, importe: imp }, base));
-    else if (["RECHAZADO", "DEVOLUCION", "CADUCADO"].indexOf(estado) >= 0) ch.rechazados.push(Object.assign({ iso: isoEf, importe: imp }, base));
+    else if (rech) ch.rechazados.push(Object.assign({ iso: isoEf, importe: imp }, base));
     else if (!sinEfecto) {
       const x = Object.assign({ iso: isoEf, origen: "Cheque de terceros", importe: imp }, base);
       ingresos.push(x); ch.acreditados.push(x);
@@ -10632,22 +10652,41 @@ function datosResumenGeneral(desde, hasta) {
     const a = saldoEstimado(c, antes), b = saldoEstimado(c, hasta);
     return { cuenta: cuentaTexto(c), ini: a ? a.estimado : null, fin: b ? b.estimado : null };
   }).filter(s => s.ini !== null || s.fin !== null);
-  const fciEn = iso => fciQueSuma(fciVigentes(iso)).filter(f => f.moneda !== "USD").reduce((a, f) => a + f.saldo, 0);
+  const fciEn = iso => {
+    const l = fciQueSuma(fciVigentes(iso)).filter(f => f.moneda !== "USD");
+    return l.length ? l.reduce((a, f) => a + f.saldo, 0) : null;
+  };
 
   return {
     desde: desde, hasta: hasta, ingresos: ingresos, egresos: egresos, totIng: totIng, totEgr: totEgr, desfasaje: desfasaje,
+    fciMov: fciMov,
     movIng: tot(ingresos.filter(x => x.origen === "Movimiento")), movEgr: tot(egresos.filter(x => x.origen === "Movimiento")),
     chIng: tot(ch.acreditados), chEgr: tot(ch.debitados),
     iny: iny, rescates: rescates, descT: descT, bolsaRec: bolsaRec, brokersEnt: brokersEnt, brokersNeto: brokersNeto, inyeccion: inyeccion,
     costoDesc: costoDesc, salidasFin: salidasFin, propias: Object.keys(propias).map(k => propias[k]).sort((a, b) => b.ent - a.ent),
     propiasEnt: tot(iny.propiasEnt), ch: ch, semanas: listaSemanas, peoresDias: peoresDias,
     topIng: top(ingresos, 10), topEgr: top(egresos, 10), contIng: porContraparte(ingresos), contEgr: porContraparte(egresos),
-    saldos: saldos, fciIni: fciEn(antes), fciFin: fciEn(hasta), usd: usd, omitidos: omitidos, sinFecha: sinFecha
+    saldos: saldos, fciIni: fciEn(antes), fciFin: fciEn(hasta), usd: usd, omitidos: omitidos, sinFecha: sinFecha, puente: puente, venc: venc
   };
 }
 
 function pctTextoSimple(a, b) {
   return b > 0 ? (Math.round(a / b * 1000) / 10).toString().split(".").join(",") + "%" : "-";
+}
+
+// De lo que muestra la pestaña Movimientos a los movimientos operativos del resumen.
+function filasPuenteMovimientos(d) {
+  const p = d.puente;
+  const sumaSigno = (l, pos) => l.filter(x => pos ? x.importe > 0 : x.importe < 0).reduce((a, x) => a + x.importe, 0);
+  const brokIng = sumaSigno(d.iny.brokersEnt, true), brokEgr = sumaSigno(d.iny.brokersSal, false);
+  const fciIng = sumaSigno(d.fciMov, true), fciEgr = sumaSigno(d.fciMov, false);
+  const filas = [{ t: "Movimientos del período (igual que la pestaña Movimientos con el mismo filtro de fechas)", ing: p.ing, egr: p.egr, total: "destacada" }];
+  if (brokIng || brokEgr) filas.push({ t: "Menos: brokers / ALYC (van a inyección 2.4 y a salidas financieras)", ing: -brokIng, egr: -brokEgr });
+  if (fciIng || fciEgr) filas.push({ t: "Menos: rescates y suscripciones de FCI cargados como movimiento (van al punto 2.1)", ing: -fciIng, egr: -fciEgr });
+  if (p.extIng || p.extEgr) filas.push({ t: "Menos: líneas del extracto que son cheques o FCI (se cuentan desde Cheques y FCI)", ing: -p.extIng, egr: -p.extEgr });
+  if (p.concIng || p.concEgr) filas.push({ t: "Menos: líneas del extracto ya conciliadas (se cuentan con su registro propio)", ing: -p.concIng, egr: -p.concEgr });
+  filas.push({ t: "Movimientos operativos", ing: d.movIng, egr: d.movEgr, total: "total" });
+  return filas;
 }
 
 function notasResumenGeneral(d) {
@@ -10667,9 +10706,15 @@ function reporteResumenGeneralNodo(d) {
   const f = fmtImp;
 
   rep.append(el("h2", null, "1. Ingresos, egresos y desfasaje"));
+  rep.append(el("p", "rep-nota", "Cómo se llega desde la pestaña Movimientos a los movimientos operativos:"));
+  rep.append(tablaReporte(["Movimientos", "Ingresos", "Egresos"], filasPuenteMovimientos(d).map(x => {
+    const celdas = [x.t, f(x.ing), f(x.egr)];
+    return x.total ? { clase: x.total === "total" ? "rep-total" : "rep-destacada", celdas: celdas } : celdas;
+  }), [1, 2]));
+  rep.append(el("p", "rep-nota", "Ingresos y egresos operativos:"));
   rep.append(tablaReporte(["Concepto", "Ingresos", "Egresos", "Neto"], [
-    ["Movimientos (transferencias, efectivo, débitos y créditos del banco)", f(d.movIng), f(d.movEgr), f(d.movIng + d.movEgr)],
-    ["Cheques (de terceros acreditados / emitidos debitados)", f(d.chIng), f(d.chEgr), f(d.chIng + d.chEgr)],
+    ["Movimientos operativos", f(d.movIng), f(d.movEgr), f(d.movIng + d.movEgr)],
+    ["Cheques (de terceros acreditados / emitidos debitados en el período)", f(d.chIng), f(d.chEgr), f(d.chIng + d.chEgr)],
     { clase: "rep-total", celdas: ["Total operativo", f(d.totIng), f(d.totEgr), f(d.totIng + d.totEgr)] }
   ], [1, 2, 3]));
   rep.append(tablaReporte(["Resultado", "Importe"], [
@@ -10708,29 +10753,45 @@ function reporteResumenGeneralNodo(d) {
   }
 
   rep.append(el("h2", null, "3. Cheques"));
-  const c = d.ch;
+  const v = d.venc, g = (x, signo) => [String(x.n), f(signo * x.imp)];
+  rep.append(el("p", "rep-nota", "Con vencimiento (fecha de pago) en el período, y su estado hoy: igual que la pestaña Cheques con el filtro Vencimiento."));
   rep.append(tablaReporte(["Cheques emitidos (propios)", "Cantidad", "Importe"], [
-    ["Emitidos en el período", String(c.emitidosN), f(-c.emitidosImp)],
-    ["Debitados en el período", String(c.debitados.length), f(d.chEgr)],
-    ["Con fecha de pago en el período y todavía sin debitar", String(c.pendPeriodo.length), f(c.pendPeriodo.reduce((a, x) => a + x.importe, 0))],
-    { clase: "rep-destacada", celdas: ["Pendientes de débito al " + isoADma(d.hasta), String(c.abiertosN), f(-c.abiertosImp)] }
+    { clase: "rep-destacada", celdas: ["Vencen en el período"].concat(g(v.emit.tot, -1)) },
+    ["Ya debitados o pagados"].concat(g(v.emit.pagados, -1)),
+    ["Pendientes, sin debitar (Emitidos pendientes en la pestaña, solapa En curso)"].concat(g(v.emit.pend, -1)),
+    ["Anulados, rechazados o caducados"].concat(g(v.emit.baja, -1))
   ], [1, 2]));
   rep.append(tablaReporte(["Cheques de terceros (recibidos)", "Cantidad", "Importe"], [
-    ["Recibidos en el período", String(c.recibidosN), f(c.recibidosImp)],
-    ["Depositados y acreditados en el período", String(c.acreditados.length), f(d.chIng)],
-    ["Descontados en el período (nominal)", String(d.iny.descTerceros.length), f(d.iny.descTerceros.reduce((a, x) => a + x.nominal, 0))],
-    ["Endosados a proveedores en el período", String(c.endosados.length), f(c.endosados.reduce((a, x) => a + x.importe, 0))],
-    ["Rechazados, devueltos o caducados en el período", String(c.rechazados.length), f(c.rechazados.reduce((a, x) => a + x.importe, 0))],
-    { clase: "rep-destacada", celdas: ["En cartera al " + isoADma(d.hasta), String(c.carteraN), f(c.carteraImp)] }
+    { clase: "rep-destacada", celdas: ["Vencen en el período"].concat(g(v.terc.tot, 1)) },
+    ["Depositados y acreditados"].concat(g(v.terc.acred, 1)),
+    ["Endosados a proveedores"].concat(g(v.terc.endos, 1)),
+    ["Descontados"].concat(g(v.terc.desc, 1)),
+    ["Rechazados, devueltos o caducados"].concat(g(v.terc.rech, 1)),
+    ["En cartera, sin acreditar (De terceros en cartera en la pestaña, solapa En curso)"].concat(g(v.terc.cartera, 1))
   ], [1, 2]));
-  rep.append(el("p", "rep-nota", "Los endosados pagan a un proveedor sin pasar por el banco: no entran en ingresos ni egresos."));
+  const c = d.ch;
+  rep.append(el("p", "rep-nota", "Movimiento de cheques en el período, por la fecha de cada hecho (cualquiera sea su vencimiento):"));
+  rep.append(tablaReporte(["Concepto", "Cantidad", "Importe"], [
+    ["Emitidos (por fecha de emisión)", String(c.emitidosN), f(-c.emitidosImp)],
+    ["Emitidos debitados (por fecha de débito)", String(c.debitados.length), f(d.chEgr)],
+    ["De terceros recibidos (por fecha de ingreso)", String(c.recibidosN), f(c.recibidosImp)],
+    ["De terceros acreditados (por fecha de acreditación)", String(c.acreditados.length), f(d.chIng)],
+    ["De terceros endosados (por fecha de endoso)", String(c.endosados.length), f(c.endosados.reduce((a, x) => a + x.importe, 0))],
+    ["De terceros descontados (nominal, por fecha de descuento)", String(d.iny.descTerceros.length), f(d.iny.descTerceros.reduce((a, x) => a + x.nominal, 0))],
+    ["De terceros rechazados o caducados", String(c.rechazados.length), f(c.rechazados.reduce((a, x) => a + x.importe, 0))]
+  ], [1, 2]));
+  rep.append(el("p", "rep-nota", "Los endosados pagan a un proveedor sin pasar por el banco: no entran en ingresos ni egresos. Los cheques negociados en bolsa no entran en el flujo de cheques: van en el punto 2.2."));
 
   rep.append(el("h2", null, "4. Saldos"));
-  const filasSaldos = d.saldos.map(s => [s.cuenta, s.ini === null ? "Sin saldo" : f(s.ini), s.fin === null ? "Sin saldo" : f(s.fin), s.ini === null || s.fin === null ? "" : f(s.fin - s.ini)]);
-  const sIni = d.saldos.reduce((a, s) => a + (s.ini || 0), 0), sFin = d.saldos.reduce((a, s) => a + (s.fin || 0), 0);
-  filasSaldos.push(["FCI (todos los bancos)", f(d.fciIni), f(d.fciFin), f(d.fciFin - d.fciIni)]);
-  filasSaldos.push({ clase: "rep-total", celdas: ["Total de fondos", f(sIni + d.fciIni), f(sFin + d.fciFin), f(sFin + d.fciFin - sIni - d.fciIni)] });
+  const todas = d.saldos.concat([{ cuenta: "FCI (todos los bancos)", ini: d.fciIni, fin: d.fciFin }]);
+  const sinDato = "Sin saldo informado";
+  const filasSaldos = todas.map(s => [s.cuenta, s.ini === null ? sinDato : f(s.ini), s.fin === null ? sinDato : f(s.fin), s.ini === null || s.fin === null ? "" : f(s.fin - s.ini)]);
+  const conIni = todas.filter(s => s.ini !== null), conFin = todas.filter(s => s.fin !== null), ambos = todas.filter(s => s.ini !== null && s.fin !== null);
+  filasSaldos.push({ clase: "rep-total", celdas: ["Total de fondos",
+    conIni.length ? f(conIni.reduce((a, s) => a + s.ini, 0)) : sinDato, conFin.length ? f(conFin.reduce((a, s) => a + s.fin, 0)) : sinDato,
+    ambos.length ? f(ambos.reduce((a, s) => a + s.fin - s.ini, 0)) : ""] });
   rep.append(tablaReporte(["Cuenta", "Al " + isoADma(sumarDiasIso(d.desde, -1)), "Al " + isoADma(d.hasta), "Variación"], filasSaldos, [1, 2, 3]));
+  if (todas.some(s => s.ini === null)) rep.append(el("p", "rep-nota", "\"" + sinDato + "\": no hay un saldo cargado de esa cuenta en esa fecha o antes, así que no se puede calcular su variación. La variación total suma solo las cuentas con los dos saldos."));
 
   rep.append(el("h2", null, "5. Por semana"));
   rep.append(tablaReporte(["Semana", "Ingresos", "Egresos", "Desfasaje", "Inyección"], d.semanas.map(s => [isoADma(s.desdeIso).substring(0, 5) + " al " + isoADma(s.hastaIso).substring(0, 5), f(s.ing), f(s.egr), s.ing + s.egr < 0 ? f(-(s.ing + s.egr)) : "-", f(s.iny)]), [1, 2, 3, 4]));
@@ -10758,8 +10819,9 @@ function reporteResumenGeneralNodo(d) {
 function excelResumenGeneral(d) {
   const per = isoADma(d.desde) + " al " + isoADma(d.hasta);
   const resumen = [["Resumen general de tesorería · " + (config.empresa || "")], ["Período: " + per + " · importes en pesos"], ["Generado el " + hoyTexto() + " por " + (usuarioActual ? usuarioActual.nombre : "")], [],
+    ["Movimientos", "Ingresos", "Egresos"]].concat(filasPuenteMovimientos(d).map(x => [x.t, x.ing, x.egr])).concat([[],
     ["Concepto", "Ingresos", "Egresos", "Neto"],
-    ["Movimientos", d.movIng, d.movEgr, d.movIng + d.movEgr],
+    ["Movimientos operativos", d.movIng, d.movEgr, d.movIng + d.movEgr],
     ["Cheques", d.chIng, d.chEgr, d.chIng + d.chEgr],
     ["Total operativo", d.totIng, d.totEgr, d.totIng + d.totEgr], [],
     ["Desfasaje (egresos − ingresos operativos)", d.desfasaje], ["Inyección de fondos (total)", d.inyeccion],
@@ -10772,15 +10834,18 @@ function excelResumenGeneral(d) {
     ["Entre cuentas propias (no suma al total)", d.iny.propiasEnt.length, d.propiasEnt, TEXTOS_INYECCION.propias],
     ["Brokers / ALYC (sin lo de bolsa)", d.iny.brokersEnt.length, d.brokersNeto, TEXTOS_INYECCION.brokers],
     ["Costo del descuento y la bolsa", "", d.costoDesc, ""], [],
-    ["Cheques", "Cantidad", "Importe"],
-    ["Emitidos en el período", d.ch.emitidosN, -d.ch.emitidosImp], ["Emitidos debitados en el período", d.ch.debitados.length, d.chEgr],
-    ["Emitidos con pago en el período sin debitar", d.ch.pendPeriodo.length, d.ch.pendPeriodo.reduce((a, x) => a + x.importe, 0)],
-    ["Emitidos pendientes de débito al cierre", d.ch.abiertosN, -d.ch.abiertosImp],
-    ["De terceros recibidos en el período", d.ch.recibidosN, d.ch.recibidosImp], ["De terceros acreditados en el período", d.ch.acreditados.length, d.chIng],
-    ["De terceros endosados en el período", d.ch.endosados.length, d.ch.endosados.reduce((a, x) => a + x.importe, 0)],
-    ["De terceros rechazados o caducados en el período", d.ch.rechazados.length, d.ch.rechazados.reduce((a, x) => a + x.importe, 0)],
-    ["De terceros en cartera al cierre", d.ch.carteraN, d.ch.carteraImp], [],
-    ["Notas"]].concat(notasResumenGeneral(d).map(t => [t]));
+    ["Cheques con vencimiento en el período (estado de hoy)", "Cantidad", "Importe"],
+    ["Emitidos: vencen en el período", d.venc.emit.tot.n, -d.venc.emit.tot.imp], ["Emitidos: debitados o pagados", d.venc.emit.pagados.n, -d.venc.emit.pagados.imp],
+    ["Emitidos: pendientes sin debitar", d.venc.emit.pend.n, -d.venc.emit.pend.imp], ["Emitidos: anulados, rechazados o caducados", d.venc.emit.baja.n, -d.venc.emit.baja.imp],
+    ["De terceros: vencen en el período", d.venc.terc.tot.n, d.venc.terc.tot.imp], ["De terceros: acreditados", d.venc.terc.acred.n, d.venc.terc.acred.imp],
+    ["De terceros: endosados", d.venc.terc.endos.n, d.venc.terc.endos.imp], ["De terceros: descontados", d.venc.terc.desc.n, d.venc.terc.desc.imp],
+    ["De terceros: rechazados o caducados", d.venc.terc.rech.n, d.venc.terc.rech.imp], ["De terceros: en cartera", d.venc.terc.cartera.n, d.venc.terc.cartera.imp], [],
+    ["Cheques por fecha de cada hecho", "Cantidad", "Importe"],
+    ["Emitidos (por emisión)", d.ch.emitidosN, -d.ch.emitidosImp], ["Emitidos debitados (por débito)", d.ch.debitados.length, d.chEgr],
+    ["De terceros recibidos (por ingreso)", d.ch.recibidosN, d.ch.recibidosImp], ["De terceros acreditados (por acreditación)", d.ch.acreditados.length, d.chIng],
+    ["De terceros endosados", d.ch.endosados.length, d.ch.endosados.reduce((a, x) => a + x.importe, 0)],
+    ["De terceros rechazados o caducados", d.ch.rechazados.length, d.ch.rechazados.reduce((a, x) => a + x.importe, 0)], [],
+    ["Notas"]]).concat(notasResumenGeneral(d).map(t => [t]));
   const det = l => l.map(x => [x.fecha, x.origen || "", x.texto, x.contraparte || "", x.banco || "", x.importe]);
   const H = ["Fecha", "Origen", "Concepto", "Contraparte", "Banco", "Importe"];
   const inyFilas = [["Tipo", "Fecha", "Detalle", "Importe", "Nominal"]]
@@ -10792,7 +10857,7 @@ function excelResumenGeneral(d) {
     .concat(d.iny.propiasEnt.concat(d.iny.propiasSal).map(x => ["Entre cuentas propias", x.fecha, (x.banco ? x.banco + " · " : "") + x.texto, x.importe, ""]))
     .concat(d.iny.brokersEnt.concat(d.iny.brokersSal).map(x => ["Broker / ALYC", x.fecha, x.contraparte || x.texto, x.importe, ""]));
   const saldos = [["Cuenta", "Saldo inicial", "Saldo final", "Variación"]].concat(d.saldos.map(s => [s.cuenta, s.ini === null ? "" : s.ini, s.fin === null ? "" : s.fin, s.ini === null || s.fin === null ? "" : s.fin - s.ini]))
-    .concat([["FCI", d.fciIni, d.fciFin, d.fciFin - d.fciIni]]);
+    .concat([["FCI", d.fciIni === null ? "" : d.fciIni, d.fciFin === null ? "" : d.fciFin, d.fciIni === null || d.fciFin === null ? "" : d.fciFin - d.fciIni]]);
   const semanas = [["Desde", "Hasta", "Ingresos", "Egresos", "Desfasaje", "Inyección"]].concat(d.semanas.map(s => [isoADma(s.desdeIso), isoADma(s.hastaIso), s.ing, s.egr, Math.max(0, -(s.ing + s.egr)), s.iny]));
   descargarExcel("Resumen general " + d.desde + " a " + d.hasta, [
     { nombre: "Resumen", filas: resumen, anchos: [52, 14, 18, 90] },
