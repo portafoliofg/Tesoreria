@@ -177,14 +177,17 @@
     body, .navbar, .navbar .nav-item, .side-marca { transition: padding .2s ease, width .2s ease; }
     body.panel-oculto { --side-w: 68px; }
     body.panel-oculto .btn-panel .flecha { transform: scaleX(-1); }
-    body.panel-oculto .side-marca { padding: 0; justify-content: center; }
-    body.panel-oculto .side-marca > div:not(.marca-sello), body.panel-oculto .side-pie { display: none; }
-    body.panel-oculto .navbar-in { padding: 14px 10px; }
-    body.panel-oculto .nav-grupo { font-size: 0; padding: 10px 0 4px; margin: 0 8px; border-bottom: 1px solid var(--side-line); }
-    body.panel-oculto .nav-grupo:first-child { display: none; }
-    body.panel-oculto .nav-item { font-size: 0; justify-content: center; padding: 0; gap: 0; }
-    body.panel-oculto .nav-item svg { width: 19px; height: 19px; }
-    body.panel-oculto .nav-item.active::before { left: -10px; }
+    /* Plegado (como en Propiedades): solo íconos y, al pasar el mouse, se despliega por encima del contenido. */
+    body.panel-oculto .navbar { overflow-x: hidden; }
+    body.panel-oculto .navbar:hover, body.panel-oculto .navbar:has(:focus-visible) { width: 252px; box-shadow: 12px 0 32px -18px rgba(0, 0, 0, .55); }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .side-marca { padding: 0; justify-content: center; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .side-marca > div:not(.marca-sello), body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .side-pie { display: none; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .navbar-in { padding: 14px 10px; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .nav-grupo { font-size: 0; padding: 10px 0 4px; margin: 0 8px; border-bottom: 1px solid var(--side-line); }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .nav-grupo:first-child { display: none; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .nav-item { font-size: 0; justify-content: center; padding: 0; gap: 0; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .nav-item svg { width: 19px; height: 19px; }
+    body.panel-oculto .navbar:not(:hover):not(:has(:focus-visible)) .nav-item.active::before { left: -10px; }
     /* Con el panel oculto, el contenido usa todo el ancho de la pantalla. */
     body.panel-oculto main, body.panel-oculto .masthead-in, body.panel-oculto .pie-in { max-width: none; }
   }
@@ -22803,16 +22806,17 @@ function graficoFlujoCheques(t) {
 }
 
 // ---------------- Panel lateral ----------------
-// Se oculta con el botón de arriba a la izquierda o con Ctrl+B; queda una
-// columna de íconos y el contenido pasa a ocupar todo el ancho. Se recuerda.
+// Como en Propiedades: queda una columna de íconos (el contenido usa todo el ancho) y al pasar
+// el mouse se despliega por encima. Con el botón de arriba a la izquierda o Ctrl+B se fija
+// abierto; se recuerda en este navegador.
 function aplicarPanel(oculto) {
   document.body.classList.toggle("panel-oculto", oculto);
   const b = $("btnPanel");
-  const txt = oculto ? "Mostrar el panel lateral" : "Ocultar el panel lateral";
+  const txt = oculto ? "Fijar el menú abierto" : "Plegar el menú (se abre al pasar el mouse)";
   b.setAttribute("aria-label", txt);
   b.title = txt + " (Ctrl+B)";
   b.setAttribute("aria-expanded", oculto ? "false" : "true");
-  try { localStorage.setItem("lc-panel-oculto", oculto ? "1" : "0"); } catch (e) {}
+  try { localStorage.setItem("lc-panel-fijo", oculto ? "0" : "1"); } catch (e) {}
 }
 document.querySelectorAll(".nav-item").forEach(n => { if (!n.title) n.title = n.textContent.trim(); });
 $("btnPanel").addEventListener("click", () => aplicarPanel(!document.body.classList.contains("panel-oculto")));
@@ -22824,7 +22828,7 @@ document.addEventListener("keydown", e => {
     aplicarPanel(!document.body.classList.contains("panel-oculto"));
   }
 });
-try { if (localStorage.getItem("lc-panel-oculto") === "1") aplicarPanel(true); } catch (e) {}
+(() => { let fijo = false; try { fijo = localStorage.getItem("lc-panel-fijo") === "1"; } catch (e) {} aplicarPanel(!fijo); })();
 
 // ---------------- Arranque ----------------
 armarPanelTema();
