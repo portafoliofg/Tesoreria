@@ -899,6 +899,12 @@
   .rd-card .pl-head { flex-wrap: wrap; gap: 8px; }
   .rd-pie, .botones-imagen { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .rd-pie { margin-top: 10px; }
+  .posicion-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+  .posicion-barra label { max-width: 200px; margin: 0; }
+  .posicion-atajos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .posicion-banda { background: var(--primary-soft); border: 1px solid var(--primary); color: var(--primary); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-bottom: 12px; }
+  #posicionBox .rep-tabla { margin-bottom: 14px; }
+  #posicionBox h2 { font-size: 15px; margin: 14px 0 6px; }
   .rapidas-img { margin-left: auto; display: inline-flex; align-items: center; flex-shrink: 0; padding: 0 0 6px 12px; }
   .rapidas-img .botones-imagen { flex-wrap: nowrap; }
   .rd-ganado { font-size: 15px; font-weight: 650; }
@@ -1832,6 +1838,7 @@
         <button id="inicioActualizar" class="secondary" type="button">Actualizar</button>
         <button id="inicioPersonalizar" class="secondary" type="button" title="Ordenar, agrandar u ocultar las tarjetas de Inicio">Personalizar</button>
         <button id="inicioParte" class="secondary" type="button" title="Arqueo de caja, envío por WhatsApp y carga de lo pendiente">Cierre del día</button>
+        <button id="inicioPosicion" class="secondary" type="button" title="Cuentas, FCI, cheques y bolsa a una fecha (por ejemplo al 31/12 para impuestos)">Posición al…</button>
         <button id="inicioF1" class="secondary" type="button" title="Tablero para una pantalla de la oficina (se abre aparte)">Modo F1</button>
         <button class="secondary btn-entrada-manual" data-tipo-default="Transferencia" type="button">Entrada manual</button>
         <button id="inicioCargar" type="button">Cargar comprobantes</button>
@@ -3104,6 +3111,28 @@
     <div class="modal__foot">
       <button class="secondary" data-cerrar="modalSugBolsa" type="button">Cancelar</button>
       <button id="sugBolsaGuardar" type="button">Guardar las marcadas</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: POSICIÓN A UNA FECHA ===================== -->
+<div class="modal-overlay" id="modalPosicion">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="posicionTitulo">
+    <div class="modal__head">
+      <div><h3 id="posicionTitulo">Posición al…</h3><div class="sub-dato">Cómo estaba todo a una fecha, como el corte de un sistema contable: saldos de las cuentas, FCI, cheques de terceros en cartera, cheques emitidos sin debitar y deuda en bolsa. Útil para presentar impuestos (por ejemplo al 31/12).</div></div>
+      <button class="modal__close" data-cerrar="modalPosicion" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="posicion-barra">
+        <label>Posición al<input type="date" id="posicionFecha"></label>
+        <div class="posicion-atajos" id="posicionAtajos"></div>
+      </div>
+      <div id="posicionBox"></div>
+    </div>
+    <div class="modal__foot">
+      <button class="secondary" id="posicionExcel" type="button">Excel</button>
+      <button class="secondary" id="posicionImagen" type="button">Copiar imagen</button>
+      <button id="posicionPdf" type="button">PDF</button>
     </div>
   </div>
 </div>
@@ -11966,6 +11995,163 @@ function imagenCheques(lista, titulo) {
   if (!orden.length) filas.push(["—", "", "Sin cheques", "", "", "", ""]);
   return imagenTabla({ titulo: titulo, subtitulo: nombreDia(hoyIso()), columnas: ["N° de cheque", "Banco / tipo", "Titular", "Concepto", "Fecha de pago", cerr ? "Débito" : "Estado", "Importe"], derecha: [6], filas: filas });
 }
+
+// ----- Posición a una fecha (como "posición al 31/12" de un sistema contable) -----
+// Con lo cargado: cada cuenta con su saldo estimado a la fecha (último saldo informado hasta ese
+// día + movimientos y cheques debitados después), el FCI informado a esa fecha, los cheques de
+// terceros que estaban en cartera (ingresados hasta ese día y acreditados, depositados o endosados
+// después), los emitidos sin debitar a esa fecha y la deuda en bolsa. Pesos y dólares por separado.
+function posicionAl(iso) {
+  const p = { iso: iso, cuentas: [], fci: [], cartera: [], emitidos: [], bolsa: [], tot: { Pesos: {}, USD: {} } };
+  const sumar = (moneda, k, v) => { const t = p.tot[moneda === "USD" ? "USD" : "Pesos"]; t[k] = (t[k] || 0) + v; };
+  catalogo.cuentas.slice().sort((a, b) => (a["Banco"] + a["N° de Cuenta"]).localeCompare(b["Banco"] + b["N° de Cuenta"])).forEach(c => {
+    const s = saldoEstimado(c, iso);
+    if (!s) return;
+    const moneda = c["Moneda"] === "USD" ? "USD" : "Pesos";
+    p.cuentas.push({ nombre: c["Banco"] + " · " + siglaTipo(c["Tipo de Cuenta"]) + " " + c["N° de Cuenta"], moneda: moneda, saldo: s.estimado,
+      base: "Saldo al " + s.base["Fecha"] + (s.posteriores ? " + " + s.posteriores + " mov." : "") });
+    sumar(moneda, "cuentas", s.estimado);
+  });
+  fciQueSuma(fciVigentes(iso)).forEach(f => { p.fci.push({ nombre: "FCI · " + f.banco, moneda: f.moneda, saldo: f.saldo, base: "Informado al " + f.fecha }); sumar(f.moneda, "fci", f.saldo); });
+  const cierre = c => fechaAOrden(c["Fecha de Débito"] || "");
+  const sinEfecto = c => ["ANULADO"].indexOf(normalizar(c["Estado"] || "").trim()) >= 0;
+  chequesDatos.forEach(c => {
+    const moneda = monedaCheque(c);
+    const imp = Math.abs(parseImporte(c["Importe"]));
+    if (c["Tipo"] === "De terceros") {
+      const ing = fechaAOrden(c["Fecha de Ingreso"] || c["Fecha de Emisión"] || "");
+      if (!ing || ing > iso) return;
+      const abierto = chequeAbierto(c), cerro = cierre(c);
+      if (!abierto && !(cerro && cerro > iso)) return;
+      p.cartera.push({ c: c, moneda: moneda, importe: imp }); sumar(moneda, "cartera", imp);
+    } else {
+      const em = fechaAOrden(c["Fecha de Emisión"] || "");
+      if (!em || em > iso || sinEfecto(c)) return;
+      const abierto = chequeAbierto(c), cerro = cierre(c);
+      if (!abierto && !(cerro && cerro > iso)) return;
+      p.emitidos.push({ c: c, moneda: moneda, importe: -imp }); sumar(moneda, "emitidos", -imp);
+    }
+  });
+  bolsaDatos.forEach(b => {
+    const monto = parseImporte(b["Monto"]);
+    if (!(monto < 0)) return;
+    const carga = fechaAOrden(b["Fecha de carga"] || "");
+    if (!carga || carga > iso) return;
+    const deb = fechaAOrden(b["Fecha de debito"] || "");
+    if (!bolsaAbierta(b) && !(deb && deb > iso)) return;
+    const moneda = normalizar(b["Moneda"] || "").indexOf("US") === 0 ? "USD" : "Pesos";
+    p.bolsa.push({ b: b, moneda: moneda, importe: monto }); sumar(moneda, "bolsa", monto);
+  });
+  ["Pesos", "USD"].forEach(m => {
+    const t = p.tot[m];
+    t.activo = (t.cuentas || 0) + (t.fci || 0) + (t.cartera || 0);
+    t.pasivo = (t.emitidos || 0) + (t.bolsa || 0);
+    t.neto = t.activo + t.pasivo;
+  });
+  return p;
+}
+
+function hojaPosicion(p) {
+  const rep = el("div", "rep");
+  rep.append(encabezadoReporte("Posición al " + isoADma(p.iso), [nombreDia(p.iso), "Saldos estimados con lo cargado en la app a esa fecha."]));
+  const fmt = (v, m) => textoImporte(v, m);
+  const tit = t => rep.append(el("h2", null, t));
+  tit("Resumen");
+  const filasR = [];
+  ["Pesos", "USD"].forEach(m => {
+    const t = p.tot[m];
+    if (!t.activo && !t.pasivo) return;
+    const s = m === "USD" ? " (U$D)" : "";
+    filasR.push(["Cuentas bancarias" + s, fmt(t.cuentas || 0, m)], ["FCI" + s, fmt(t.fci || 0, m)], ["Cheques de terceros en cartera" + s, fmt(t.cartera || 0, m)],
+      { clase: "rep-destacada", celdas: ["Disponible" + s, fmt(t.activo, m)] },
+      ["Cheques emitidos sin debitar" + s, fmt(t.emitidos || 0, m)], ["Deuda en bolsa" + s, fmt(t.bolsa || 0, m)],
+      { clase: "rep-total", celdas: ["Posición neta" + s, fmt(t.neto, m)] });
+  });
+  rep.append(tablaReporte(["Concepto", "Importe"], filasR.length ? filasR : [["Sin datos a esa fecha", ""]], [1]));
+  tit("Cuentas y FCI");
+  const filasC = p.cuentas.concat(p.fci).map(x => [x.nombre, x.base, fmt(x.saldo, x.moneda)]);
+  rep.append(tablaReporte(["Cuenta", "Origen del saldo", "Saldo"], filasC.length ? filasC : [["Sin saldos informados hasta esa fecha", "", ""]], [2]));
+  const filaCh = x => [x.c["N° de Cheque"], x.c["Titular"] || "", x.c["Concepto"] || "", x.c["Fecha de Emisión"] || "", x.c["Fecha de Pago"] || "", fmt(x.importe, x.moneda)];
+  tit("Cheques de terceros en cartera (" + p.cartera.length + ")");
+  rep.append(tablaReporte(["N°", "Librador", "Concepto", "Emisión", "Pago", "Importe"], p.cartera.length ? p.cartera.map(filaCh) : [["—", "Ninguno", "", "", "", ""]], [5]));
+  tit("Cheques emitidos sin debitar (" + p.emitidos.length + ")");
+  rep.append(tablaReporte(["N°", "Beneficiario", "Concepto", "Emisión", "Pago", "Importe"], p.emitidos.length ? p.emitidos.map(filaCh) : [["—", "Ninguno", "", "", "", ""]], [5]));
+  if (p.bolsa.length) {
+    tit("Deuda en bolsa (" + p.bolsa.length + ")");
+    rep.append(tablaReporte(["Cheque", "ALYC", "Carga", "Pago", "Importe"], p.bolsa.map(x => [x.b["Numero de cheque"] || "", x.b["ALYC"] || "", x.b["Fecha de carga"] || "", x.b["Fecha de pago"] || "", fmt(x.importe, x.moneda)]), [4]));
+  }
+  rep.append(el("p", "rep-nota", "Los saldos de las cuentas salen del último saldo informado hasta la fecha más los movimientos y cheques registrados después. Los dólares no se convierten."));
+  return rep;
+}
+
+let posicionActual = null;
+async function abrirPosicion(iso) {
+  const anio = parseInt(hoyIso().substring(0, 4), 10);
+  const fecha = $("posicionFecha");
+  fecha.value = iso || fecha.value || (anio - 1) + "-12-31";
+  const atajos = $("posicionAtajos");
+  atajos.replaceChildren();
+  [["Hoy", hoyIso()], ["31/12/" + (anio - 1), (anio - 1) + "-12-31"], ["31/12/" + anio, anio + "-12-31"], ["Fin del mes pasado", sumarDiasIso(hoyIso().substring(0, 8) + "01", -1)]].forEach(a => {
+    const b = el("button", "secondary small", a[0]);
+    b.type = "button";
+    b.addEventListener("click", () => { fecha.value = a[1]; pintarPosicion(); });
+    atajos.append(b);
+  });
+  abrirModal("modalPosicion");
+  $("posicionBox").replaceChildren(nodoCargando());
+  await Promise.all([asegurarTransferencias(), asegurarCheques(), asegurarInversiones().catch(() => {})]);
+  pintarPosicion();
+}
+
+function pintarPosicion() {
+  const iso = $("posicionFecha").value || hoyIso();
+  posicionActual = posicionAl(iso);
+  const box = $("posicionBox");
+  box.replaceChildren(el("div", "posicion-banda", "Posición al " + isoADma(iso) + (iso > hoyIso() ? " · fecha futura: se ve lo cargado hasta hoy" : "")), hojaPosicion(posicionActual));
+}
+
+$("inicioPosicion").addEventListener("click", () => abrirPosicion());
+$("posicionFecha").addEventListener("change", pintarPosicion);
+$("posicionPdf").addEventListener("click", async () => {
+  if (!posicionActual) return;
+  const b = $("posicionPdf");
+  b.disabled = true; b.classList.add("is-loading");
+  try { await descargarPdfDeNodo(hojaPosicion(posicionActual), "Posición al " + isoADma(posicionActual.iso).split("/").join("-")); }
+  catch (err) { toast("No se pudo generar el PDF: " + msgErr(err), "error"); }
+  finally { b.disabled = false; b.classList.remove("is-loading"); }
+});
+$("posicionExcel").addEventListener("click", () => {
+  const p = posicionActual;
+  if (!p) return;
+  const num = (v) => Math.round(v * 100) / 100;
+  const res = [["Posición al " + isoADma(p.iso)], [], ["Concepto", "Pesos", "Dólares"]];
+  [["Cuentas bancarias", "cuentas"], ["FCI", "fci"], ["Cheques de terceros en cartera", "cartera"], ["Disponible", "activo"], ["Cheques emitidos sin debitar", "emitidos"], ["Deuda en bolsa", "bolsa"], ["Posición neta", "neto"]]
+    .forEach(x => res.push([x[0], num(p.tot.Pesos[x[1]] || 0), num(p.tot.USD[x[1]] || 0)]));
+  const cuentas = [["Cuenta", "Origen del saldo", "Moneda", "Saldo"]].concat(p.cuentas.concat(p.fci).map(x => [x.nombre, x.base, x.moneda, num(x.saldo)]));
+  const ch = l => [["N°", "Titular", "Concepto", "Emisión", "Pago", "Moneda", "Importe"]].concat(l.map(x => [x.c["N° de Cheque"], x.c["Titular"] || "", x.c["Concepto"] || "", x.c["Fecha de Emisión"] || "", x.c["Fecha de Pago"] || "", x.moneda, num(x.importe)]));
+  const bolsa = [["Cheque", "ALYC", "Carga", "Pago", "Moneda", "Importe"]].concat(p.bolsa.map(x => [x.b["Numero de cheque"] || "", x.b["ALYC"] || "", x.b["Fecha de carga"] || "", x.b["Fecha de pago"] || "", x.moneda, num(x.importe)]));
+  descargarExcel("Posición al " + isoADma(p.iso).split("/").join("-"), [
+    { nombre: "Resumen", filas: res, anchos: [34, 18, 18] }, { nombre: "Cuentas y FCI", filas: cuentas, anchos: [36, 30, 8, 18] },
+    { nombre: "Cheques en cartera", filas: ch(p.cartera), anchos: [12, 30, 30, 12, 12, 8, 16] }, { nombre: "Emitidos sin debitar", filas: ch(p.emitidos), anchos: [12, 30, 30, 12, 12, 8, 16] },
+    { nombre: "Bolsa", filas: bolsa, anchos: [14, 20, 12, 12, 8, 16] }
+  ]);
+});
+$("posicionImagen").addEventListener("click", () => {
+  const p = posicionActual;
+  if (!p) return;
+  const filas = [];
+  ["Pesos", "USD"].forEach(m => {
+    const t = p.tot[m];
+    if (!t.activo && !t.pasivo) return;
+    const s = m === "USD" ? " (U$D)" : "";
+    [["Cuentas bancarias", t.cuentas], ["FCI", t.fci], ["Cheques de terceros en cartera", t.cartera]].forEach(x => filas.push([x[0] + s, textoImporte(x[1] || 0, m)]));
+    filas.push({ clase: "total", celdas: ["Disponible" + s, textoImporte(t.activo, m)] });
+    [["Cheques emitidos sin debitar", t.emitidos], ["Deuda en bolsa", t.bolsa]].forEach(x => filas.push([x[0] + s, textoImporte(x[1] || 0, m)]));
+    filas.push({ clase: "total", celdas: ["Posición neta" + s, textoImporte(t.neto, m)] });
+  });
+  compartirCanvas(imagenTabla({ titulo: "Posición al " + isoADma(p.iso), subtitulo: config.empresa || "", columnas: ["Concepto", "Importe"], derecha: [1], filas: filas.length ? filas : [["Sin datos", ""]] }),
+    "Posición al " + isoADma(p.iso).split("/").join("-") + ".png", "Posición", $("posicionImagen"));
+});
 
 function renderCheques(filas) {
   ultimasFilasCheques = filas;
