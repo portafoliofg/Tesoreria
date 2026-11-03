@@ -867,6 +867,24 @@
   .fondos-caja .fondos-tit { margin-bottom: 2px; }
   .fondos-viejo b { color: var(--faint) !important; text-decoration: line-through; }
   #inicioFondos .fondos-card { margin-bottom: 16px; }
+  /* Inicio = carga: planilla de saldos a la izquierda y rendimiento del día a la derecha. */
+  .ini-carga { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 12px; }
+  .ini-carga .card { margin-bottom: 0; }
+  @media (max-width: 1100px) { .ini-carga { grid-template-columns: minmax(0, 1fr); } }
+  .ini-cargas-rapidas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 14px; }
+  .ini-cargas-rapidas .icr-tit { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 4px; }
+  .ini-metricas-bar { display: flex; justify-content: center; margin: 6px 0 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+  #iniTablero[hidden] { display: none !important; }
+  .rd-tabla td.num, .rd-tabla th { white-space: nowrap; }
+  .rd-tabla { font-size: 12.5px; }
+  .rd-tabla td, .rd-tabla th { padding-left: 8px; padding-right: 8px; }
+  .rd-card .pl-head { flex-wrap: wrap; gap: 8px; }
+  .rd-pie, .botones-imagen { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .rd-pie { margin-top: 10px; }
+  .rd-ganado { font-size: 15px; font-weight: 650; }
+  .rd-tna { font-size: 11.5px; color: var(--muted); }
+  .rd-vivo { font-size: 11px; color: var(--primary); font-weight: 600; }
+  .rd-total td { font-weight: 650; border-top: 2px solid var(--border-strong); }
   /* Planilla de saldos y FCI editable en Inicio */
   .pl-card { margin-bottom: 16px; }
   .pl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -946,7 +964,11 @@
   .rf-periodo b { color: var(--text); font-variant-numeric: tabular-nums; } .rf-periodo b.neg { color: var(--bad); }
   .pl-tabla tr.pl-banco-ini td { border-top: 2px solid var(--border); }
   .pl-tabla input { width: 100%; min-width: 110px; margin: 0; height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
-  .pl-tabla input.pl-previo { color: var(--faint); font-style: italic; }
+  /* El saldo heredado del último día se ve en negro como el resto; se distingue por el fondo. */
+  :root { --num-carga: #0a0d0b; }
+  :root[data-modo="oscuro"] { --num-carga: var(--text); }
+  .pl-tabla input, .pl-tabla.pl-saldos td input { color: var(--num-carga); font-weight: 500; }
+  .pl-tabla input.pl-previo, .pl-tabla.pl-saldos td input.pl-previo { color: var(--num-carga); font-style: normal; background: var(--surface-3) !important; }
   .pl-tabla input.pl-cambio { border-color: var(--primary); }
   .pl-tabla .pl-total { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pl-tabla tfoot td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 600; padding-top: 8px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -1784,7 +1806,7 @@
     <div class="page-head">
       <div>
         <h1 id="inicioSaludo">Inicio</h1>
-        <p class="sub">Resumen de la tesorería: saldos, vencimientos y tareas pendientes.</p>
+        <p class="sub">Carga del día: saldos de inicio a la izquierda y lo que rindió cada FCI a la derecha.</p>
       </div>
       <div class="actions" style="margin-top:0">
         <button id="inicioActualizar" class="secondary" type="button">Actualizar</button>
@@ -1801,6 +1823,23 @@
     <div class="tira-dias-box" id="tiraDiasBox"></div>
     <!-- Tablero: cada bloque es un "widget" que el usuario ordena, agranda u oculta (Personalizar).
          Todos se ven siempre; los íconos de "Más información" llevan a cada uno. -->
+    <!-- Carga del día (lo primero de Inicio): planilla de saldos y rendimiento de los FCI con saldo. -->
+    <div class="ini-carga" id="iniCarga">
+      <div class="ini-carga-izq"><div class="ini-slot" id="inicioPlanilla"></div></div>
+      <div class="ini-carga-der"><div class="ini-slot" id="inicioRendDia"></div></div>
+    </div>
+    <div class="ini-cargas-rapidas" id="iniCargasRapidas" aria-label="Cargas rápidas">
+      <span class="icr-tit">Cargar</span>
+      <button class="secondary small btn-entrada-manual" data-tipo-default="Transferencia" type="button">Movimiento</button>
+      <button class="secondary small btn-entrada-manual" data-tipo-default="Cheque emitido" type="button">Cheque emitido</button>
+      <button class="secondary small btn-entrada-manual" data-tipo-default="Cheque de terceros" type="button">Cheque recibido</button>
+      <button class="secondary small btn-entrada-manual" data-tipo-default="FCI" type="button">FCI (rescate, suscripción o saldo)</button>
+      <button class="secondary small" id="iniRapMovFci" type="button">Varios rescates y suscripciones</button>
+      <button class="secondary small" id="iniRapSalida" type="button">Salida de cheques</button>
+    </div>
+    <div class="ini-metricas-bar">
+      <button class="link-btn" id="iniVerMetricas" type="button" aria-expanded="false" aria-controls="iniTablero">Ver tablero y métricas</button>
+    </div>
     <div class="ini-editor" id="iniEditor" hidden>
       <div>
         <b>Personalizando Inicio</b>
@@ -1816,7 +1855,6 @@
       <div class="ini-widget" data-widget="fondos"><div class="ini-slot" id="inicioFondos"></div></div>
       <div class="ini-widget" data-widget="rendfci"><div class="ini-slot" id="inicioRendFci"></div></div>
       <div class="ini-widget" data-widget="flujoch" data-seccion="flujoch"><div class="ini-slot" id="iniG-flujoch"></div></div>
-      <div class="ini-widget" data-widget="planilla"><div class="ini-slot" id="inicioPlanilla"></div></div>
       <div class="ini-widget" data-widget="accesos"><div>
     <div class="ini-accesos-cab">
       <span>Más información</span>
@@ -8477,7 +8515,7 @@ function limpiarDatosEnPantalla() {
     "kpisTransferencias", "kpisCheques", "kpisCuentas", "kpisAlertas", "concResultado", "concGuardadas", "kpisConciliacion", "flujoBox", "kpisFlujo", "areaImpresion"].forEach(id => { if ($(id)) $(id).replaceChildren(); });
   document.querySelectorAll(".modal-overlay.is-open").forEach(m => m.classList.remove("is-open"));
   cerrarDetalle();
-  ["kpisInicio", "inicioFondos", "inicioRendFci", "inicioPlanilla", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-mes", "iniG-negativos", "iniG-tasas", "iniG-cartera", "iniG-flujoch", "iniG-bancos", "iniG-rubros", "iniG-dolares", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
+  ["kpisInicio", "inicioFondos", "inicioRendFci", "inicioPlanilla", "inicioRendDia", "iniG-semana", "iniG-bolsa", "iniG-fci", "iniG-mes", "iniG-negativos", "iniG-tasas", "iniG-cartera", "iniG-flujoch", "iniG-bancos", "iniG-rubros", "iniG-dolares", "inicioSaldos", "inicioVencimientos", "inicioConciliar", "inicioUltimos"].forEach(id => $(id).replaceChildren());
   preferencias = {};
   editarInicio(false);
   flujoInicio = null;
@@ -12392,6 +12430,7 @@ function renderInicio(conciliaciones) {
   fondos.querySelector(".card-title").append(verFlujo);
   $("inicioFondos").replaceChildren(fondos);
   renderPlanillaInicio();
+  renderRendDiaInicio();
   renderRendFciInicio();
 
   // Saldos por cuenta
@@ -12441,7 +12480,7 @@ function renderInicio(conciliaciones) {
     const r = rendimientoFciDe(f.banco, f.moneda);
     const p = r && r.periodos.length ? r.periodos[r.periodos.length - 1] : null;
     if (p) {
-      const txt = "Rindió " + (f.moneda === "USD" ? formatUsd : fmtImp)(p.rend) + " desde el " + isoADma(p.desde) + (p.dudoso ? " · revisar" : " · TNA " + pctTexto(p.rend / p.capital * 365 / p.d));
+      const txt = "Rindió " + (f.moneda === "USD" ? formatUsd : fmtImp)(p.rend) + " desde el " + isoADma(p.desde) + (p.dudoso ? " · revisar" : p.sinDias ? "" : " · TNA " + pctTexto(p.rend / p.capital * 365 / p.d));
       const d = el("div", "dt-sub" + (p.dudoso ? " alerta-txt" : ""), txt);
       if (p.susc || p.resc) d.title = "Suscripciones " + fmtImp(p.susc) + " · rescates " + fmtImp(p.resc);
       der.append(d);
@@ -12551,6 +12590,24 @@ function renderInicio(conciliaciones) {
 
 $("inicioActualizar").addEventListener("click", () => { transferenciasCargadas = false; chequesCargados = false; cargarInicio(); });
 $("inicioCargar").addEventListener("click", () => mostrarVista("cargar"));
+$("iniRapMovFci").addEventListener("click", () => asegurarInversiones().catch(() => {}).then(abrirMovFci));
+$("iniRapSalida").addEventListener("click", () => asegurarCheques().then(abrirSalidaCheques).catch(err => toast(msgErr(err), "error")));
+
+// Inicio es para cargar: el tablero con los indicadores y gráficos queda plegado debajo y se
+// abre con "Ver tablero y métricas" (se recuerda en las preferencias de cada usuario).
+function aplicarMetricasInicio() {
+  const ver = !!preferencias.inicioMetricas;
+  $("iniTablero").hidden = !ver;
+  $("inicioPersonalizar").hidden = !ver;
+  $("iniVerMetricas").textContent = ver ? "Ocultar tablero y métricas" : "Ver tablero y métricas";
+  $("iniVerMetricas").setAttribute("aria-expanded", ver ? "true" : "false");
+}
+$("iniVerMetricas").addEventListener("click", () => {
+  preferencias.inicioMetricas = !preferencias.inicioMetricas;
+  guardarPreferencias();
+  aplicarMetricasInicio();
+  if (preferencias.inicioMetricas) $("iniTablero").scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+});
 $("inicioF1").addEventListener("click", () => {
   const w = window.open("https://bgpsammar.com/f1.html", "_blank");
   if (w) w.opener = null;
@@ -12588,6 +12645,7 @@ function cargarPreferencias(delEstado) {
 
 function aplicarPreferencias() {
   aplicarDisenoInicio();
+  aplicarMetricasInicio();
   restaurarCarga();
 }
 
@@ -12609,7 +12667,6 @@ const WIDGETS_INICIO = [
   { id: "fondos", titulo: "Total de fondos", tam: "ancho" },
   { id: "rendfci", titulo: "Rendimiento del FCI", tam: "mitad" },
   { id: "flujoch", titulo: "Flujo de cheques", tam: "ancho" },
-  { id: "planilla", titulo: "Saldos", tam: "ancho" },
   { id: "accesos", titulo: "Más información (íconos)", tam: "ancho" },
   { id: "saldos", titulo: "Saldos por cuenta", tam: "mitad" },
   { id: "vencimientos", titulo: "Próximos 14 días", tam: "mitad" },
@@ -16484,7 +16541,7 @@ $("btnRefrescarInversiones").addEventListener("click", () => cargarInversiones(t
 let memoRendFci = { datos: null, res: null };
 
 function calcularRendimientoFci() {
-  if (memoRendFci.datos === fciDatos && memoRendFci.res) return memoRendFci.res;
+  if (memoRendFci.datos === fciDatos && memoRendFci.dias === modoDiasFci() && memoRendFci.res) return memoRendFci.res;
   const grupos = {};
   fciDatos.forEach(f => {
     const iso = fechaAOrden(f["Fecha"]);
@@ -16510,16 +16567,17 @@ function calcularRendimientoFci() {
       g.movs.forEach(m => { if (m.iso >= desde && m.iso < hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
       const capital = ini + susc + resc;  // paso 1: cierre del día anterior
       const rend = fin - capital;         // paso 2
-      const d = Math.max(1, diasEntre(desde, hasta));
+      const dev = diasDevengados(desde, hasta);
+      const d = Math.max(1, dev);
       const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
       const informado = parseImporte(g.saldos[hasta].inf);
-      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
+      periodos.push({ desde: desde, hasta: hasta, d: d, sinDias: dev === 0, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
         pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: informado && Math.abs(informado) < Math.abs(fin) * 0.1 ? informado : null });
     }
     const ultima = fechas[fechas.length - 1];
     return { k: k, banco: g.banco, fondo: g.fondo, periodos: periodos, ultimo: ultima ? { iso: ultima, saldo: g.saldos[ultima].monto } : null };
   });
-  memoRendFci = { datos: fciDatos, res: res };
+  memoRendFci = { datos: fciDatos, dias: modoDiasFci(), res: res };
   return res;
 }
 
@@ -16530,7 +16588,7 @@ function tnaVentana(periodos, desdeIso, hastaIso) {
     if (p.hasta <= desdeIso || (hastaIso && p.hasta > hastaIso)) return;
     if (p.dudoso) { dudosos++; return; }
     rend += p.rend;
-    base += p.capital * p.d;
+    base += p.capital * (p.sinDias ? 0 : p.d);
     if (p.informado !== null) { informado += p.informado; hayInf = true; }
   });
   return { rend: rend, tna: base > 0 ? rend / base * 365 : null, dudosos: dudosos, informado: hayInf ? informado : null };
@@ -17266,7 +17324,7 @@ function rendimientoConjunto(bancos, desde, hasta) {
     if (p.hasta <= desde || (hasta && p.hasta > hasta)) return;
     if (p.dudoso) { dudosos++; return; }
     rend += p.rend;
-    base += p.capital * p.d;
+    base += p.capital * (p.sinDias ? 0 : p.d);
   }));
   return { rend: rend, tna: base > 0 ? rend / base * 365 : null, dudosos: dudosos };
 }
@@ -17780,17 +17838,56 @@ function inputPlanilla(item, alCambiar) {
   inp.placeholder = "—";
   if (item.fecha) inp.title = (item.previo ? "Último informado: " : "Guardado al ") + item.fecha;
   inp.addEventListener("input", () => {
-    item.valor = importeDeCelda(inp.value);
+    item.valor = importeTipeado(inp.value);
     item.previo = false;
     item.cambio = true;
     inp.classList.remove("pl-previo");
     inp.classList.add("pl-cambio");
     alCambiar();
   });
-  // Al salir de la casilla el número queda como se escribió (no se le agregan puntos ni ",00").
   inp.addEventListener("focus", () => inp.select());
-  inp.addEventListener("keydown", e => moverEnPlanilla(e, inp));
+  inp.addEventListener("keydown", e => { if (!teclaDecimalExcel(e, inp)) moverEnPlanilla(e, inp); });
+  // Formato número como en Excel: al salir de la casilla, lo escrito queda como 1.234.567,89.
+  inp.addEventListener("blur", () => { if (item.cambio) formatearCeldaImporte(inp, item.valor); });
   return inp;
+}
+
+// ----- Importes tipeados como en un Excel en castellano -----
+// La coma es siempre decimal; el punto, de miles ("150.000", "1.234.567"). Solo un punto seguido
+// de una o dos cifras al final ("1500.5", lo que da el punto del teclado numérico) se toma como
+// decimal. Así "1500,5" es 1.500,50 y no 15.005, y nunca se cuela un separador que no se escribió.
+function importeTipeado(txt) {
+  const t = String(txt == null ? "" : txt).trim();
+  if (!/[0-9]/.test(t)) return null;
+  const negativo = /^[-−–(]/.test(t) || /-$/.test(t);
+  let s = t.replace(/[^0-9.,]/g, "");
+  if (s.indexOf(",") >= 0) {
+    const i = s.lastIndexOf(",");
+    s = s.substring(0, i).replace(/[.,]/g, "") + "." + s.substring(i + 1).replace(/[.,]/g, "");
+  } else {
+    const m = /^(.*)\.(\d{1,2})$/.exec(s);
+    s = m && m[1].indexOf(".") < 0 ? m[1] + "." + m[2] : s.replace(/\./g, "");
+  }
+  const n = parseFloat(s);
+  if (!isFinite(n)) return null;
+  return negativo ? -Math.abs(n) : n;
+}
+
+// El punto del teclado numérico escribe la coma decimal (como Excel con configuración argentina).
+// Devuelve true si se ocupó de la tecla.
+function teclaDecimalExcel(e, inp) {
+  if (e.code !== "NumpadDecimal" || e.ctrlKey || e.metaKey || e.altKey) return false;
+  e.preventDefault();
+  const a = inp.selectionStart, b = inp.selectionEnd;
+  if (typeof inp.setRangeText === "function" && a !== null) inp.setRangeText(",", a, b, "end");
+  else inp.value += ",";
+  inp.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+}
+
+function formatearCeldaImporte(inp, valor) {
+  if (valor === null || valor === undefined) { if (!String(inp.value).trim()) inp.value = ""; return; }
+  inp.value = textoSaldo(valor);
 }
 
 // ----- Moverse por la planilla de Saldos como en Excel -----
@@ -17808,10 +17905,24 @@ function moverEnPlanilla(e, inp) {
   const col = enFci ? nav.fci : nav.saldos;
   const i = col.indexOf(inp);
   if (i < 0) return;
+  if (e.key === "Enter" && !e.shiftKey && i === col.length - 1 && nav.guardar) { e.preventDefault(); nav.guardar.focus(); return; }
   const todo = inp.selectionStart === 0 && inp.selectionEnd === inp.value.length;
   const alInicio = todo || (inp.selectionStart === 0 && inp.selectionEnd === 0);
   const alFinal = todo || (inp.selectionStart === inp.value.length && inp.selectionEnd === inp.value.length);
   let destino = null;
+  if (e.key === "Tab") {
+    // Tab y Shift+Tab: como en Excel, de izquierda a derecha y de arriba abajo (saldo → FCI del
+    // banco → saldo de la cuenta siguiente). Al final, al botón Guardar.
+    const orden = nav.orden || [];
+    const j = orden.indexOf(inp);
+    destino = orden[j + (e.shiftKey ? -1 : 1)];
+    if (!destino && !e.shiftKey && nav.guardar) { e.preventDefault(); nav.guardar.focus(); return; }
+    if (!destino) return;
+    e.preventDefault();
+    destino.focus();
+    destino.select();
+    return;
+  }
   if (e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey)) destino = col[i + 1];
   else if (e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey)) destino = col[i - 1];
   else if (e.key === "ArrowRight" && !enFci && alFinal) destino = nav.grupoDe.get(inp);
@@ -17882,7 +17993,7 @@ function renderRendFciInicio() {
       return;
     }
     if (p.dudoso) dudosos++;
-    const tna = !p.dudoso && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
+    const tna = !p.dudoso && !p.sinDias && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
     const celda = (monto, iso) => { const td = el("td", "num"); td.append(el("div", null, fmt(monto)), el("div", "rf-sub", isoADma(iso))); return td; };
     const tdG = el("td", "num" + (p.dudoso ? "" : p.rend < 0 ? " neg" : " pos"));
     const mov = p.susc + p.resc;
@@ -17899,7 +18010,7 @@ function renderRendFciInicio() {
     tbody.append(tr);
     if (!usd) {
       tot.cierre += p.ini; tot.actual += p.fin; tot.hay = true;
-      if (!p.dudoso) { tot.ganado += p.rend; tot.capital += p.capital * p.d; }
+      if (!p.dudoso) { tot.ganado += p.rend; tot.capital += p.capital * (p.sinDias ? 0 : p.d); }
     }
   });
   tabla.append(thead, tbody);
@@ -17944,21 +18055,156 @@ function renderRendFciInicio() {
   box.replaceChildren(card);
 }
 
+// ----- Rendimiento del día (a la derecha de la planilla de Inicio) -----
+// Solo los FCI que tienen saldo en la fecha de la planilla (los que se suscriben después aparecen
+// solos en cuanto tienen saldo o una suscripción reciente). Por banco:
+//   ganado = saldo de hoy − (cierre anterior ± suscripciones y rescates del medio).
+// El saldo de hoy es el que está escrito en la planilla, aunque todavía no se haya guardado.
+let planillaGrupos = [];
+
+function filasRendDia(fechaIso) {
+  const res = calcularRendimientoFciSaldos();
+  const clave = (banco, moneda) => normalizar(nombreBancoCanonico(banco) || banco) + "|" + (moneda === "USD" ? "USD" : "Pesos");
+  const filas = [];
+  const vistos = {};
+  (planillaGrupos || []).forEach(g => {
+    const k = clave(g.fci.banco, g.moneda);
+    const b = res.find(x => x.k === k);
+    const actual = g.fci.valor;
+    const movsRec = b ? b.movs.filter(m => m.iso <= fechaIso && m.iso >= sumarDiasIso(fechaIso, -7)) : [];
+    if (!(actual > 0) && !movsRec.length) return;
+    vistos[k] = true;
+    const ant = b ? b.saldos.filter(x => x.iso < fechaIso).pop() : null;
+    const f = { banco: g.fci.banco, moneda: g.moneda, actual: actual, cargadoHoy: !g.fci.previo, fechaActual: g.fci.previo ? g.fci.fecha : isoADma(fechaIso), ant: ant };
+    if (ant) {
+      const movs = b.movs.filter(m => m.iso >= ant.iso && m.iso < fechaIso);
+      f.susc = movs.filter(m => m.monto > 0).reduce((a, m) => a + m.monto, 0);
+      f.resc = movs.filter(m => m.monto < 0).reduce((a, m) => a + m.monto, 0);
+      f.capital = ant.saldo + f.susc + f.resc;
+      f.dias = diasDevengados(ant.iso, fechaIso);
+      if (actual !== null && actual !== undefined && f.cargadoHoy) {
+        f.rend = actual - f.capital;
+        f.dudoso = !(f.capital > 0) || Math.abs(f.rend / f.capital) / Math.max(1, f.dias) > 0.003;
+        f.tna = !f.dudoso && f.dias > 0 ? f.rend / f.capital * 365 / f.dias : null;
+      }
+    } else if (movsRec.length) f.nuevo = movsRec.reduce((a, m) => a + m.monto, 0);
+    filas.push(f);
+  });
+  return filas;
+}
+
+function renderRendDiaInicio() {
+  const box = $("inicioRendDia");
+  if (!box) return;
+  const fechaIso = planillaFecha || hoyIso();
+  const filas = filasRendDia(fechaIso);
+  const card = el("div", "card rf-card rd-card");
+  const head = el("div", "pl-head");
+  const tit = el("div");
+  tit.append(el("div", "card-title", "Rendimiento del día"),
+    el("div", "dt-sub", "Saldo de hoy − (cierre anterior ± suscripciones y rescates). Solo los FCI con saldo."));
+  const acc = el("div", "pl-acciones");
+  const selDias = el("select");
+  selDias.setAttribute("aria-label", "Cómo se cuentan los días para la TNA");
+  selDias.title = "Días hábiles: el saldo de inicio trae el valor del día hábil anterior y el fin de semana se ve el primer día hábil siguiente. Días corridos: el cálculo anterior.";
+  [["habiles", "TNA por días hábiles"], ["corridos", "TNA por días corridos"]].forEach(o => selDias.append(new Option(o[1], o[0])));
+  selDias.value = modoDiasFci();
+  selDias.addEventListener("change", () => {
+    preferencias.rendFci = Object.assign({}, preferencias.rendFci || {}, { dias: selDias.value });
+    guardarPreferencias();
+    renderRendDiaInicio();
+    renderRendFciInicio();
+  });
+  acc.append(selDias);
+  head.append(tit, acc);
+  card.append(head);
+  if (!filas.length) {
+    card.append(el("p", "hint", "Ningún FCI tiene saldo al " + isoADma(fechaIso) + ". Escribilo en la columna FCI de la planilla."));
+    box.replaceChildren(card);
+    return;
+  }
+  const tabla = el("table", "pl-tabla rf-tabla rd-tabla");
+  const thead = el("thead"), trh = el("tr");
+  ["FCI", "Cierre anterior", "Hoy", "Ganado"].forEach(h => trh.append(el("th", null, h)));
+  thead.append(trh);
+  const tbody = el("tbody");
+  let tot = { ant: 0, mov: 0, hoy: 0, rend: 0, base: 0, hay: false, falta: 0 };
+  const img = [];
+  filas.forEach(f => {
+    const usd = f.moneda === "USD";
+    const fmt = usd ? formatUsd : formatImporte;
+    const tr = el("tr");
+    tr.append(el("td", "pl-cta", f.banco + (usd ? " (USD)" : "")));
+    const tdA = el("td", "num");
+    if (f.ant) tdA.append(el("div", null, fmt(f.ant.saldo)), el("div", "rf-sub", isoADma(f.ant.iso)));
+    else tdA.append(el("div", "rf-sub", "Sin saldo anterior"));
+    const mov = (f.susc || 0) + (f.resc || 0) + (f.nuevo || 0);
+    // Suscripciones y rescates del medio, debajo del cierre anterior.
+    if (mov) tdA.append(el("div", "rf-sub " + (mov > 0 ? "pos" : "neg"), (mov > 0 ? "Suscripción +" : "Rescate ") + fmt(mov)));
+    const tdH = el("td", "num");
+    tdH.append(el("div", null, f.actual === null || f.actual === undefined ? "—" : fmt(f.actual)));
+    tdH.append(el("div", f.cargadoHoy ? "rd-vivo" : "rf-sub", f.cargadoHoy ? "Hoy" : "Último: " + f.fechaActual));
+    const tdG = el("td", "num");
+    let gan = "—", tnaTxt = "";
+    if (f.rend !== undefined && !f.dudoso) {
+      gan = (f.rend > 0 ? "+" : "") + fmt(f.rend);
+      tnaTxt = f.tna === null ? (f.dias === 0 ? "Sin días hábiles en el medio" : "") : "TNA " + pctTexto(f.tna) + " · " + f.dias + (f.dias === 1 ? " día" : " días");
+      tdG.append(el("div", "rd-ganado " + (f.rend < 0 ? "neg" : "pos"), gan), el("div", "rd-tna", tnaTxt));
+      if (!usd) { tot.rend += f.rend; tot.base += f.capital * (f.dias || 0); tot.hay = true; }
+    } else if (f.dudoso) {
+      tdG.append(el("div", "rf-mal", "No cuadra"), el("div", "rf-sub", "Revisá rescates y suscripciones"));
+      tdG.title = "Cierre anterior " + fmt(f.ant.saldo) + (mov ? " ± movimientos " + fmt(mov) : "") + " = " + fmt(f.capital) + ". Hoy " + fmt(f.actual) + ".";
+      gan = "No cuadra";
+    } else if (!f.cargadoHoy) { tdG.append(el("div", "rf-sub", "Escribí el saldo de hoy")); tot.falta++; }
+    else tdG.append(el("div", "rf-sub", f.nuevo ? "Fondo nuevo: falta un saldo para comparar" : "Falta un saldo anterior"));
+    if (!usd) { tot.ant += f.ant ? f.ant.saldo : 0; tot.mov += mov; tot.hoy += f.actual || 0; }
+    tr.append(tdA, tdH, tdG);
+    tbody.append(tr);
+    img.push([f.banco + (usd ? " (USD)" : ""), f.ant ? fmt(f.ant.saldo) : "—", mov ? (mov > 0 ? "+" : "") + fmt(mov) : "—", f.actual ? fmt(f.actual) : "—", gan, tnaTxt.replace(/ · .*/, "")]);
+  });
+  tabla.append(thead, tbody);
+  const pesos = filas.filter(f => f.moneda !== "USD");
+  if (pesos.length > 1) {
+    const tfoot = el("tfoot"), trf = el("tr", "rd-total");
+    const tdG = el("td", "num");
+    const tnaT = tot.base > 0 ? tot.rend / tot.base * 365 : null;
+    tdG.append(el("div", "rd-ganado " + (tot.rend < 0 ? "neg" : "pos"), (tot.rend > 0 ? "+" : "") + formatImporte(tot.rend)), el("div", "rd-tna", tnaT === null ? "" : "TNA " + pctTexto(tnaT)));
+    const tdTA = el("td", "num");
+    tdTA.append(el("div", null, formatImporte(tot.ant)));
+    if (tot.mov) tdTA.append(el("div", "rf-sub", (tot.mov > 0 ? "+" : "") + formatImporte(tot.mov)));
+    trf.append(el("td", null, "Total $"), tdTA, el("td", "num", formatImporte(tot.hoy)), tdG);
+    tfoot.append(trf);
+    tabla.append(tfoot);
+    img.push({ celdas: ["Total $", formatImporte(tot.ant), tot.mov ? formatImporte(tot.mov) : "—", formatImporte(tot.hoy), (tot.rend > 0 ? "+" : "") + formatImporte(tot.rend), tnaT === null ? "" : "TNA " + pctTexto(tnaT)], clase: "total" });
+  }
+  card.append(envolverTabla(tabla));
+  if (tot.falta) card.append(el("p", "dt-sub", tot.falta + " FCI sin el saldo de hoy: el ganado aparece cuando lo escribís."));
+  const pie = el("div", "pl-acciones rd-pie");
+  pie.append(botonesImagen(() => imagenTabla({
+    titulo: "Rendimientos FCI", subtitulo: nombreDia(fechaIso),
+    columnas: ["FCI", "Cierre anterior", "Susc. / resc.", "Saldo de hoy", "Ganado", "TNA"], derecha: [1, 2, 3, 4, 5], filas: img,
+    nota: "Ganado = saldo de hoy − (cierre anterior ± suscripciones y rescates)."
+  }), () => "Rendimientos FCI " + isoADma(fechaIso).split("/").join("-") + ".png", "Rendimientos FCI"));
+  card.append(pie);
+  box.replaceChildren(card);
+}
+
 function renderPlanillaInicio() {
   const box = $("inicioPlanilla");
   if (!planillaFecha) planillaFecha = hoyIso();
   const grupos = filasPlanillaInicio(planillaFecha);
+  planillaGrupos = grupos;
   const card = el("div", "card pl-card");
   const head = el("div", "pl-head");
   const tit = el("div");
   tit.append(el("div", "card-title", "Saldos"),
-    el("div", "dt-sub", "Escribí los saldos del día y guardá. En gris, el último informado: se guarda igual si no lo cambiás. También podés copiar en el Excel las columnas Cuentas y FCI y pegarlas en el primer saldo: se cargan en orden."));
+    el("div", "dt-sub", "Escribí los saldos del día y guardá. Con fondo sombreado, el último informado: se guarda igual si no lo cambiás. Tab, Enter y flechas se mueven como en Excel; el punto del teclado numérico escribe la coma decimal. También podés pegar las columnas Cuentas y FCI copiadas del Excel en el primer saldo."));
   const acc = el("div", "pl-acciones");
   const fecha = el("input");
   fecha.type = "date";
   fecha.value = planillaFecha;
   fecha.setAttribute("aria-label", "Fecha de los saldos");
-  fecha.addEventListener("change", () => { if (fecha.value) { planillaFecha = fecha.value; renderPlanillaInicio(); } });
+  fecha.addEventListener("change", () => { if (fecha.value) { planillaFecha = fecha.value; renderPlanillaInicio(); renderRendDiaInicio(); } });
   const guardar = el("button", null, "Guardar saldos");
   guardar.type = "button";
   const copiar = el("button", "secondary", "Copiar imagen");
@@ -18003,6 +18249,9 @@ function renderPlanillaInicio() {
       totGral.textContent = m[2](c + f);
       const cambios = grupos.reduce((a, g) => a + g.cuentas.filter(x => x.cambio).length + (g.fci.cambio ? 1 : 0), 0);
       estado.textContent = cambios ? cambios + " cambio(s) sin guardar" : "";
+      // El rendimiento del día (a la derecha) sigue lo que se escribe en el FCI, sin esperar a guardar.
+      clearTimeout(renderRendDiaInicio._t);
+      renderRendDiaInicio._t = setTimeout(renderRendDiaInicio, 150);
     };
     recalculos.push(recalcular);
     const filasPegar = [];
@@ -18052,6 +18301,8 @@ function renderPlanillaInicio() {
     grid.append(envolverTabla(tabla));
   });
   card.append(grid);
+  planillaNav.orden = Array.from(grid.querySelectorAll("input"));
+  planillaNav.guardar = guardar;
   recalculos.forEach(r => r());
   copiar.addEventListener("click", () => copiarImagenPlanilla(grupos, planillaFecha, copiar));
   guardar.addEventListener("click", async () => {
@@ -18226,22 +18477,38 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
 
 async function copiarImagenPlanilla(grupos, fechaIso, boton) {
   const canvas = dibujarImagenPlanilla(grupos, fechaIso);
-  const blob = new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error("No se pudo generar la imagen.")), "image/png"));
-  const nombre = "Saldos y FCI " + isoADma(fechaIso).split("/").join("-") + ".png";
   const cambios = grupos.some(g => g.fci.cambio || g.cuentas.some(x => x.cambio));
-  const aviso = cambios ? " Ojo: tiene cambios que todavía no guardaste." : "";
+  await compartirCanvas(canvas, "Saldos y FCI " + isoADma(fechaIso).split("/").join("-") + ".png", "Saldos y FCI", boton,
+    cambios ? " Ojo: tiene cambios que todavía no guardaste." : "");
+}
+
+/**
+ * Copia una imagen (canvas) para pegarla en WhatsApp. En el celular abre "Compartir"; en la
+ * compu la copia al portapapeles; si el navegador no deja, la descarga. descargar: true la baja
+ * directo como PNG.
+ */
+async function compartirCanvas(canvas, nombre, titulo, boton, aviso, descargar) {
+  aviso = aviso || "";
+  const blob = new Promise((ok, mal) => canvas.toBlob(b => b ? ok(b) : mal(new Error("No se pudo generar la imagen.")), "image/png"));
   const enCelular = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  boton.disabled = true;
+  const bajar = async () => {
+    const url = URL.createObjectURL(await blob);
+    const a = el("a");
+    a.href = url; a.download = nombre;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+  if (boton) boton.disabled = true;
   try {
-    // En el celular: compartir directo (WhatsApp aparece en la lista).
+    if (descargar) { await bajar(); toast("Imagen descargada: " + nombre + "." + aviso, "ok"); return; }
     if (enCelular && navigator.canShare) {
       const archivo = new File([await blob], nombre, { type: "image/png" });
       if (navigator.canShare({ files: [archivo] })) {
-        try { await navigator.share({ files: [archivo], title: "Saldos y FCI" }); return; }
+        try { await navigator.share({ files: [archivo], title: titulo }); return; }
         catch (e) { if (e && e.name === "AbortError") return; }
       }
     }
-    // En la compu: al portapapeles (el ClipboardItem recibe la promesa para que Safari lo acepte).
+    // El ClipboardItem recibe la promesa para que Safari lo acepte.
     if (navigator.clipboard && window.ClipboardItem) {
       try {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -18249,17 +18516,95 @@ async function copiarImagenPlanilla(grupos, fechaIso, boton) {
         return;
       } catch (e) { /* sin permiso: se descarga */ }
     }
-    const url = URL.createObjectURL(await blob);
-    const a = el("a");
-    a.href = url; a.download = nombre;
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    await bajar();
     toast("El navegador no dejó copiarla: se descargó la imagen para que la adjuntes en WhatsApp." + aviso, "ok");
   } catch (err) {
     toast(msgErr(err), "error");
   } finally {
-    boton.disabled = false;
+    if (boton) boton.disabled = false;
   }
+}
+
+/**
+ * Tabla dibujada en un canvas, en alta resolución y con colores claros fijos (se lee bien en
+ * WhatsApp). def: {titulo, subtitulo, columnas: [texto], derecha: [índices de columnas numéricas],
+ * filas: [[celdas]] o [{celdas, clase: "total"|"sub"|"neg"|"pos"}], nota}.
+ */
+function imagenTabla(def) {
+  const ESC = 2;
+  const fuente = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
+  const C = { fondo: "#ffffff", texto: "#111814", tenue: "#5f665d", linea: "#a9a397", fuerte: "#3d423b",
+    primario: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#1c4a2c", banda: "#f4f1eb", pos: "#1d7a3e", neg: "#b42318" };
+  const filas = def.filas.map(f => Array.isArray(f) ? { celdas: f } : f);
+  const der = def.derecha || [];
+  const medir = document.createElement("canvas").getContext("2d");
+  const ancho = (txt, peso, tam) => { medir.font = peso + " " + tam + "px " + fuente; return medir.measureText(String(txt)).width; };
+  const PAD = 12, FILA = 30, CAB = 30, MARGEN = 24, TAM = 13;
+  const anchos = def.columnas.map((c, i) => Math.max(ancho(String(c).toUpperCase(), "600", 11),
+    ...filas.map(f => ancho(f.celdas[i] === undefined ? "" : f.celdas[i], f.clase === "total" ? "700" : "500", TAM))) + 2 * PAD);
+  const anchoTabla = anchos.reduce((a, b) => a + b, 0);
+  const anchoTit = Math.max(ancho(def.titulo, "700", 18), ancho(def.subtitulo || "", "500", 12.5));
+  const W = Math.ceil(Math.max(anchoTabla, anchoTit) + 2 * MARGEN);
+  const altoNota = def.nota ? 26 : 0;
+  const H = Math.ceil(MARGEN + 26 + (def.subtitulo ? 20 : 0) + 12 + CAB + filas.length * FILA + altoNota + MARGEN);
+  const cv = document.createElement("canvas");
+  cv.width = W * ESC; cv.height = H * ESC;
+  const g = cv.getContext("2d");
+  g.scale(ESC, ESC);
+  g.fillStyle = C.fondo; g.fillRect(0, 0, W, H);
+  let y = MARGEN;
+  g.textBaseline = "middle";
+  g.fillStyle = C.primario; g.font = "700 18px " + fuente; g.fillText(def.titulo, MARGEN, y + 10); y += 26;
+  if (def.subtitulo) { g.fillStyle = C.tenue; g.font = "500 12.5px " + fuente; g.fillText(def.subtitulo, MARGEN, y + 8); y += 20; }
+  y += 12;
+  // Encabezado
+  g.fillStyle = C.primario; g.fillRect(MARGEN, y, anchoTabla, CAB);
+  g.fillStyle = "#ffffff"; g.font = "600 11px " + fuente;
+  let x = MARGEN;
+  def.columnas.forEach((c, i) => {
+    const t = String(c).toUpperCase();
+    g.textAlign = der.indexOf(i) >= 0 ? "right" : "left";
+    g.fillText(t, der.indexOf(i) >= 0 ? x + anchos[i] - PAD : x + PAD, y + CAB / 2);
+    x += anchos[i];
+  });
+  y += CAB;
+  filas.forEach((f, n) => {
+    if (f.clase === "total") { g.fillStyle = C.banda; g.fillRect(MARGEN, y, anchoTabla, FILA); }
+    else if (n % 2) { g.fillStyle = "#faf9f6"; g.fillRect(MARGEN, y, anchoTabla, FILA); }
+    x = MARGEN;
+    f.celdas.forEach((c, i) => {
+      const txt = c === undefined || c === null ? "" : String(c);
+      g.font = (f.clase === "total" ? "700 " : "500 ") + TAM + "px " + fuente;
+      const num = der.indexOf(i) >= 0;
+      g.fillStyle = num && /^[-−]/.test(txt.replace(/^[$U\sD]+/, "")) ? C.neg : num && /^\+/.test(txt) ? C.pos : C.texto;
+      g.textAlign = num ? "right" : "left";
+      g.fillText(txt, num ? x + anchos[i] - PAD : x + PAD, y + FILA / 2);
+      x += anchos[i];
+    });
+    y += FILA;
+    g.strokeStyle = f.clase === "total" ? C.fuerte : C.linea;
+    g.lineWidth = f.clase === "total" ? 1.5 : 0.8;
+    g.beginPath(); g.moveTo(MARGEN, y); g.lineTo(MARGEN + anchoTabla, y); g.stroke();
+  });
+  g.strokeStyle = C.fuerte; g.lineWidth = 1.2;
+  g.strokeRect(MARGEN, y - filas.length * FILA - CAB, anchoTabla, filas.length * FILA + CAB);
+  if (def.nota) { g.textAlign = "left"; g.fillStyle = C.tenue; g.font = "500 11.5px " + fuente; g.fillText(def.nota, MARGEN, y + 16); }
+  return cv;
+}
+
+/** Dos botones: "Copiar imagen" (portapapeles o compartir) y "PNG" (descarga). armar() devuelve el canvas. */
+function botonesImagen(armar, nombre, titulo) {
+  const caja = el("span", "botones-imagen");
+  const copiar = el("button", "secondary small", "Copiar imagen");
+  copiar.type = "button";
+  copiar.title = "Copia la tabla como imagen para pegarla en WhatsApp (Ctrl+V). En el celular, la comparte.";
+  copiar.addEventListener("click", e => { e.stopPropagation(); compartirCanvas(armar(), nombre(), titulo, copiar); });
+  const png = el("button", "secondary small", "PNG");
+  png.type = "button";
+  png.title = "Descargar la imagen";
+  png.addEventListener("click", e => { e.stopPropagation(); compartirCanvas(armar(), nombre(), titulo, png, "", true); });
+  caja.append(copiar, png);
+  return caja;
 }
 
 // ---------------- Salida de cheques ----------------
@@ -18815,8 +19160,56 @@ async function eliminarMovFci(f) {
 // banco, día, moneda e importe) se cuenta una sola vez.
 let memoRendSaldos = { saldos: null, fci: null, res: null };
 
+// ----- Días de devengamiento del FCI (fines de semana y feriados) -----
+// El saldo de inicio de un día muestra el valor de cuotaparte del día hábil anterior, y el valor
+// del primer día hábil después de un fin de semana trae el devengamiento del sábado y el domingo.
+// Así, del viernes al lunes (saldos de inicio) el fondo rindió 1 día (el jueves al viernes) y del
+// lunes al martes rindió 3 (viernes, sábado y domingo). Contar días corridos daba una TNA de un
+// tercio el lunes y del triple el martes. Los días del período se cuentan entre los días hábiles
+// anteriores a cada saldo. preferencias.rendFci.dias = "corridos" vuelve al cálculo anterior.
+function modoDiasFci() {
+  return (preferencias.rendFci || {}).dias === "corridos" ? "corridos" : "habiles";
+}
+
+const memoFeriados = {};
+function pascuaIso(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return y + "-" + dosDigitos(mes) + "-" + dosDigitos(dia);
+}
+
+/** Feriados nacionales de Argentina del año (los fijos, Carnaval y Semana Santa; los trasladables en su fecha). */
+function feriadosAr(y) {
+  if (memoFeriados[y]) return memoFeriados[y];
+  const o = {};
+  ["01-01", "03-24", "04-02", "05-01", "05-25", "06-17", "06-20", "07-09", "08-17", "10-12", "11-20", "12-08", "12-25"].forEach(md => { o[y + "-" + md] = true; });
+  const pascua = pascuaIso(y);
+  [-48, -47, -3, -2].forEach(n => { o[sumarDiasIso(pascua, n)] = true; });
+  memoFeriados[y] = o;
+  return o;
+}
+
+function esDiaHabil(iso) {
+  const p = iso.split("-");
+  const w = new Date(+p[0], +p[1] - 1, +p[2]).getDay();
+  return w !== 0 && w !== 6 && !feriadosAr(+p[0])[iso];
+}
+
+function habilAnterior(iso) {
+  let d = sumarDiasIso(iso, -1);
+  for (let i = 0; i < 15 && !esDiaHabil(d); i++) d = sumarDiasIso(d, -1);
+  return d;
+}
+
+/** Días que devengó el fondo entre dos saldos de inicio (ver arriba). */
+function diasDevengados(desde, hasta) {
+  if (modoDiasFci() === "corridos") return diasEntre(desde, hasta);
+  return diasEntre(habilAnterior(desde), habilAnterior(hasta));
+}
+
 function calcularRendimientoFciSaldos() {
-  if (memoRendSaldos.saldos === saldosGuardados && memoRendSaldos.fci === fciDatos && memoRendSaldos.res) return memoRendSaldos.res;
+  if (memoRendSaldos.saldos === saldosGuardados && memoRendSaldos.fci === fciDatos && memoRendSaldos.dias === modoDiasFci() && memoRendSaldos.res) return memoRendSaldos.res;
   const claveBanco = (banco, moneda) => normalizar(nombreBancoCanonico(banco) || banco) + "|" + moneda;
   const grupos = {};
   saldosGuardados.filter(esFilaFci).forEach(s => {
@@ -18852,19 +19245,22 @@ function calcularRendimientoFciSaldos() {
       let susc = 0, resc = 0;
       delBanco.forEach(m => { if (m.iso >= desde && m.iso < hasta) { if (m.monto > 0) susc += m.monto; else resc += m.monto; } });
       const capital = ini + susc + resc;  // paso 1: cierre del día anterior
-      const d = Math.max(1, diasEntre(desde, hasta));
+      const dev = diasDevengados(desde, hasta);
+      const d = Math.max(1, dev);
       const rend = fin - capital;         // paso 2
+      // Sin días de devengamiento (dos saldos del mismo fin de semana) no hay tasa: solo cuenta lo ganado.
       const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
-      periodos.push({ desde: desde, hasta: hasta, d: d, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
+      periodos.push({ desde: desde, hasta: hasta, d: d, corridos: Math.max(1, diasEntre(desde, hasta)), sinDias: dev === 0, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
         pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: null });
     }
     const ultima = fechas[fechas.length - 1];
     return {
       k: k, banco: g.banco, moneda: g.moneda, periodos: periodos, ultimo: { iso: ultima, saldo: parseImporte(g.porFecha[ultima]["Saldo"]) },
+      saldos: fechas.map(f => ({ iso: f, saldo: parseImporte(g.porFecha[f]["Saldo"]) })), movs: delBanco,
       posteriores: delBanco.filter(m => m.iso >= ultima).reduce((a, m) => a + m.monto, 0)
     };
   }).sort((a, b) => (a.moneda + a.banco).localeCompare(b.moneda + b.banco));
-  memoRendSaldos = { saldos: saldosGuardados, fci: fciDatos, res: res };
+  memoRendSaldos = { saldos: saldosGuardados, fci: fciDatos, dias: modoDiasFci(), res: res };
   return res;
 }
 
@@ -18882,7 +19278,7 @@ function fciDiaPorDia(moneda, dias) {
     const d = porDia[p.hasta] || (porDia[p.hasta] = { iso: p.hasta, rend: 0, susc: 0, resc: 0, base: 0, cierre: 0, dias: 1, dudoso: false });
     d.susc += p.susc; d.resc += p.resc; d.dias = Math.max(d.dias, p.d);
     if (p.dudoso) d.dudoso = true;
-    else { d.rend += p.rend; d.base += p.capital * p.d; d.cierre += p.capital; }
+    else { d.rend += p.rend; d.base += p.capital * (p.sinDias ? 0 : p.d); d.cierre += p.capital; }
   }));
   // Saldo de cada banco a una fecha: el último informado hasta ese día.
   const saldoAl = iso => bancos.reduce((a, b) => {
@@ -18973,7 +19369,7 @@ function renderRendimientoFciSaldos(box) {
       conFecha(f.x.ultimo.saldo, f.x.ultimo.iso),
       el("td", "num " + (p && p.rend < 0 ? "neg" : ""), p ? fmt(p.rend) : "—"),
       el("td", "num " + (p && p.rend < 0 ? "neg" : ""), p && p.pct !== null ? pctFino(p.pct) : "—"),
-      el("td", "num", p && !p.dudoso ? pctTexto(p.rend / p.capital * 365 / p.d) : "—"),
+      el("td", "num", p && !p.dudoso && !p.sinDias ? pctTexto(p.rend / p.capital * 365 / p.d) : "—"),
       el("td", "num", fmt(f.r30.rend)),
       el("td", "num", f.r30.tna === null ? "—" : pctTexto(f.r30.tna)));
     tabla.append(tr);
