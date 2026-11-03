@@ -1087,7 +1087,12 @@ function guardarCheques_(d, u) {
       if (k) vistos.add(k);
       return true;
     });
-    const res = guardarFilas_(aGuardar, SHEET_CHEQUES, HEADERS_CHEQUES, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]);
+    // Cheques emitidos que ya estaban cargados (mismo banco y N°), por ejemplo al importar el listado
+    // de e-cheqs pagados: en vez de descartarlos como repetidos se les pasa el estado nuevo (si
+    // estaban abiertos) y se completa el concepto y el banco aceptante si no tenían.
+    const actualizados = actualizarChequesExistentes_(aGuardar, u);
+    const res = guardarFilas_(aGuardar.filter(f => actualizados.usados.indexOf(f) < 0), SHEET_CHEQUES, HEADERS_CHEQUES, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]);
+    res.actualizados = actualizados.n;
     res.duplicadas = repetidosTerceros.concat(res.duplicadas);
     ULTIMOS_CHEQUES_GUARDADOS_ = (res.guardadas || []).map(f => filaComoObjeto_(HEADERS_CHEQUES, f));
     res.nuevos = asegurarCatalogo_(aGuardar.filter(r => r[COL_BANCO_CHEQUE]).map(r => ({ banco: r[COL_BANCO_CHEQUE], tipo: r[iTipo], numero: r[iNumero], moneda: 'ARS' })), u);
@@ -1100,6 +1105,46 @@ function guardarCheques_(d, u) {
     res.ok = true;
     return res;
   });
+}
+
+/** Ver guardarCheques_. Devuelve {n: cheques actualizados, usados: filas que ya no hay que agregar}. */
+function actualizarChequesExistentes_(filasNuevas, u) {
+  const H = HEADERS_CHEQUES;
+  const usados = [];
+  const hoja = obtenerHoja_(SHEET_CHEQUES, H);
+  const ult = hoja.getLastRow();
+  if (ult < 2) return { n: 0, usados: usados };
+  const datos = hoja.getRange(2, 1, ult - 1, H.length).getDisplayValues();
+  const iEst = H.indexOf('Estado'), iDeb = H.indexOf('Fecha de Débito'), iHora = H.indexOf('Hora de Débito'), iCon = H.indexOf('Concepto'),
+    iAcep = H.indexOf('Banco Aceptante'), iConc = H.indexOf('Conciliación'), iTipo = H.indexOf('Tipo');
+  const porClave = {};
+  datos.forEach((f, i) => { const k = claveDe_(f, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]); if (k && f[iTipo] !== 'De terceros') porClave[k] = i; });
+  let n = 0;
+  filasNuevas.forEach(f => {
+    if (f[iTipo] === 'De terceros') return;
+    const k = claveDe_(f, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]);
+    const i = k ? porClave[k] : undefined;
+    if (i === undefined) return;
+    usados.push(f);
+    const viejo = datos[i];
+    if (String(viejo[iConc] || '').trim()) return;
+    const nueva = viejo.slice();
+    const estNuevo = String(f[iEst] || '').trim();
+    if (estNuevo && claveTexto(estNuevo) !== claveTexto(viejo[iEst]) && ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(viejo[iEst] || 'pendiente')) >= 0 &&
+        ESTADOS_ABIERTOS_SRV.indexOf(claveTexto(estNuevo)) < 0) {
+      nueva[iEst] = estNuevo;
+      if (String(f[iDeb] || '').trim()) { nueva[iDeb] = f[iDeb]; nueva[iHora] = f[iHora] || ''; }
+    }
+    if (!String(viejo[iCon] || '').trim() && String(f[iCon] || '').trim()) nueva[iCon] = String(f[iCon]).trim();
+    if (!String(viejo[iAcep] || '').trim() && String(f[iAcep] || '').trim()) nueva[iAcep] = String(f[iAcep]).trim();
+    if (nueva.every((v, j) => v === viejo[j])) return;
+    hoja.getRange(i + 2, 1, 1, H.length).setNumberFormat('@').setValues([nueva]);
+    datos[i] = nueva;
+    n++;
+    registrar_(u, 'Actualización de cheque (listado)', 'N° ' + nueva[COL_NUMERO_CHEQUE] + ' · ' + nueva[COL_BANCO_CHEQUE] + ' · ' + nueva[iEst] + (nueva[iCon] ? ' · ' + nueva[iCon] : ''),
+      nueva[COL_NUMERO_CHEQUE], filaComoObjeto_(H, viejo), filaComoObjeto_(H, nueva));
+  });
+  return { n: n, usados: usados };
 }
 
 // ======================= Estado de un cheque =======================
@@ -2605,6 +2650,9 @@ function upsertPlanilla_(nombreHoja, H, filas, opciones) {
       H.forEach((h, i) => {
         if (CAMPOS_PROTEGIDOS_IMPORTACION.indexOf(h) >= 0 || !(h in obj)) return;
         const v = obj[h] == null ? '' : String(obj[h]).trim();
+        // Lo cargado a mano en la app (por ejemplo el Concepto de un cheque) no se borra si el
+        // archivo importado lo trae vacío.
+        if (!v && opciones.noVaciar && opciones.noVaciar.indexOf(h) >= 0) return;
         if (String(nueva[i]) !== v) { nueva[i] = v; cambia = true; }
       });
       if (!cambia) { sinCambios++; return; }
@@ -2683,6 +2731,7 @@ function importarMovimientos_(filas, d, u) {
     o['Entre Cuentas Propias'] = o['Entre Cuentas Propias'] === 'Sí' ? 'Sí' : 'No';
   });
   return upsertPlanilla_(SHEET_TRANSFERENCIAS, H, filas, {
+    noVaciar: ['Concepto'],
     nueva: fila => {
       ultimoInterno++;
       fila[COL_INTERNO] = String(ultimoInterno);
@@ -2743,6 +2792,7 @@ function importarCheques_(filas, d, u) {
     }
   });
   return upsertPlanilla_(SHEET_CHEQUES, H, filas, {
+    noVaciar: ['Concepto', 'Banco Aceptante'],
     nueva: fila => {
       fila[H.indexOf('Archivo')] = String(d.archivo || 'Planilla de flujo de fondos');
       fila[COL_CARGADO_CHEQUE] = nombreDe_(u);

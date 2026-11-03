@@ -881,6 +881,8 @@
   .rd-card .pl-head { flex-wrap: wrap; gap: 8px; }
   .rd-pie, .botones-imagen { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .rd-pie { margin-top: 10px; }
+  .rapidas-img { margin-left: auto; display: inline-flex; align-items: center; flex-shrink: 0; padding: 0 0 6px 12px; }
+  .rapidas-img .botones-imagen { flex-wrap: nowrap; }
   .rd-ganado { font-size: 15px; font-weight: 650; }
   .rd-tna { font-size: 11.5px; color: var(--muted); }
   .rd-vivo { font-size: 11px; color: var(--primary); font-weight: 600; }
@@ -2000,8 +2002,8 @@
               </select>
             </label>
             <div class="row">
-              <label>Importe mínimo<input type="number" id="filtro-transferencias-importeMin" placeholder="0"></label>
-              <label>Importe máximo<input type="number" id="filtro-transferencias-importeMax" placeholder="Sin límite"></label>
+              <label>Importe mínimo<input type="text" inputmode="decimal" id="filtro-transferencias-importeMin" placeholder="Ej.: 1.000.000"></label>
+              <label>Importe máximo<input type="text" inputmode="decimal" id="filtro-transferencias-importeMax" placeholder="Sin límite"></label>
             </div>
             <div class="row">
               <label>Tipo de movimiento
@@ -2136,8 +2138,8 @@
               <label>Canal<select id="filtro-cheques-canal"></select></label>
             </div>
             <div class="row">
-              <label>Importe mínimo<input type="number" id="filtro-cheques-importeMin" placeholder="0"></label>
-              <label>Importe máximo<input type="number" id="filtro-cheques-importeMax" placeholder="Sin límite"></label>
+              <label>Importe mínimo<input type="text" inputmode="decimal" id="filtro-cheques-importeMin" placeholder="Ej.: 1.000.000"></label>
+              <label>Importe máximo<input type="text" inputmode="decimal" id="filtro-cheques-importeMax" placeholder="Sin límite"></label>
             </div>
             <div class="row">
               <label>Tipo de cuenta
@@ -2700,12 +2702,13 @@
           </label>
         </div>
         <div class="row">
-          <label>Concepto<input data-campo="Concepto" type="text" placeholder="Escribí el concepto"></label>
+          <label>Concepto<input data-campo="Concepto" type="text" list="listaConceptos" autocomplete="off" placeholder="Escribí o elegí un concepto usado antes"></label>
         </div>
         <p class="hint">El N° interno se asigna automáticamente al guardar.</p>
       </div>
 
       <datalist id="listaBancosCheque"></datalist>
+      <datalist id="listaConceptos"></datalist>
       <div id="manualCamposCheque" class="manual-campos" hidden>
         <div class="row">
           <label>N° de cheque<input data-campo="N° de Cheque" type="text"></label>
@@ -2716,7 +2719,7 @@
           <label>Banco aceptante<input data-campo="Banco Aceptante" type="text" list="listaBancosCheque" placeholder="Ej.: BBVA"></label>
         </div>
         <div class="row">
-          <label>Concepto<input data-campo="Concepto" type="text" placeholder="Ej.: pago soja, anticipo, alquiler"></label>
+          <label>Concepto<input data-campo="Concepto" type="text" list="listaConceptos" autocomplete="off" placeholder="Ej.: pago soja, anticipo, alquiler"></label>
         </div>
         <div class="row">
           <label>Fecha de emisión<input data-campo="Fecha de Emisión" type="text" placeholder="dd/mm/aaaa"></label>
@@ -3247,6 +3250,7 @@
   <span id="selTexto"></span>
   <button id="selExcel" class="secondary" type="button" title="Reporte en Excel con los cheques seleccionados">Excel</button>
   <button id="selPdf" class="secondary" type="button" title="Reporte en PDF con los cheques seleccionados">PDF</button>
+  <button id="selImagen" class="secondary" type="button" title="Los cheques seleccionados como imagen, copiada para pegar en WhatsApp">Copiar imagen</button>
   <button id="selCambiarCuenta" type="button">Cambiar cuenta</button>
   <button id="selLimpiar" class="secondary" type="button">Quitar selección</button>
 </div>
@@ -5568,6 +5572,7 @@ function formChequeLeido(r) {
     input.placeholder = c[2];
     input.disabled = r.sent;
     if (c[0] === "Banco Aceptante") input.setAttribute("list", "listaBancosCheque");
+    else { input.setAttribute("list", "listaConceptos"); input.autocomplete = "off"; }
     input.addEventListener("input", () => { r.manualCheque[c[0]] = input.value.trim(); });
     grid.append(campoForm(c[1], input, c[0] === "Concepto" ? "cf-concepto" : null));
   });
@@ -5694,7 +5699,9 @@ function formMovimiento(r) {
 
   const inConcepto = el("input");
   inConcepto.type = "text";
-  inConcepto.placeholder = "Escribí el concepto";
+  inConcepto.placeholder = "Escribí o elegí un concepto usado antes";
+  inConcepto.setAttribute("list", "listaConceptos");
+  inConcepto.autocomplete = "off";
   inConcepto.value = d["Concepto"] || "";
   inConcepto.disabled = bloqueado;
   inConcepto.addEventListener("input", () => { d["Concepto"] = inConcepto.value; });
@@ -6027,7 +6034,7 @@ $("btnGuardar").addEventListener("click", async () => {
   btn.classList.add("is-loading");
   setStatus(st, "Guardando…");
   try {
-    let agregadas = 0;
+    let agregadas = 0, chequesActualizados = 0;
     let duplicadas = [];
     const altas = { bancos: 0, cuentas: 0 };
 
@@ -6055,6 +6062,7 @@ $("btnGuardar").addEventListener("click", async () => {
       const res = await runAsync("guardarCheques", pendientesCheques.map(r => filaDesde(r, HEADERS_CHEQUES)));
       pendientesCheques.forEach(r => { r.sent = true; r.duplicado = (res.duplicadas || []).some(x => String(x).indexOf(r.filename + " (") === 0); });
       agregadas += res.agregadas;
+      chequesActualizados += res.actualizados || 0;
       duplicadas = duplicadas.concat(res.duplicadas);
       altas.bancos += (res.nuevos && res.nuevos.bancos) || 0;
       altas.cuentas += (res.nuevos && res.nuevos.cuentas) || 0;
@@ -6074,6 +6082,8 @@ $("btnGuardar").addEventListener("click", async () => {
     tabActiva = 0;
     render();
     let msg = "Se guardaron " + agregadas + " comprobante(s).";
+    if (chequesActualizados) msg += " " + chequesActualizados + " cheque(s) que ya estaban se actualizaron con el estado y el concepto del listado.";
+    if (chequesActualizados && chequesCargados) cargarCheques(true);
     if (pedidosDrive.length) msg += " Los archivos se suben a Drive en segundo plano.";
     if (duplicadas.length) {
       msg += " No se cargaron " + duplicadas.length + " porque ya estaban: " + duplicadas.join(", ") + ".";
@@ -6494,8 +6504,9 @@ function leerFiltros(prefijo) {
     texto: valorFiltro(prefijo, "texto").trim().toLowerCase(),
     desde: valorFiltro(prefijo, "desde"),
     hasta: valorFiltro(prefijo, "hasta"),
-    importeMin: importeMinTxt === "" ? null : parseFloat(importeMinTxt),
-    importeMax: importeMaxTxt === "" ? null : parseFloat(importeMaxTxt),
+    // Como en un Excel en castellano: "1.000.000" es un millón y "1500,5" lleva coma decimal.
+    importeMin: String(importeMinTxt).trim() === "" ? null : importeTipeado(importeMinTxt),
+    importeMax: String(importeMaxTxt).trim() === "" ? null : importeTipeado(importeMaxTxt),
     instrumento: valorFiltro(prefijo, "instrumento"),
     persona: valorFiltro(prefijo, "persona"),
     estado: valorFiltro(prefijo, "estado")
@@ -6526,7 +6537,13 @@ function cumpleFiltro(fila, filtro, camposTexto, campoFecha) {
   else if (filtro.condicion && (fila["Condición"] || "") !== filtro.condicion) return false;
 
   if (filtro.texto) {
-    const coincide = camposTexto.some(c => (fila[c] || "").toLowerCase().indexOf(filtro.texto) >= 0);
+    // Sin importar mayúsculas ni acentos; los números se comparan solo por sus cifras ("12.345" encuentra
+    // el cheque 00012345) y también se busca en el importe ("1.500.000" o "1500000").
+    const t = normalizar(filtro.texto).trim();
+    const dig = soloDigitos(filtro.texto);
+    const soloNumero = !!dig && /^[\d\s.,$-]+$/.test(filtro.texto);
+    const coincide = camposTexto.some(c => normalizar(fila[c] || "").indexOf(t) >= 0 || (soloNumero && dig.length >= 3 && c !== "N° de Cuenta" && c !== "Cuenta Destino" && soloDigitos(fila[c]).indexOf(dig) >= 0)) ||
+      (soloNumero && dig.length >= 3 && (soloDigitos(valorImporte(fila)).replace(/^0+/, "").indexOf(dig.replace(/^0+/, "")) === 0));
     if (!coincide) return false;
   }
 
@@ -6718,6 +6735,53 @@ function poblarFiltroValores(id, datos, campo, textoTodos, vacio) {
   const lista = Object.keys(vals).sort((a, b) => vals[b] - vals[a]);
   llenarSelect(sel, lista.map(v => ({ value: v, label: v + " (" + vals[v] + ")" })), textoTodos);
 }
+
+// ----- Conceptos históricos -----
+// Todo campo Concepto sugiere los conceptos ya usados en cheques y movimientos (los más usados y
+// recientes primero). Se arma al entrar al campo, solo si cambiaron los datos.
+let memoConceptos = {};
+function actualizarListaConceptos() {
+  const lista = $("listaConceptos");
+  if (!lista || (memoConceptos.ch === chequesDatos && memoConceptos.tr === transferenciasDatos)) return;
+  const por = {};
+  const sumar = (txt, fecha) => {
+    const t = String(txt || "").trim();
+    if (t.length < 2) return;
+    const k = normalizar(t);
+    const x = por[k] || (por[k] = { t: t, n: 0, iso: "" });
+    x.n++;
+    const iso = fechaAOrden(fecha || "");
+    if (iso > x.iso) { x.iso = iso; x.t = t; }
+  };
+  chequesDatos.forEach(c => sumar(c["Concepto"], c["Fecha de Emisión"]));
+  transferenciasDatos.forEach(f => sumar(f["Concepto"], fechaMov(f)));
+  const orden = Object.keys(por).map(k => por[k]).sort((a, b) => b.n - a.n || b.iso.localeCompare(a.iso)).slice(0, 500);
+  lista.replaceChildren(...orden.map(x => new Option(x.t, x.t)));
+  memoConceptos = { ch: chequesDatos, tr: transferenciasDatos };
+}
+
+/** El último concepto usado con ese titular o destinatario (para proponerlo si el campo está vacío). */
+function ultimoConceptoDe(nombre) {
+  const k = normalizar(nombre).trim();
+  if (k.length < 3) return "";
+  let mejor = null;
+  chequesDatos.forEach(c => { if (c["Concepto"] && normalizar(c["Titular"]).trim() === k) { const iso = fechaAOrden(c["Fecha de Emisión"] || ""); if (!mejor || iso > mejor.iso) mejor = { iso: iso, t: c["Concepto"] }; } });
+  transferenciasDatos.forEach(f => { if (f["Concepto"] && normalizar(f["Destinatario"] || f["Contraparte"]).trim() === k) { const iso = fechaAOrden(fechaMov(f)); if (!mejor || iso > mejor.iso) mejor = { iso: iso, t: f["Concepto"] }; } });
+  return mejor ? mejor.t : "";
+}
+
+document.addEventListener("focusin", e => {
+  if (e.target && e.target.getAttribute && e.target.getAttribute("list") === "listaConceptos") {
+    actualizarListaConceptos();
+    // Vacío: propone el último concepto del mismo titular o destinatario (queda seleccionado para reemplazarlo).
+    const form = e.target.closest(".manual-campos");
+    if (form && !e.target.value.trim()) {
+      const quien = form.querySelector('[data-campo="Titular"], [data-campo="Destinatario"]');
+      const prop = quien ? ultimoConceptoDe(quien.value) : "";
+      if (prop) { e.target.value = prop; e.target.dispatchEvent(new Event("input", { bubbles: true })); e.target.select(); }
+    }
+  }
+});
 
 function aplicarFiltrosTransferencias() {
   poblarFiltroValores("filtro-transferencias-persona", transferenciasDatos, "Persona", "Todas");
@@ -11441,6 +11505,28 @@ const RAPIDAS_CHEQUES = [
   { id: "emitidos", titulo: "Emitidos", f: c => c["Tipo"] === "Emitido" },
   { id: "terceros", titulo: "De terceros", f: c => c["Tipo"] === "De terceros" }
 ];
+// Filtros rápidos de cada solapa (se suman a Todos / Emitidos / De terceros).
+const isoCheque = (c, campo) => fechaAOrden(c[campo] || "");
+function semanaActual() {
+  const h = hoyIso(), p = h.split("-");
+  const w = (new Date(+p[0], +p[1] - 1, +p[2]).getDay() + 6) % 7;
+  return [sumarDiasIso(h, -w), sumarDiasIso(h, 6 - w)];
+}
+const RAPIDAS_CHEQUES_CURSO = RAPIDAS_CHEQUES.concat([
+  { id: "emitHoy", titulo: "Emitidos hoy", f: c => c["Tipo"] === "Emitido" && isoCheque(c, "Fecha de Emisión") === hoyIso() },
+  { id: "emitAyer", titulo: "Emitidos ayer", f: c => c["Tipo"] === "Emitido" && isoCheque(c, "Fecha de Emisión") === sumarDiasIso(hoyIso(), -1) },
+  { id: "recibHoy", titulo: "Recibidos hoy", f: c => c["Tipo"] === "De terceros" && fechaAOrden(c["Fecha de Ingreso"] || c["Fecha de Emisión"] || "") === hoyIso() },
+  { id: "vencHoy", titulo: "Vencen hoy", f: c => isoCheque(c, "Fecha de Pago") === hoyIso() },
+  { id: "vencSemana", titulo: "Vencen esta semana", f: c => enRango(isoCheque(c, "Fecha de Pago"), semanaActual()) },
+  { id: "vencidos", titulo: "Vencidos sin pagar", f: c => { const i = isoCheque(c, "Fecha de Pago"); return !!i && i < hoyIso(); } }
+]);
+const RAPIDAS_CHEQUES_CERRADOS = RAPIDAS_CHEQUES.concat([
+  { id: "pagHoy", titulo: "Pagados hoy", f: c => isoCheque(c, "Fecha de Débito") === hoyIso() },
+  { id: "pagAyer", titulo: "Pagados ayer", f: c => isoCheque(c, "Fecha de Débito") === sumarDiasIso(hoyIso(), -1) },
+  { id: "pagSemana", titulo: "Esta semana", f: c => enRango(isoCheque(c, "Fecha de Débito"), semanaActual()) },
+  { id: "pagMes", titulo: "Este mes", f: c => enRango(isoCheque(c, "Fecha de Débito"), rangoMes(0)) },
+  { id: "pagMesAnt", titulo: "Mes anterior", f: c => enRango(isoCheque(c, "Fecha de Débito"), rangoMes(-1)) }
+]);
 // Situación (en Más filtros): antes eran solapas de vista rápida.
 const SITUACIONES_CHEQUE = {
   avencer: c => { const e = estadoCheque(c); return e.orden >= 1 && e.orden <= 2; },
@@ -11662,6 +11748,19 @@ $("estChGuardar").addEventListener("click", async () => {
   }
 });
 
+/** Detalle de cheques como imagen: N°, titular, concepto, fechas e importe, con el total. */
+function imagenCheques(lista, titulo) {
+  const cerr = lista.length && lista.every(c => !chequeAbierto(c));
+  const orden = lista.slice().sort((a, b) => (fechaAOrden(a["Fecha de Débito"] || a["Fecha de Pago"]) || "").localeCompare(fechaAOrden(b["Fecha de Débito"] || b["Fecha de Pago"]) || "") || soloDigitos(a["N° de Cheque"]).localeCompare(soloDigitos(b["N° de Cheque"])));
+  const filas = orden.map(c => [c["N° de Cheque"], c["Tipo"] === "Emitido" ? (c["Banco"] || "Emitido") : "De terceros", c["Titular"] || "", c["Concepto"] || "",
+    c["Fecha de Pago"] || "", cerr ? (c["Fecha de Débito"] || "") : estadoCheque(c).texto, textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]);
+  const tot = {};
+  orden.forEach(c => { const m = monedaCheque(c); tot[m] = (tot[m] || 0) + Math.abs(parseImporte(c["Importe"])); });
+  Object.keys(tot).forEach(m => filas.push({ clase: "total", celdas: ["Total " + (m === "USD" ? "U$D" : "$"), orden.length + " cheque(s)", "", "", "", "", textoImporte(tot[m], m)] }));
+  if (!orden.length) filas.push(["—", "", "Sin cheques", "", "", "", ""]);
+  return imagenTabla({ titulo: titulo, subtitulo: nombreDia(hoyIso()), columnas: ["N° de cheque", "Banco / tipo", "Titular", "Concepto", "Fecha de pago", cerr ? "Débito" : "Estado", "Importe"], derecha: [6], filas: filas });
+}
+
 function renderCheques(filas) {
   ultimasFilasCheques = filas;
   renderChipsFiltros("cheques", aplicarFiltrosCheques);
@@ -11698,9 +11797,16 @@ function renderCheques(filas) {
     solapas.append(lab);
   });
   const deSolapa = solapaCheques === "cerrados" ? cerrados : enCurso;
-  const def = RAPIDAS_CHEQUES.find(d => d.id === rapida.cheques) || RAPIDAS_CHEQUES[0];
-  renderRapidas("cheques", RAPIDAS_CHEQUES, deSolapa, () => renderCheques(ultimasFilasCheques));
+  const defsRap = solapaCheques === "cerrados" ? RAPIDAS_CHEQUES_CERRADOS : RAPIDAS_CHEQUES_CURSO;
+  const def = defsRap.find(d => d.id === rapida.cheques) || defsRap[0];
+  rapida.cheques = def.id;
+  renderRapidas("cheques", defsRap, deSolapa, () => renderCheques(ultimasFilasCheques));
   const visibles = deSolapa.filter(def.f);
+  // Lo que se ve, como imagen para WhatsApp (por ejemplo, "Pagados hoy" con su concepto).
+  const imgBox = el("span", "rapidas-img");
+  imgBox.append(botonesImagen(() => imagenCheques(visibles, (solapaCheques === "cerrados" ? "Cheques pagados y cerrados" : "Cheques en curso") + (def.id === "todos" ? "" : " · " + def.titulo)),
+    () => "Cheques " + def.titulo.toLowerCase() + " " + isoADma(hoyIso()).split("/").join("-") + ".png", "Cheques"));
+  $("rapidas-cheques").append(imgBox);
 
   const cfg = {
     id: "cheques",
@@ -11720,6 +11826,7 @@ function renderCheques(filas) {
         if (c["CUIT"]) box.append(el("div", "dt-sub", "CUIT " + c["CUIT"]));
         return box;
       } },
+      { clave: "concepto", titulo: "Concepto", clase: "dt-concepto", orden: c => normalizar(c["Concepto"] || "~"), celda: c => c["Concepto"] ? el("div", "dt-principal", c["Concepto"]) : el("span", "dt-sub", "—") },
       { clave: "cuenta", titulo: "Cuenta", orden: c => (c["Banco"] || "") + (c["N° de Cuenta"] || ""), celda: celdaCuenta },
       { clave: "estado", titulo: "Estado", orden: c => estadoCheque(c).orden, celda: c => {
         const e = estadoCheque(c);
@@ -11736,7 +11843,7 @@ function renderCheques(filas) {
     pie: lista => {
       const neto = lista.reduce((a, c) => a + importeCheque(c), 0);
       return [
-        { texto: "Total de " + lista.length + " cheque(s) · emitidos en negativo", colspan: 7, clase: "dt-total-label" },
+        { texto: "Total de " + lista.length + " cheque(s) · emitidos en negativo", colspan: 8, clase: "dt-total-label" },
         { texto: textoImporte(neto, "Pesos"), clase: "num dt-total " + (neto < 0 ? "neg" : "pos") }
       ];
     }
@@ -12107,7 +12214,7 @@ function actualizarBarraSeleccion() {
   const filas = datos.filter(f => lista.indexOf(idSeleccion(vista, f)) >= 0);
   const total = filas.reduce((a, f) => a + (vista === "cheques" ? importeCheque(f) : parseImporte(f["Monto"])), 0);
   $("selTexto").textContent = lista.length + (vista === "cheques" ? " cheque(s)" : " movimiento(s)") + " seleccionado(s) · " + formatImporte(total);
-  $("selExcel").hidden = $("selPdf").hidden = vista !== "cheques";
+  $("selExcel").hidden = $("selPdf").hidden = $("selImagen").hidden = vista !== "cheques";
 }
 
 function casillaSeleccion(vista, filas, esEncabezado) {
@@ -12170,11 +12277,11 @@ async function reporteChequesSeleccionados(formato) {
   }
   const rep = el("div", "rep");
   rep.append(encabezadoReporte("Cheques seleccionados", [lista.length + " cheque(s)"].concat(lineasTot)));
-  const filas = lista.map(c => [c["N° de Cheque"], c["Tipo"] === "Emitido" ? "Emitido" : "De terceros", c["Banco"] || c["Banco Emisor"] || "", c["Titular"] || "",
+  const filas = lista.map(c => [c["N° de Cheque"], c["Tipo"] === "Emitido" ? "Emitido" : "De terceros", c["Banco"] || c["Banco Emisor"] || "", c["Titular"] || "", c["Concepto"] || "",
     c["Fecha de Emisión"] || "", c["Fecha de Pago"] || "", estadoCheque(c).texto + (textoDescuento(c) ? " · " + textoDescuento(c) : ""),
     (c["Fecha de Débito"] || "") + (c["Hora de Débito"] ? " " + c["Hora de Débito"] : ""), textoImporte(Math.abs(parseImporte(c["Importe"])), monedaCheque(c))]);
-  Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push({ clase: "rep-total", celdas: ["", "", "", "Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", textoImporte(tot[k], p[1])] }); });
-  rep.append(tablaReporte(["N°", "Tipo", "Banco", "Titular", "Emisión", "Pago", "Estado", "Débito / endoso", "Importe"], filas, [8]));
+  Object.keys(tot).sort().forEach(k => { const p = k.split("|"); filas.push({ clase: "rep-total", celdas: ["", "", "", "Total " + (p[0] === "Emitido" ? "emitidos" : "de terceros") + " (" + p[1] + ")", "", "", "", "", "", textoImporte(tot[k], p[1])] }); });
+  rep.append(tablaReporte(["N°", "Tipo", "Banco", "Titular", "Concepto", "Emisión", "Pago", "Estado", "Débito / endoso", "Importe"], filas, [9]));
   const b = $("selPdf");
   b.disabled = true;
   b.classList.add("is-loading");
@@ -12190,6 +12297,11 @@ async function reporteChequesSeleccionados(formato) {
 
 $("selExcel").addEventListener("click", () => reporteChequesSeleccionados("excel"));
 $("selPdf").addEventListener("click", () => reporteChequesSeleccionados("pdf"));
+$("selImagen").addEventListener("click", () => {
+  const lista = chequesSeleccionados();
+  if (!lista.length) { toast("Seleccioná al menos un cheque.", "error"); return; }
+  compartirCanvas(imagenCheques(lista, "Cheques seleccionados"), "Cheques " + isoADma(hoyIso()).split("/").join("-") + ".png", "Cheques", $("selImagen"));
+});
 
 $("selCambiarCuenta").addEventListener("click", () => {
   const vista = vistaActual();
@@ -18823,7 +18935,7 @@ function renderSalidaCheques() {
     chk.addEventListener("change", () => { lab.classList.toggle("on", chk.checked); actualizarBotonSalida(); });
     const tx = el("div", "viz-cob-txt");
     const cuenta = c["Tipo"] === "De terceros" ? "De terceros" + (c["Banco Emisor"] ? " · " + c["Banco Emisor"] : "") : (c["Banco"] || "Sin banco") + (c["N° de Cuenta"] ? " · " + c["N° de Cuenta"] : "");
-    tx.append(el("div", "viz-cob-tit", "Cheque N° " + c["N° de Cheque"] + " · " + (c["Titular"] || c["Destino"] || "Sin titular")),
+    tx.append(el("div", "viz-cob-tit", "Cheque N° " + c["N° de Cheque"] + " · " + (c["Titular"] || c["Destino"] || "Sin titular") + (c["Concepto"] ? " · " + c["Concepto"] : "")),
       el("div", "dt-sub", cuenta + " · vence " + (c["Fecha de Pago"] || "—") + " · estado: " + (c["Estado"] || (c["Tipo"] === "Emitido" ? "Emitido" : "Pendiente")) +
         (p.yaPagado ? " · ya estaba pagado" + (c["Fecha de Débito"] ? " el " + c["Fecha de Débito"] : "") : p.varios ? " · hay otro cheque abierto con este número: marcá el que corresponde" : "")));
     lab.append(chk, tx, el("span", "viz-cob-monto", textoImporte(importeCheque(c), monedaCheque(c))));
