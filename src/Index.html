@@ -1253,6 +1253,7 @@
   .toast .t-dot { display: block; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--primary); }
   .toast.ok .t-dot { background: var(--ok); } .toast.error .t-dot { background: var(--bad); }
   .toast.salir { opacity: 0; transition: opacity .3s; }
+  .aviso-version { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--primary); box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 600; animation: aparecer .2s ease-out; }
 
   /* ---------- Panel de apariencia ---------- */
   .tema-panel { position: fixed; right: 24px; top: 70px; z-index: 70; width: 300px; max-width: calc(100vw - 24px); padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); display: none; }
@@ -2777,7 +2778,7 @@
       <!-- FCI: rescate o suscripción, cargado a mano (va a la pestaña FCI y Bolsa). -->
       <div id="manualCamposFci" class="manual-campos" hidden>
         <div class="row">
-          <label>Fecha<input id="manualFciFecha" type="date"></label>
+          <label>Fecha (la del comprobante)<input id="manualFciFecha" type="date" title="El día en que se hizo el rescate o la suscripción: cuenta entre el saldo de inicio de ese día y su cierre"></label>
           <label>Banco<select id="manualFciBanco"></select></label>
         </div>
         <div class="row">
@@ -3191,10 +3192,29 @@
 </div>
 
 <!-- ===================== MODAL: RESCATES Y SUSCRIPCIONES DE FCI ===================== -->
+<div class="modal-overlay" id="modalEditMovFci">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editMovFciTitulo">
+    <div class="modal__head">
+      <div><h3 id="editMovFciTitulo">Movimiento de FCI</h3><div class="sub-dato" id="editMovFciDato"></div></div>
+      <button class="modal__close" data-cerrar="modalEditMovFci" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <label>Fecha en que se hizo<input id="editMovFciFecha" type="date"></label>
+      <p class="hint">Cuenta entre el saldo de inicio de ese día y su cierre. Si se hizo ayer y quedó con la fecha de hoy, poné la de ayer: el cierre y el rendimiento se recalculan solos.</p>
+      <p id="editMovFciStatus" class="hint"></p>
+    </div>
+    <div class="modal__foot">
+      <button class="danger danger-txt" id="editMovFciBorrar" type="button">Borrar</button>
+      <button class="secondary" data-cerrar="modalEditMovFci" type="button">Cancelar</button>
+      <button id="editMovFciGuardar" type="button">Guardar fecha</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalMovFci">
   <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="movFciTitulo">
     <div class="modal__head">
-      <div><h3 id="movFciTitulo">Rescates y suscripciones de FCI</h3><div class="sub-dato">Elegí si es suscripción (entra al fondo) o rescate (sale del fondo) y escribí el monto. También podés leer los comprobantes del banco (PDF o foto) o una planilla CSV. Con estos movimientos y los saldos de FCI de Inicio se calcula el rendimiento.</div></div>
+      <div><h3 id="movFciTitulo">Rescates y suscripciones de FCI</h3><div class="sub-dato">Elegí si es suscripción (entra al fondo) o rescate (sale del fondo) y escribí el monto. También podés leer los comprobantes del banco (PDF o foto) o una planilla CSV. Con estos movimientos y los saldos de FCI de Inicio se calcula el rendimiento. <b>Fecha: la del comprobante</b> (el día en que se hizo), no la de hoy: el movimiento cuenta entre el saldo de inicio de ese día y su cierre.</div></div>
       <button class="modal__close" data-cerrar="modalMovFci" type="button" aria-label="Cerrar">&times;</button>
     </div>
     <div class="modal__body">
@@ -8743,6 +8763,7 @@ function arrancar() {
   try { sesionToken = localStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
   runJson("estado", { completo: true })
     .then(res => {
+      revisarVersion(res.version);
       if (res.empresa) { config.empresa = res.empresa; $("accesoEmpresa").textContent = res.empresa; $("marcaEmpresa").textContent = res.empresa; $("sideEmpresa").textContent = res.empresa; }
       if (res.usuario) iniciarApp(res.usuario, res);
       else { guardarToken(""); mostrarAcceso(res.inicializado ? "login" : "inicial"); }
@@ -8816,6 +8837,43 @@ $("btnVolverInicio").addEventListener("click", e => {
   e.preventDefault();
   avisarSitio({ tipo: "bgp-inicio" });
 });
+
+// ---------------- Versión nueva publicada ----------------
+// Una pestaña abierta desde antes de una publicación sigue mostrando la pantalla vieja (por
+// ejemplo el Inicio anterior) aunque ya use el servidor nuevo. La app compara su versión con la
+// del servidor al entrar, al volver a la pestaña y cada 10 minutos; si cambió, muestra un aviso
+// para recargar. El marcador lo reemplaza el workflow de GitHub al publicar (ver VERSION_APP en Código.gs).
+const VERSION_APP = "__VERSION_APP__";
+let versionNuevaAvisada = false;
+let versionRevisada = 0;
+
+function revisarVersion(delServidor) {
+  if (!delServidor || delServidor === VERSION_APP || versionNuevaAvisada) return;
+  versionNuevaAvisada = true;
+  const aviso = el("div", "aviso-version");
+  aviso.setAttribute("role", "alert");
+  const txt = el("span", null, "Hay una versión nueva de la app. Guardá lo que estés cargando y actualizá para verla.");
+  const btn = el("button", "small", "Actualizar ahora");
+  btn.type = "button";
+  btn.addEventListener("click", recargarApp);
+  aviso.append(txt, btn);
+  document.body.append(aviso);
+}
+
+function recargarApp() {
+  // Dentro de bgpsammar.com la página de afuera recarga la app; abierta sola, se recarga el marco.
+  avisarSitio({ tipo: "bgp-recargar" });
+  if (window.top === window) { location.reload(); return; }
+  setTimeout(() => toast("Si no se actualizó, apretá F5 (o Ctrl+F5) para cargar la versión nueva.", "error"), 2500);
+}
+
+function consultarVersion() {
+  if (versionNuevaAvisada || Date.now() - versionRevisada < 120000) return;
+  versionRevisada = Date.now();
+  runJson("version", {}).then(res => revisarVersion(res.version)).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") consultarVersion(); });
+setInterval(() => { if (document.visibilityState === "visible") consultarVersion(); }, 600000);
 
 // ---------------- Vista: Auditoría ----------------
 let auditoria = [];
@@ -17074,7 +17132,7 @@ function filasCierreFci() {
     b.periodos.forEach(p => {
       const tna = !p.dudoso && !p.sinDias && p.capital > 0 ? p.rend / p.capital * 365 / p.d : null;
       fila(p.hasta, "Rendimiento", p.rend, p.dudoso
-        ? "No cuadra: saldo " + fmt(p.fin) + " contra cierre " + fmt(p.capital) + ". Revisá rescates y suscripciones."
+        ? "No cuadra: saldo " + fmt(p.fin) + " contra cierre " + fmt(p.capital) + ". " + (p.sugerencia ? textoSugerenciaFci(p.sugerencia, fmt) : "Revisá rescates y suscripciones.")
         : "Saldo " + fmt(p.fin) + " − cierre " + fmt(p.capital) + " (" + isoADma(p.desde).substring(0, 5) + ") · " + p.d + (p.d === 1 ? " día" : " días") + (tna === null ? "" : " · TNA " + pctTexto(tna)));
     });
   });
@@ -17226,7 +17284,7 @@ function renderInversiones() {
 
   renderTabla($("inversionesBox"), {
     id: "inv-" + ventanaInv,
-    // FCI: los rescates y suscripciones cargados en la app se pueden borrar.
+    // FCI: a los rescates y suscripciones cargados en la app se les cambia la fecha o se borran.
     alClic: esFci ? eliminarMovFci : abrirRecibidoBolsa,
     filas: filas,
     orden: { clave: campoFecha, dir: "desc" },
@@ -18813,6 +18871,7 @@ function filasRendDia(fechaIso) {
         f.rend = actual - f.capital;
         f.dudoso = !(f.capital > 0) || Math.abs(f.rend / f.capital) / Math.max(1, f.dias) > 0.003;
         f.tna = !f.dudoso && f.dias > 0 ? f.rend / f.capital * 365 / f.dias : null;
+        if (f.dudoso) f.sugerencia = sugerenciaFechaFci(b.movs, ant.iso, fechaIso, f.capital, actual, Math.max(1, f.dias));
       }
     } else if (movsRec.length) f.nuevo = movsRec.reduce((a, m) => a + m.monto, 0);
     filas.push(f);
@@ -18880,7 +18939,7 @@ function renderRendDiaInicio() {
       tdG.append(el("div", "rd-ganado " + (f.rend < 0 ? "neg" : "pos"), gan), el("div", "rd-tna", tnaTxt));
       if (!usd) { tot.rend += f.rend; tot.base += f.capital * (f.dias || 0); tot.hay = true; }
     } else if (f.dudoso) {
-      tdG.append(el("div", "rf-mal", "No cuadra"), el("div", "rf-sub", "Revisá rescates y suscripciones"));
+      tdG.append(el("div", "rf-mal", "No cuadra"), el("div", "rf-sub", f.sugerencia ? textoSugerenciaFci(f.sugerencia, fmt) : "Revisá rescates y suscripciones"));
       tdG.title = "Cierre anterior " + fmt(f.ant.saldo) + (mov ? " ± movimientos " + fmt(mov) : "") + " = " + fmt(f.capital) + ". Hoy " + fmt(f.actual) + ".";
       gan = "No cuadra";
     } else if (!f.cargadoHoy) { tdG.append(el("div", "rf-sub", "Escribí el saldo de hoy")); tot.falta++; }
@@ -19897,8 +19956,42 @@ $("movFciGuardar").addEventListener("click", async () => {
   }
 });
 
-async function eliminarMovFci(f) {
+// Un rescate o suscripción cargado en la app: se le cambia la fecha o se borra.
+let movFciEditando = null;
+function eliminarMovFci(f) {
   if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) return;
+  movFciEditando = f;
+  $("editMovFciDato").textContent = f["Movimiento"] + " de " + f["Banco"] + (f["Fondo"] ? " · " + f["Fondo"] : "") + " por " + fmtImp(Math.abs(parseImporte(f["Monto"]))) + " · cargado con fecha " + f["Fecha"] + ".";
+  $("editMovFciFecha").value = fechaAOrden(f["Fecha"]);
+  setStatus($("editMovFciStatus"), "", "hint");
+  abrirModal("modalEditMovFci");
+}
+
+$("editMovFciGuardar").addEventListener("click", async () => {
+  const f = movFciEditando;
+  const iso = $("editMovFciFecha").value;
+  if (!f || !iso) { setStatus($("editMovFciStatus"), "Elegí la fecha.", "hint msg-error"); return; }
+  if (iso === fechaAOrden(f["Fecha"])) { cerrarModal("modalEditMovFci"); return; }
+  const btn = $("editMovFciGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  try {
+    await runJson("cambiarFechaMovimientoFci", { id: f["ID Planilla"], fecha: isoADma(iso) });
+    cerrarModal("modalEditMovFci");
+    toast("Fecha cambiada al " + isoADma(iso) + ". Se recalcularon el cierre y el rendimiento.", "ok");
+    await cargarInversiones(true);
+  } catch (err) {
+    setStatus($("editMovFciStatus"), msgErr(err), "hint msg-error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
+});
+
+$("editMovFciBorrar").addEventListener("click", async () => {
+  const f = movFciEditando;
+  if (!f) return;
+  cerrarModal("modalEditMovFci");
   const ok = await confirmar("Borrar movimiento de FCI", f["Movimiento"] + " de " + f["Banco"] + " del " + f["Fecha"] + " por " + fmtImp(parseImporte(f["Monto"])) + ". Se deja de contar en el rendimiento.");
   if (!ok) return;
   try {
@@ -19908,7 +20001,7 @@ async function eliminarMovFci(f) {
   } catch (err) {
     toast(msgErr(err), "error");
   }
-}
+});
 
 // ---------------- Rendimiento del FCI con los saldos de Inicio ----------------
 // Los saldos de FCI de cada banco que se cargan en Inicio ("Cargar saldos") son la
@@ -19972,6 +20065,27 @@ function diasDevengados(desde, hasta) {
   return diasEntre(habilAnterior(desde), habilAnterior(hasta));
 }
 
+// "No cuadra" porque un rescate o suscripción se hizo el día anterior pero se cargó con la fecha
+// del saldo (la de hoy): con la fecha del saldo cuenta recién después de ese saldo. Si pasando los
+// movimientos cargados en la app de ese día al período anterior la cuenta cuadra, se sugiere
+// cambiarles la fecha (tocándolos en FCI y Bolsa). movs: los del banco; devuelve null si no aplica.
+function sugerenciaFechaFci(movs, desde, hasta, capital, fin, d) {
+  const delDia = movs.filter(m => m.manual && m.iso === hasta);
+  const x = delDia.reduce((a, m) => a + m.monto, 0);
+  if (!delDia.length || !x) return null;
+  const cap = capital + x;
+  if (!(cap > 0) || Math.abs((fin - cap) / cap) / Math.max(1, d) > 0.003) return null;
+  const a = habilAnterior(hasta) >= desde ? habilAnterior(hasta) : desde;
+  const rend = fin - cap;
+  return { de: hasta, a: a, cantidad: delDia.length, monto: x, capital: cap, rend: rend, tna: d > 0 ? rend / cap * 365 / d : null };
+}
+
+function textoSugerenciaFci(sg, fmt) {
+  return "Si " + (sg.cantidad === 1 ? "el movimiento cargado" : "los " + sg.cantidad + " movimientos cargados") + " con fecha " + isoADma(sg.de).substring(0, 5) +
+    " (" + (sg.monto < 0 ? "neto − " : "neto + ") + fmt(Math.abs(sg.monto)) + ") se hicieron el " + isoADma(sg.a).substring(0, 5) + ", cuadra: rinde " + fmt(sg.rend) + (sg.tna === null ? "" : " (TNA " + pctTexto(sg.tna) + ")") +
+    ". Cambiales la fecha tocándolos en FCI y Bolsa.";
+}
+
 function calcularRendimientoFciSaldos() {
   if (memoRendSaldos.saldos === saldosGuardados && memoRendSaldos.fci === fciDatos && memoRendSaldos.dias === modoDiasFci() && memoRendSaldos.res) return memoRendSaldos.res;
   const claveBanco = (banco, moneda) => normalizar(nombreBancoCanonico(banco) || banco) + "|" + moneda;
@@ -20015,7 +20129,8 @@ function calcularRendimientoFciSaldos() {
       // Sin días de devengamiento (dos saldos del mismo fin de semana) no hay tasa: solo cuenta lo ganado.
       const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
       periodos.push({ desde: desde, hasta: hasta, d: d, corridos: Math.max(1, diasEntre(desde, hasta)), sinDias: dev === 0, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
-        pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: null });
+        pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: null,
+        sugerencia: dudoso ? sugerenciaFechaFci(delBanco, desde, hasta, capital, fin, d) : null });
     }
     const ultima = fechas[fechas.length - 1];
     return {

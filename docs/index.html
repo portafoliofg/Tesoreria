@@ -362,6 +362,10 @@
           // "Volver al inicio" desde la app: el selector de secciones, sin cerrar la sesión.
           history.replaceState(null, "", "#elegir");
           location.reload();
+        } else if (e.data.tipo === "bgp-recargar") {
+          // La app avisó que hay una versión nueva publicada: se recarga solo la app (la sesión
+          // vuelve a pasar sola con "bgp-pide-sesion").
+          app.setAttribute("src", app.getAttribute("src"));
         } else if (e.data.tipo === "bgp-salir") {
           // Salió desde la app: se cierra también acá y vuelve al ingreso.
           BGPSesion.salir().then(function () { history.replaceState(null, "", "#elegir"); location.reload(); });

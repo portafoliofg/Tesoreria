@@ -65,6 +65,11 @@ jobs:
           clasp pull
           cp appsscript.json "$GITHUB_WORKSPACE/src/appsscript.json"
 
+      # Marca la versión (el commit) en el servidor y en la página: así una pestaña abierta desde
+      # antes de esta publicación se da cuenta y avisa que hay que recargar (ver VERSION_APP).
+      - name: Marcar la versión
+        run: sed -i "s/__VERSION_APP__/${GITHUB_SHA::7}/g" src/Código.gs src/Index.html
+
       - name: Subir el código y publicar una versión nueva
         run: |
           clasp push --force
