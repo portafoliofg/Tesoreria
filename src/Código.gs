@@ -832,6 +832,166 @@ function obtenerAuditoria_(d) {
   return { ok: true, registros: registros, total: ultima - 1 };
 }
 
+// ======================= Control de repetidos =======================
+// Reglas estrictas para no cargar dos veces el mismo movimiento o cheque. Todo se compara
+// normalizado: números sin puntos, guiones ni ceros a la izquierda; bancos sin variantes de
+// nombre (bancoCanon_); importes en centavos; fechas dd/mm/aaaa.
+//
+// Movimientos (cada lado por separado: el resumen del banco y los registros propios se
+// cruzan en la conciliación, así que uno no tapa al otro):
+//  · Repetido seguro (no se guarda nunca): mismo banco, mismo N° de referencia y mismo importe.
+//  · Posible repetido (se guarda solo si el usuario confirma): mismo banco y N° de referencia
+//    con otro importe, o misma cuenta, misma fecha, mismo importe con signo y misma moneda.
+// Cheques:
+//  · Emitidos, repetido seguro: mismo banco y mismo N° de cheque.
+//  · De terceros, repetido seguro: mismo N° y mismo CUIT del librador, o mismo N° y mismo importe.
+//    Posible repetido: mismo N° de cheque (con otro CUIT e importe).
+// Lo que necesita confirmación vuelve en "posibles" ({i, texto, motivo, existente}); la página
+// pregunta y, si el usuario acepta, lo manda otra vez con d.confirmados (índices de d.filas / d.rows).
+
+/** Número sin puntos, guiones, espacios ni ceros a la izquierda ("0001-2345" → "12345"). */
+function numeroNorm_(s) {
+  const d = soloDigitos(s);
+  return d ? sinCerosIzq_(d) : '';
+}
+
+/**
+ * N° de referencia comparable: si tiene 4 cifras o más, solo las cifras sin ceros adelante; si no,
+ * un código de letras y números de 6 caracteres o más ("TRX9A8B"). Lo demás ("s/n", "-", "1",
+ * "VARIOS", "TRANSF") no identifica un movimiento y no cuenta como referencia.
+ */
+function referenciaNorm_(s) {
+  const t = String(s || '').trim();
+  if (!t) return '';
+  const d = soloDigitos(t);
+  if (d.length >= 4) return sinCerosIzq_(d);
+  const r = claveTexto(t).replace(/[^a-z0-9]/g, '');
+  return r.length >= 6 && /[1-9]/.test(r) && /[a-z]/.test(r) ? r : '';
+}
+
+function centavos_(s) {
+  const n = importeANumero(s);
+  return isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+/** Dos números de cuenta son la misma si coinciden o uno termina con el otro (4 cifras o más). */
+function cuentasCompatibles_(a, b) {
+  const c = sinCerosIzqCta_(soloDigitos(a)), d = sinCerosIzqCta_(soloDigitos(b));
+  return !c || !d || c === d || (c.length >= 4 && d.length >= 4 && (c.slice(-d.length) === d || d.slice(-c.length) === c));
+}
+
+function ladoMovimiento_(origen) {
+  return String(origen || '').trim() === 'Resumen' ? 'banco' : 'libros';
+}
+
+/** Claves de un movimiento (fila en el orden de HEADERS_TRANSFERENCIAS, con el monto ya con signo). */
+function clavesMovimiento_(f) {
+  const H = HEADERS_TRANSFERENCIAS;
+  const lado = ladoMovimiento_(f[COL_ORIGEN]);
+  const banco = bancoCanon_(f[COL_BANCO_TRANS]);
+  const ref = referenciaNorm_(f[COL_REFERENCIA]);
+  const cts = centavos_(f[COL_MONTO]);
+  const fecha = dmaAIso_(f[H.indexOf('Fecha del Movimiento')]);
+  const moneda = f[COL_MONEDA] === 'USD' ? 'USD' : 'Pesos';
+  return {
+    lado: lado,
+    seguro: banco && ref && cts ? [lado, banco, ref, Math.abs(cts)].join('|') : '',
+    referencia: banco && ref ? [lado, banco, ref].join('|') : '',
+    parecido: banco && fecha && cts ? [lado, banco, fecha, cts, moneda].join('|') : ''
+  };
+}
+
+function descripcionMovimiento_(f) {
+  const H = HEADERS_TRANSFERENCIAS;
+  return 'N° ' + (f[COL_INTERNO] || '(sin guardar)') + ' · ' + (f[H.indexOf('Fecha del Movimiento')] || f[COL_FECHA_CARGA] || 'sin fecha') + ' · ' +
+    (f[COL_BANCO_TRANS] || 'sin banco') + ' · $ ' + String(f[COL_MONTO] || '') +
+    (f[COL_REFERENCIA] ? ' · ref. ' + f[COL_REFERENCIA] : '') + (f[H.indexOf('Concepto')] ? ' · ' + f[H.indexOf('Concepto')] : '');
+}
+
+/**
+ * Índice de los movimientos ya guardados (o recién aceptados) para buscar repetidos.
+ * agregar(f, propio): suma una fila; las de este mismo envío llevan propio = true.
+ * Cada fila guardada se usa una sola vez como "parecida": si un resumen trae dos comisiones
+ * iguales el mismo día y ya hay dos cargadas, las dos se marcan; si hay una, solo una.
+ */
+function indiceMovimientos_() {
+  const seguros = new Set(), porRef = {}, parecidos = {};
+  return {
+    agregar(f, propio) {
+      const k = clavesMovimiento_(f);
+      if (k.seguro) seguros.add(k.seguro);
+      if (k.referencia) (porRef[k.referencia] = porRef[k.referencia] || []).push(f);
+      if (k.parecido) (parecidos[k.parecido] = parecidos[k.parecido] || []).push({ f: f, propio: !!propio, usado: false });
+    },
+    /** {seguro: true} | {motivo, existente} | null */
+    buscar(f) {
+      const k = clavesMovimiento_(f);
+      if (k.seguro && seguros.has(k.seguro)) return { seguro: true };
+      if (k.referencia && porRef[k.referencia]) {
+        return { motivo: 'mismo banco y N° de referencia con otro importe', existente: descripcionMovimiento_(porRef[k.referencia][0]) };
+      }
+      const lista = k.parecido ? parecidos[k.parecido] || [] : [];
+      // En un resumen bancario dos renglones iguales del mismo día son normales (dos comisiones):
+      // dentro del mismo envío solo se comparan los registros propios.
+      const x = lista.find(p => !p.usado && cuentasCompatibles_(p.f[COL_NUMERO_CUENTA], f[COL_NUMERO_CUENTA]) && !(p.propio && k.lado === 'banco'));
+      if (!x) return null;
+      x.usado = true;
+      return { motivo: 'misma cuenta, fecha, importe y moneda', existente: descripcionMovimiento_(x.f) };
+    }
+  };
+}
+
+function claveChequeEmitido_(banco, numero) {
+  const b = bancoCanon_(banco), n = numeroNorm_(numero);
+  return b && n ? b + '|' + n : '';
+}
+
+function descripcionCheque_(f) {
+  const H = HEADERS_CHEQUES;
+  return (f[H.indexOf('Tipo')] || 'Cheque') + ' N° ' + f[COL_NUMERO_CHEQUE] + (f[COL_BANCO_CHEQUE] ? ' · ' + f[COL_BANCO_CHEQUE] : '') +
+    (f[H.indexOf('Titular')] ? ' · ' + f[H.indexOf('Titular')] : '') + ' · $ ' + f[H.indexOf('Importe')] +
+    (f[H.indexOf('Fecha de Pago')] ? ' · pago ' + f[H.indexOf('Fecha de Pago')] : '') + (f[H.indexOf('ID Planilla')] ? ' · ' + f[H.indexOf('ID Planilla')] : '');
+}
+
+/** Índice de cheques para buscar repetidos (filas en el orden de HEADERS_CHEQUES). */
+function indiceCheques_() {
+  const H = HEADERS_CHEQUES;
+  const iTipo = H.indexOf('Tipo'), iCuit = H.indexOf('CUIT'), iImp = H.indexOf('Importe');
+  const emitidos = {}, tercerosNum = {};
+  return {
+    agregar(f) {
+      if (f[iTipo] === 'De terceros') {
+        const n = numeroNorm_(f[COL_NUMERO_CHEQUE]);
+        if (n) (tercerosNum[n] = tercerosNum[n] || []).push(f);
+      } else {
+        const k = claveChequeEmitido_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]);
+        if (k && !emitidos[k]) emitidos[k] = f;
+      }
+    },
+    /** {seguro: true, existente} | {motivo, existente} | null */
+    buscar(f) {
+      if (f[iTipo] !== 'De terceros') {
+        const k = claveChequeEmitido_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]);
+        return k && emitidos[k] ? { seguro: true, existente: descripcionCheque_(emitidos[k]) } : null;
+      }
+      const n = numeroNorm_(f[COL_NUMERO_CHEQUE]);
+      const lista = n ? tercerosNum[n] || [] : [];
+      if (!lista.length) return null;
+      const cuit = soloDigitos(f[iCuit]), cts = Math.abs(centavos_(f[iImp]));
+      const igual = lista.find(x => (cuit && soloDigitos(x[iCuit]) === cuit) || (cts && Math.abs(centavos_(x[iImp])) === cts));
+      if (igual) return { seguro: true, existente: descripcionCheque_(igual) };
+      return { motivo: 'mismo N° de cheque de terceros', existente: descripcionCheque_(lista[0]) };
+    }
+  };
+}
+
+/** Índices confirmados por el usuario (d.confirmados) como conjunto. */
+function confirmadosDe_(d) {
+  const c = new Set();
+  (d && d.confirmados || []).forEach(i => { const n = parseInt(i, 10); if (!isNaN(n)) c.add(n); });
+  return c;
+}
+
 // ======================= Transferencias =======================
 
 function obtenerTransferencias_(d) {
@@ -847,51 +1007,57 @@ function filaComoObjeto_(headers, fila) {
 
 /**
  * d.filas: [[...], ...] en el orden de HEADERS_TRANSFERENCIAS. Asigna el
- * N° Interno correlativo, la fecha de carga y quién cargó. No repite un
- * mismo banco + N° de referencia. Agrega bancos y cuentas que falten.
+ * N° Interno correlativo, la fecha de carga y quién cargó. Agrega bancos y cuentas que falten.
+ * Repetidos: ver "Control de repetidos". Los seguros se descartan (duplicadas); los posibles
+ * vuelven en posibles y solo se guardan si llegan en d.confirmados.
  */
 function guardarTransferencias_(d, u) {
   return conLock_(() => {
     const filas = d.filas || [];
     const H = HEADERS_TRANSFERENCIAS;
-    const claves = [COL_BANCO_TRANS, COL_REFERENCIA];
     const sheet = obtenerHoja_(SHEET_TRANSFERENCIAS, H);
     const lastRow = sheet.getLastRow();
-    const existentes = new Set();
+    const indice = indiceMovimientos_();
+    const confirmados = confirmadosDe_(d);
     let ultimoInterno = 0;
     if (lastRow > 1) {
       sheet.getRange(2, 1, lastRow - 1, H.length).getDisplayValues().forEach(f => {
         const n = parseInt(f[COL_INTERNO], 10);
         if (!isNaN(n) && n > ultimoInterno) ultimoInterno = n;
-        const clave = claveDe_(f, claves);
-        if (clave) existentes.add(clave);
+        indice.agregar(f, false);
       });
     }
 
     const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy');
     const nuevas = [];
     const duplicadas = [];
+    const posibles = [];
     const numeros = [];
-    filas.forEach(r => {
+    filas.forEach((r, idx) => {
       const fila = H.map((_, i) => r[i] == null ? '' : String(r[i]).trim());
-      const clave = claveDe_(fila, claves);
-      if (clave && existentes.has(clave)) {
-        duplicadas.push(fila[COL_REFERENCIA]);
-        numeros.push('');
-        return;
-      }
-      if (clave) existentes.add(clave);
-      ultimoInterno++;
-      fila[COL_INTERNO] = String(ultimoInterno);
-      fila[COL_FECHA_CARGA] = hoy;
       if (fila[COL_MONEDA] !== 'USD') fila[COL_MONEDA] = 'Pesos';
       if (fila[COL_CONDICION] !== 'Ingreso' && fila[COL_CONDICION] !== 'Egreso') {
         fila[COL_CONDICION] = fila[COL_MONTO].charAt(0) === '-' ? 'Egreso' : 'Ingreso';
       }
       fila[COL_MONTO] = montoConSigno(fila[COL_MONTO], fila[COL_CONDICION]);
       if (!fila[COL_ORIGEN]) fila[COL_ORIGEN] = 'Comprobante';
+      const rep = indice.buscar(fila);
+      if (rep && rep.seguro) {
+        duplicadas.push(fila[COL_REFERENCIA] || descripcionMovimiento_(fila));
+        numeros.push('');
+        return;
+      }
+      if (rep && !confirmados.has(idx)) {
+        posibles.push({ i: idx, motivo: rep.motivo, existente: rep.existente, texto: descripcionMovimiento_(fila) });
+        numeros.push('');
+        return;
+      }
+      ultimoInterno++;
+      fila[COL_INTERNO] = String(ultimoInterno);
+      fila[COL_FECHA_CARGA] = hoy;
       fila[COL_PROPIA] = fila[COL_PROPIA] === 'Sí' ? 'Sí' : 'No';
       fila[COL_CARGADO_TRANS] = nombreDe_(u);
+      indice.agregar(fila, true);
       nuevas.push(fila);
       numeros.push(String(ultimoInterno));
     });
@@ -913,10 +1079,11 @@ function guardarTransferencias_(d, u) {
       registrar_(u, 'Alta de movimientos',
         nuevas.length + ' movimiento(s) guardado(s)' + (origenes.length ? ' · origen: ' + origenes.join(', ') : '') +
         (archivos.length ? ' · archivo(s): ' + archivos.join(', ') : '') +
-        (duplicadas.length ? ' · ' + duplicadas.length + ' descartado(s) por repetidos' : ''),
+        (duplicadas.length ? ' · ' + duplicadas.length + ' descartado(s) por repetidos' : '') +
+        (confirmados.size ? ' · ' + confirmados.size + ' guardado(s) con confirmación de posible repetido' : ''),
         rango, '', nuevas.map(f => filaComoObjeto_(H, f)));
     }
-    return { ok: true, agregadas: nuevas.length, duplicadas: duplicadas, numeros: numeros, nuevos: nuevos };
+    return { ok: true, agregadas: nuevas.length, duplicadas: duplicadas, posibles: posibles, numeros: numeros, nuevos: nuevos };
   });
 }
 
@@ -991,18 +1158,24 @@ function cambiarCuenta_(d, u) {
       if (!sinBanco && terceros.length) return { ok: false, error: 'Los cheques de terceros no llevan banco ni cuenta propia. Seleccioná solo cheques emitidos.' };
     }
 
-    // Duplicados: banco + N° de referencia (movimientos) o banco + N° de cheque.
+    // Repetidos al pasar a otro banco (ver "Control de repetidos"): cheques emitidos por banco + N°;
+    // movimientos por banco + N° de referencia + importe, cada lado (banco / registros propios) aparte.
+    const claveEn = (f, banco) => {
+      if (esCheque) return f[H.indexOf('Tipo')] === 'De terceros' ? '' : claveChequeEmitido_(banco, f[iClave]);
+      const g = f.slice();
+      g[iBanco] = banco;
+      return clavesMovimiento_(g).seguro;
+    };
     const ocupadas = new Set();
     filas.forEach((f, i) => {
       if (elegidas.indexOf(i) >= 0) return;
-      const ref = String(f[iClave] || '').trim();
-      if (ref) ocupadas.add(claveTexto(f[iBanco]) + '|' + ref);
+      const k = claveEn(f, f[iBanco]);
+      if (k) ocupadas.add(k);
     });
     const repetidos = [];
     if (!sinBanco) elegidas.forEach(i => {
-      const ref = String(filas[i][iClave] || '').trim();
-      if (!ref) return;
-      const k = claveTexto(cuenta['Banco']) + '|' + ref;
+      const k = claveEn(filas[i], cuenta['Banco']);
+      if (!k) return;
       if (ocupadas.has(k)) repetidos.push(nombreDe(filas[i]));
       ocupadas.add(k);
     });
@@ -1059,7 +1232,11 @@ function obtenerCheques_(d) {
   return { ok: true, filas: leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES) };
 }
 
-/** d.rows: filas en el orden de HEADERS_CHEQUES. */
+/**
+ * d.rows: filas en el orden de HEADERS_CHEQUES. Repetidos: ver "Control de repetidos". Un emitido
+ * que ya estaba se actualiza (actualizarChequesExistentes_); los demás repetidos seguros se
+ * descartan y los posibles vuelven en posibles (se guardan si llegan en d.confirmados).
+ */
 function guardarCheques_(d, u) {
   return conLock_(() => {
     const iTipo = HEADERS_CHEQUES.indexOf('Tipo de Cuenta');
@@ -1077,35 +1254,36 @@ function guardarCheques_(d, u) {
       if (f[iTipoCh] === 'De terceros') { f[COL_BANCO_CHEQUE] = ''; f[iTipo] = ''; f[iNumero] = ''; }
       return f;
     });
-    // Repetidos de terceros: mismo N° de cheque y mismo CUIT del librador (o mismo importe si no hay CUIT).
-    const claveTercero = f => {
-      const num = String(f[COL_NUMERO_CHEQUE] || '').trim();
-      if (!num) return '';
-      const cuit = soloDigitos(f[iCuit]);
-      return num + '|' + (cuit || importeANumero(f[iImporte]));
-    };
-    const vistos = new Set(leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES).filter(c => c['Tipo'] === 'De terceros')
-      .map(c => claveTercero(HEADERS_CHEQUES.map(h => c[h]))).filter(Boolean));
-    const repetidosTerceros = [];
-    const aGuardar = rows.filter(f => {
-      if (f[iTipoCh] !== 'De terceros') return true;
-      const k = claveTercero(f);
-      if (k && vistos.has(k)) { repetidosTerceros.push(f[0] + ' (cheque de terceros N° ' + f[COL_NUMERO_CHEQUE] + ')'); return false; }
-      if (k) vistos.add(k);
-      return true;
-    });
     // Cheques emitidos que ya estaban cargados (mismo banco y N°), por ejemplo al importar el listado
     // de e-cheqs pagados: en vez de descartarlos como repetidos se les pasa el estado nuevo (si
     // estaban abiertos) y se completa el concepto y el banco aceptante si no tenían.
-    const actualizados = actualizarChequesExistentes_(aGuardar, u);
-    const res = guardarFilas_(aGuardar.filter(f => actualizados.usados.indexOf(f) < 0), SHEET_CHEQUES, HEADERS_CHEQUES, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]);
+    const actualizados = actualizarChequesExistentes_(rows, u);
+    const confirmados = confirmadosDe_(d);
+    const indice = indiceCheques_();
+    const hojaCh = obtenerHoja_(SHEET_CHEQUES, HEADERS_CHEQUES);
+    const ultCh = hojaCh.getLastRow();
+    if (ultCh > 1) hojaCh.getRange(2, 1, ultCh - 1, HEADERS_CHEQUES.length).getDisplayValues().forEach(f => indice.agregar(f));
+    const duplicadas = [], posibles = [];
+    const aGuardar = [];
+    rows.forEach((f, idx) => {
+      if (actualizados.usados.indexOf(f) >= 0) return;
+      const rep = indice.buscar(f);
+      if (rep && rep.seguro) { duplicadas.push(f[0] + ' (' + descripcionCheque_(f) + ' · ya cargado: ' + rep.existente + ')'); return; }
+      if (rep && !confirmados.has(idx)) { posibles.push({ i: idx, motivo: rep.motivo, existente: rep.existente, texto: f[0] + ' (' + descripcionCheque_(f) + ')' }); return; }
+      indice.agregar(f);
+      aGuardar.push(f);
+    });
+    // Sin claves: los repetidos ya se filtraron arriba con las reglas normalizadas.
+    const res = guardarFilas_(aGuardar, SHEET_CHEQUES, HEADERS_CHEQUES, []);
     res.actualizados = actualizados.n;
-    res.duplicadas = repetidosTerceros.concat(res.duplicadas);
+    res.duplicadas = duplicadas;
+    res.posibles = posibles;
     ULTIMOS_CHEQUES_GUARDADOS_ = (res.guardadas || []).map(f => filaComoObjeto_(HEADERS_CHEQUES, f));
     res.nuevos = asegurarCatalogo_(aGuardar.filter(r => r[COL_BANCO_CHEQUE]).map(r => ({ banco: r[COL_BANCO_CHEQUE], tipo: r[iTipo], numero: r[iNumero], moneda: 'ARS' })), u);
     if (res.agregadas || res.duplicadas.length) {
       registrar_(u, 'Alta de cheques',
-        res.agregadas + ' cheque(s) guardado(s)' + (res.duplicadas.length ? ' · ' + res.duplicadas.length + ' descartado(s) por repetidos' : ''),
+        res.agregadas + ' cheque(s) guardado(s)' + (res.duplicadas.length ? ' · ' + res.duplicadas.length + ' descartado(s) por repetidos' : '') +
+        (confirmados.size ? ' · ' + confirmados.size + ' guardado(s) con confirmación de posible repetido' : ''),
         res.guardadas.map(f => f[COL_NUMERO_CHEQUE]).join(', '), '', res.guardadas.map(f => filaComoObjeto_(HEADERS_CHEQUES, f)));
     }
     delete res.guardadas;
@@ -1125,11 +1303,15 @@ function actualizarChequesExistentes_(filasNuevas, u) {
   const iEst = H.indexOf('Estado'), iDeb = H.indexOf('Fecha de Débito'), iHora = H.indexOf('Hora de Débito'), iCon = H.indexOf('Concepto'),
     iAcep = H.indexOf('Banco Aceptante'), iConc = H.indexOf('Conciliación'), iTipo = H.indexOf('Tipo');
   const porClave = {};
-  datos.forEach((f, i) => { const k = claveDe_(f, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]); if (k && f[iTipo] !== 'De terceros') porClave[k] = i; });
+  datos.forEach((f, i) => { const k = claveChequeEmitido_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]); if (k && f[iTipo] !== 'De terceros' && porClave[k] === undefined) porClave[k] = i; });
   let n = 0;
+  const vistos = new Set();
   filasNuevas.forEach(f => {
     if (f[iTipo] === 'De terceros') return;
-    const k = claveDe_(f, [COL_BANCO_CHEQUE, COL_NUMERO_CHEQUE]);
+    const k = claveChequeEmitido_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]);
+    // El mismo cheque dos veces en el mismo envío: el segundo queda para el control de repetidos.
+    if (!k || vistos.has(k)) return;
+    vistos.add(k);
     const i = k ? porClave[k] : undefined;
     if (i === undefined) return;
     usados.push(f);
@@ -2553,6 +2735,12 @@ function importarPlanilla_(d, u) {
         (res.actualizados || 0) + ' actualizado(s)' + (res.conciliados ? ', ' + res.conciliados + ' conciliado(s) sin cambios' : ''),
         String(d.archivo || ''), '', '');
     }
+    if (res.repetidos && res.repetidos.length) {
+      registrar_(u, 'Importación de planilla',
+        nombres[destino] + ': ' + res.repetidos.length + ' fila(s) no agregada(s) por estar ya cargada(s) con otro ID: ' + res.repetidos.slice(0, 20).join(' · ') +
+        (res.repetidos.length > 20 ? ' y ' + (res.repetidos.length - 20) + ' más' : ''),
+        String(d.archivo || ''), '', '');
+    }
     res.ok = true;
     return res;
   });
@@ -2628,7 +2816,10 @@ function importarCuentas_(d, u) {
 /**
  * Agrega o actualiza filas por "ID Planilla".
  * opciones: {nueva(fila objeto) → completa campos de un alta, alternativa(objeto entrante, filas) → índice de
- * un registro cargado a mano o por comprobante que corresponde al mismo (para no duplicarlo), idDe}
+ * un registro cargado a mano o por comprobante que corresponde al mismo (para no duplicarlo), idDe,
+ * indice() → índice de repetidos (indiceMovimientos_ / indiceCheques_): una fila nueva que es un
+ * repetido seguro de otra ya guardada con otro ID Planilla (o de otra del mismo archivo) no se agrega}
+ * Devuelve también repetidos: [texto] con las filas que no se agregaron por eso.
  */
 function upsertPlanilla_(nombreHoja, H, filas, opciones) {
   const hoja = obtenerHoja_(nombreHoja, H);
@@ -2639,6 +2830,9 @@ function upsertPlanilla_(nombreHoja, H, filas, opciones) {
   const porId = {};
   datos.forEach((f, i) => { const id = String(f[iId] || '').trim(); if (id) porId[id] = i; });
   const nuevas = [];
+  const repetidos = [];
+  const indice = opciones.indice ? opciones.indice() : null;
+  if (indice) datos.forEach(f => indice.agregar(f, false));
   let nuevos = 0, actualizados = 0, conciliados = 0, sinCambios = 0;
   filas.forEach(obj => {
     const id = String(obj['ID Planilla'] || '').trim();
@@ -2670,13 +2864,18 @@ function upsertPlanilla_(nombreHoja, H, filas, opciones) {
       return;
     }
     const fila = H.map(h => obj[h] == null ? '' : String(obj[h]).trim());
+    if (indice) {
+      const rep = indice.buscar(fila);
+      if (rep && rep.seguro) { repetidos.push(id + (rep.existente ? ' = ' + rep.existente : '')); return; }
+    }
     if (opciones.nueva) opciones.nueva(fila);
+    if (indice) indice.agregar(fila, true);
     nuevas.push(fila);
     porId[id] = datos.length + nuevas.length - 1;
     nuevos++;
   });
   if (nuevas.length) hoja.getRange(hoja.getLastRow() + 1, 1, nuevas.length, H.length).setNumberFormat('@').setValues(nuevas);
-  return { nuevos: nuevos, actualizados: actualizados, conciliados: conciliados, sinCambios: sinCambios };
+  return { nuevos: nuevos, actualizados: actualizados, conciliados: conciliados, sinCambios: sinCambios, repetidos: repetidos };
 }
 
 /**
@@ -2739,6 +2938,7 @@ function importarMovimientos_(filas, d, u) {
   });
   return upsertPlanilla_(SHEET_TRANSFERENCIAS, H, filas, {
     noVaciar: ['Concepto'],
+    indice: indiceMovimientos_,
     nueva: fila => {
       ultimoInterno++;
       fila[COL_INTERNO] = String(ultimoInterno);
@@ -2754,25 +2954,23 @@ function importarMovimientos_(filas, d, u) {
     // Cada uno se asocia una sola vez: al tomar el ID de la planilla ya no vuelve a coincidir.
     alternativa: (o, datos) => {
       const sinId = f => !String(f[iId] || '').trim();
-      const ref = String(o['N° de Referencia'] || '').trim();
+      const ref = referenciaNorm_(o['N° de Referencia']);
       const imp = importeANumero(o['Monto']);
-      if (soloDigitos(ref).length >= 4) {
-        const banco = claveTexto(o['Banco']);
-        const i = datos.findIndex(f => sinId(f) && claveTexto(f[COL_BANCO_TRANS]) === banco &&
-          String(f[COL_REFERENCIA]).trim() === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - Math.abs(imp)) < 0.01);
+      if (soloDigitos(o['N° de Referencia']).length >= 4) {
+        const banco = bancoCanon_(o['Banco']);
+        const i = datos.findIndex(f => sinId(f) && f[COL_ORIGEN] !== 'Resumen' && bancoCanon_(f[COL_BANCO_TRANS]) === banco &&
+          referenciaNorm_(f[COL_REFERENCIA]) === ref && Math.abs(Math.abs(importeANumero(f[COL_MONTO])) - Math.abs(imp)) < 0.01);
         if (i >= 0) return i;
       }
       const fecha = dmaAIso_(o['Fecha del Movimiento']);
       if (!fecha || !imp) return -1;
       const banco = bancoCanon_(o['Banco']);
-      const cta = sinCerosIzqCta_(soloDigitos(o['N° de Cuenta']));
       const iFecha = H.indexOf('Fecha del Movimiento');
       return datos.findIndex(f => {
         if (!sinId(f) || f[COL_ORIGEN] === 'Resumen') return false;
         if (dmaAIso_(f[iFecha]) !== fecha || Math.abs(importeANumero(f[COL_MONTO]) - imp) >= 0.01) return false;
         if ((f[COL_MONEDA] === 'USD' ? 'USD' : 'Pesos') !== o['Moneda'] || bancoCanon_(f[COL_BANCO_TRANS]) !== banco) return false;
-        const c = sinCerosIzqCta_(soloDigitos(f[COL_NUMERO_CUENTA]));
-        return !c || !cta || c === cta || (c.length >= 4 && cta.length >= 4 && (c.slice(-cta.length) === cta || cta.slice(-c.length) === c));
+        return cuentasCompatibles_(f[COL_NUMERO_CUENTA], o['N° de Cuenta']);
       });
     }
   });
@@ -2800,20 +2998,21 @@ function importarCheques_(filas, d, u) {
   });
   return upsertPlanilla_(SHEET_CHEQUES, H, filas, {
     noVaciar: ['Concepto', 'Banco Aceptante'],
+    indice: indiceCheques_,
     nueva: fila => {
       fila[H.indexOf('Archivo')] = String(d.archivo || 'Planilla de flujo de fondos');
       fila[COL_CARGADO_CHEQUE] = nombreDe_(u);
     },
     // Un cheque cargado antes a mano o por imagen: emitidos por banco + N°; de terceros por N° + importe.
     alternativa: (o, datos) => {
-      const num = String(o['N° de Cheque'] || '').trim();
+      const num = numeroNorm_(o['N° de Cheque']);
       if (!num) return -1;
       if (o['Tipo'] === 'Emitido') {
-        const k = claveCheque_(o['Banco'], num);
-        return datos.findIndex(f => !String(f[iId] || '').trim() && f[iTipo] === 'Emitido' && claveCheque_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]) === k);
+        const k = claveChequeEmitido_(o['Banco'], num);
+        return k ? datos.findIndex(f => !String(f[iId] || '').trim() && f[iTipo] === 'Emitido' && claveChequeEmitido_(f[COL_BANCO_CHEQUE], f[COL_NUMERO_CHEQUE]) === k) : -1;
       }
       const imp = Math.abs(importeANumero(o['Importe']));
-      return datos.findIndex(f => !String(f[iId] || '').trim() && f[iTipo] === 'De terceros' && String(f[COL_NUMERO_CHEQUE]).trim() === num &&
+      return datos.findIndex(f => !String(f[iId] || '').trim() && f[iTipo] === 'De terceros' && numeroNorm_(f[COL_NUMERO_CHEQUE]) === num &&
         Math.abs(Math.abs(importeANumero(f[iImporte])) - imp) < 0.01);
     }
   });

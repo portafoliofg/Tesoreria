@@ -1247,7 +1247,7 @@
   .modal__body .row { margin-bottom: 14px; }
   .modal__body .row + .row { margin-top: 0; }
   .modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface-2); }
-  .confirm-text { color: var(--muted); }
+  .confirm-text { color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; }
 
   /* ---------- Avisos ---------- */
   .toasts { position: fixed; right: 20px; bottom: 20px; z-index: 80; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 40px)); }
@@ -5068,6 +5068,46 @@ function runAsync(accion, filas) {
     .then(res => res.filas !== undefined ? res.filas : res);
 }
 
+// ---------------- Control de repetidos ----------------
+// guardarTransferencias y guardarCheques no guardan lo que parece repetido (misma cuenta, fecha e
+// importe; mismo N° de referencia con otro importe; mismo N° de cheque de terceros): lo devuelven
+// en "posibles". Acá se muestra la lista y, solo si el usuario confirma, se manda otra vez marcado
+// como confirmado. Lo repetido seguro (mismo banco + N° de referencia + importe, mismo banco + N°
+// de cheque emitido, mismo N° + CUIT o importe de un cheque de terceros) no se guarda nunca.
+// Devuelve la respuesta del servidor con agregadas, numeros, duplicadas y nuevos ya sumados.
+async function guardarConControlRepetidos(accion, filas) {
+  const campo = accion === "guardarCheques" ? "rows" : "filas";
+  const enviar = (lista, confirmados) => runJson(accion, { [campo]: lista, confirmados: confirmados });
+  const res = await enviar(filas, []);
+  const posibles = res.posibles || [];
+  res.duplicadas = res.duplicadas || [];
+  if (!posibles.length) return res;
+  const max = 8;
+  const lineas = posibles.slice(0, max).map(p => "• " + p.texto + "\n   parece igual a " + p.existente + " (" + p.motivo + ")");
+  const ok = await confirmar(posibles.length === 1 ? "Posible repetido" : posibles.length + " posibles repetidos",
+    (posibles.length === 1 ? "Este registro no se guardó porque se parece a uno que ya está cargado:" : "Estos registros no se guardaron porque se parecen a otros ya cargados:") +
+    "\n\n" + lineas.join("\n") + (posibles.length > max ? "\n… y " + (posibles.length - max) + " más." : "") +
+    "\n\nGuardalos solo si son operaciones distintas (por ejemplo, dos pagos iguales el mismo día).",
+    posibles.length === 1 ? "Guardar igual" : "Guardar los " + posibles.length + " igual");
+  if (!ok) {
+    res.duplicadas = res.duplicadas.concat(posibles.map(p => p.texto + " (posible repetido, no guardado)"));
+    return res;
+  }
+  const idx = posibles.map(p => p.i);
+  const res2 = await enviar(idx.map(i => filas[i]), idx.map((_, k) => k));
+  res.agregadas = (res.agregadas || 0) + (res2.agregadas || 0);
+  res.actualizados = (res.actualizados || 0) + (res2.actualizados || 0);
+  res.duplicadas = res.duplicadas.concat(res2.duplicadas || []);
+  if (res.numeros) idx.forEach((i, k) => { res.numeros[i] = (res2.numeros || [])[k] || ""; });
+  if (res2.nuevos) {
+    res.nuevos = res.nuevos || { bancos: 0, cuentas: 0 };
+    res.nuevos.bancos = (res.nuevos.bancos || 0) + (res2.nuevos.bancos || 0);
+    res.nuevos.cuentas = (res.nuevos.cuentas || 0) + (res2.nuevos.cuentas || 0);
+  }
+  res.posibles = [];
+  return res;
+}
+
 // ---------------- Memoria de este navegador ----------------
 // Lo último que trajo el servidor (movimientos, cheques, FCI, bolsa, compromisos, flujo y
 // conciliaciones) queda guardado en este navegador (IndexedDB), por usuario. Al abrir la app,
@@ -6136,7 +6176,7 @@ $("btnGuardar").addEventListener("click", async () => {
 
     if (pendientesTransferencias.length) {
       pendientesTransferencias.forEach(r => { r.datos["Monto"] = aplicarSigno(r.datos["Monto"], r.datos["Condición"]); });
-      const res = await runJson("guardarTransferencias", { filas: pendientesTransferencias.map(r => filaDesde(r, HEADERS_TRANSFERENCIAS)) });
+      const res = await guardarConControlRepetidos("guardarTransferencias", pendientesTransferencias.map(r => filaDesde(r, HEADERS_TRANSFERENCIAS)));
       pendientesTransferencias.forEach((r, i) => {
         r.sent = true;
         r.numeroInterno = (res.numeros || [])[i] || "";
@@ -6155,7 +6195,7 @@ $("btnGuardar").addEventListener("click", async () => {
       altas.cuentas += res.cuentas;
     }
     if (pendientesCheques.length) {
-      const res = await runAsync("guardarCheques", pendientesCheques.map(r => filaDesde(r, HEADERS_CHEQUES)));
+      const res = await guardarConControlRepetidos("guardarCheques", pendientesCheques.map(r => filaDesde(r, HEADERS_CHEQUES)));
       pendientesCheques.forEach(r => { r.sent = true; r.duplicado = (res.duplicadas || []).some(x => String(x).indexOf(r.filename + " (") === 0); });
       agregadas += res.agregadas;
       chequesActualizados += res.actualizados || 0;
@@ -6535,8 +6575,8 @@ $("modalManualGuardar").addEventListener("click", async () => {
   setStatus(st, "Guardando…", "hint");
   try {
     const res = esCheque
-      ? await runAsync("guardarCheques", [fila])
-      : await runJson("guardarTransferencias", { filas: [fila] });
+      ? await guardarConControlRepetidos("guardarCheques", [fila])
+      : await guardarConControlRepetidos("guardarTransferencias", [fila]);
     if (res.agregadas) {
       const numero = !esCheque && res.numeros && res.numeros[0] ? " N° interno " + res.numeros[0] + "." : "";
       setStatus(st, "Guardado." + numero, "hint msg-ok");
@@ -6551,7 +6591,7 @@ $("modalManualGuardar").addEventListener("click", async () => {
       }
       setTimeout(() => cerrarModal("modalManual"), 900);
     } else {
-      setStatus(st, "No se guardó: ya existía un registro con esos mismos datos.", "hint msg-error");
+      setStatus(st, "No se guardó: ya existía un registro con esos mismos datos" + (res.duplicadas && res.duplicadas[0] ? " (" + res.duplicadas[0] + ")" : "") + ".", "hint msg-error");
     }
   } catch (err) {
     setStatus(st, "Error al guardar: " + msgErr(err), "hint msg-error");
@@ -8109,7 +8149,7 @@ async function guardarResumenes(lista) {
     marcarYaCargados(r);
     const incluidos = r.movimientos.filter(m => m.incluir);
     if (!incluidos.length) { r.sent = true; continue; }
-    const res = await runJson("guardarTransferencias", { filas: filasDeResumen(r) });
+    const res = await guardarConControlRepetidos("guardarTransferencias", filasDeResumen(r));
     incluidos.forEach((m, k) => { m.numeroInterno = (res.numeros || [])[k] || ""; });
     r.sent = true;
     total.agregadas += res.agregadas;
@@ -16305,13 +16345,20 @@ async function depurarImportacion(destino, filas, campoFecha) {
   return res.quitados || 0;
 }
 
+// Filas de la planilla que no se agregaron porque el mismo cheque o movimiento ya está cargado con otro ID.
+function textoRepetidosImportacion(lista) {
+  if (!lista || !lista.length) return "";
+  return ", " + lista.length + " no agregado(s) por estar ya cargado(s) con otro ID (" + lista.slice(0, 5).join(" · ") + (lista.length > 5 ? " y " + (lista.length - 5) + " más" : "") + ")";
+}
+
 async function enviarPorLotes(destino, filas, tam, avance) {
-  const total = { nuevos: 0, actualizados: 0, conciliados: 0, sinCambios: 0, manualesRepetidos: 0 };
+  const total = { nuevos: 0, actualizados: 0, conciliados: 0, sinCambios: 0, manualesRepetidos: 0, repetidos: [] };
   const lotes = Math.max(1, Math.ceil(filas.length / tam));
   for (let i = 0; i < lotes; i++) {
     avance(i, lotes);
     const res = await runJson("importarPlanilla", { destino: destino, filas: filas.slice(i * tam, (i + 1) * tam), archivo: planillaFlujo.archivo, lote: i + 1, lotes: lotes });
     ["nuevos", "actualizados", "conciliados", "sinCambios", "manualesRepetidos"].forEach(k => { total[k] += res[k] || 0; });
+    total.repetidos = total.repetidos.concat(res.repetidos || []);
   }
   return total;
 }
@@ -16359,14 +16406,14 @@ $("impImportar").addEventListener("click", async () => {
     if (pasos.indexOf("movimientos") >= 0) {
       const filas = p.movimientos.map(r => Object.assign({}, r.fila, { "Moneda": r.moneda }, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
       const r = await enviarPorLotes("movimientos", filas, 400, (i, n) => avisar("Guardando movimientos: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      resumen.push(["Movimientos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "")]);
+      resumen.push(["Movimientos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "") + textoRepetidosImportacion(r.repetidos)]);
       base += pesoPaso;
     }
     // 4. Cheques.
     if (pasos.indexOf("cheques") >= 0) {
       const filas = p.cheques.map(r => Object.assign({}, r.fila, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
       const r = await enviarPorLotes("cheques", filas, 400, (i, n) => avisar("Guardando cheques: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      resumen.push(["Cheques", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "")]);
+      resumen.push(["Cheques", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "") + textoRepetidosImportacion(r.repetidos)]);
       base += pesoPaso;
     }
     // 5. FCI y Bolsa, a su pestaña.
