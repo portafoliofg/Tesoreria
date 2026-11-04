@@ -1253,6 +1253,7 @@
   .toast .t-dot { display: block; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--primary); }
   .toast.ok .t-dot { background: var(--ok); } .toast.error .t-dot { background: var(--bad); }
   .toast.salir { opacity: 0; transition: opacity .3s; }
+  .aviso-version { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--primary); box-shadow: var(--shadow-lg); font-size: 13px; font-weight: 600; animation: aparecer .2s ease-out; }
 
   /* ---------- Panel de apariencia ---------- */
   .tema-panel { position: fixed; right: 24px; top: 70px; z-index: 70; width: 300px; max-width: calc(100vw - 24px); padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); display: none; }
@@ -8743,6 +8744,7 @@ function arrancar() {
   try { sesionToken = localStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
   runJson("estado", { completo: true })
     .then(res => {
+      revisarVersion(res.version);
       if (res.empresa) { config.empresa = res.empresa; $("accesoEmpresa").textContent = res.empresa; $("marcaEmpresa").textContent = res.empresa; $("sideEmpresa").textContent = res.empresa; }
       if (res.usuario) iniciarApp(res.usuario, res);
       else { guardarToken(""); mostrarAcceso(res.inicializado ? "login" : "inicial"); }
@@ -8816,6 +8818,43 @@ $("btnVolverInicio").addEventListener("click", e => {
   e.preventDefault();
   avisarSitio({ tipo: "bgp-inicio" });
 });
+
+// ---------------- Versión nueva publicada ----------------
+// Una pestaña abierta desde antes de una publicación sigue mostrando la pantalla vieja (por
+// ejemplo el Inicio anterior) aunque ya use el servidor nuevo. La app compara su versión con la
+// del servidor al entrar, al volver a la pestaña y cada 10 minutos; si cambió, muestra un aviso
+// para recargar. El marcador lo reemplaza el workflow de GitHub al publicar (ver VERSION_APP en Código.gs).
+const VERSION_APP = "__VERSION_APP__";
+let versionNuevaAvisada = false;
+let versionRevisada = 0;
+
+function revisarVersion(delServidor) {
+  if (!delServidor || delServidor === VERSION_APP || versionNuevaAvisada) return;
+  versionNuevaAvisada = true;
+  const aviso = el("div", "aviso-version");
+  aviso.setAttribute("role", "alert");
+  const txt = el("span", null, "Hay una versión nueva de la app. Guardá lo que estés cargando y actualizá para verla.");
+  const btn = el("button", "small", "Actualizar ahora");
+  btn.type = "button";
+  btn.addEventListener("click", recargarApp);
+  aviso.append(txt, btn);
+  document.body.append(aviso);
+}
+
+function recargarApp() {
+  // Dentro de bgpsammar.com la página de afuera recarga la app; abierta sola, se recarga el marco.
+  avisarSitio({ tipo: "bgp-recargar" });
+  if (window.top === window) { location.reload(); return; }
+  setTimeout(() => toast("Si no se actualizó, apretá F5 (o Ctrl+F5) para cargar la versión nueva.", "error"), 2500);
+}
+
+function consultarVersion() {
+  if (versionNuevaAvisada || Date.now() - versionRevisada < 120000) return;
+  versionRevisada = Date.now();
+  runJson("version", {}).then(res => revisarVersion(res.version)).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") consultarVersion(); });
+setInterval(() => { if (document.visibilityState === "visible") consultarVersion(); }, 600000);
 
 // ---------------- Vista: Auditoría ----------------
 let auditoria = [];

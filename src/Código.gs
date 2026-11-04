@@ -187,8 +187,14 @@ function autorizarPermisos() {
 
 // ======================= Punto de entrada =======================
 
+// Versión publicada: el workflow de GitHub (apps-script.yml) cambia el marcador por el commit en
+// este archivo y en Index.html. Una pestaña abierta desde antes de una publicación sigue con la
+// pantalla vieja (pero ya habla con este servidor): compara su versión con esta y avisa que recargue.
+const VERSION_APP = '__VERSION_APP__';
+
 const ACCIONES_PUBLICAS = {
   estado: estado_,
+  version: () => ({ ok: true, version: VERSION_APP }),
   login: login_,
   loginGoogle: loginGoogle_,
   crearPrimerUsuario: crearPrimerUsuario_
@@ -506,7 +512,7 @@ function usuarioDeSesion_(token) {
  */
 function estado_(d, token) {
   const u = usuarioDeSesion_(token);
-  const r = { ok: true, inicializado: !!u || leerUsuarios_().length > 0, usuario: u ? usuarioPublico_(u) : null, empresa: empresa_() };
+  const r = { ok: true, version: VERSION_APP, inicializado: !!u || leerUsuarios_().length > 0, usuario: u ? usuarioPublico_(u) : null, empresa: empresa_() };
   if (u && d && d.completo) {
     r.preferencias = obtenerPreferencias_(d, u).preferencias;
     r.config = obtenerConfig_(d, u).config;
