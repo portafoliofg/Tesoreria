@@ -19959,7 +19959,14 @@ $("movFciGuardar").addEventListener("click", async () => {
 // Un rescate o suscripción cargado en la app: se le cambia la fecha o se borra.
 let movFciEditando = null;
 function eliminarMovFci(f) {
-  if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) return;
+  if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) {
+    // Los de la planilla de flujo de fondos se corrigen allá (la importación los volvería a pisar);
+    // las filas calculadas (Cierre, Rendimiento) y los saldos no se editan acá.
+    const t = tipoMovFci(f);
+    if (!f.__virtual && (t === "RESCATE" || t === "SUSCRIPCION"))
+      toast("Este " + String(f["Movimiento"] || "movimiento").toLowerCase() + " viene de la planilla de flujo de fondos: cambiale la fecha en la planilla y volvé a importarla. Solo se editan acá los cargados en la app.", "error");
+    return;
+  }
   movFciEditando = f;
   $("editMovFciDato").textContent = f["Movimiento"] + " de " + f["Banco"] + (f["Fondo"] ? " · " + f["Fondo"] : "") + " por " + fmtImp(Math.abs(parseImporte(f["Monto"]))) + " · cargado con fecha " + f["Fecha"] + ".";
   $("editMovFciFecha").value = fechaAOrden(f["Fecha"]);
@@ -20067,23 +20074,24 @@ function diasDevengados(desde, hasta) {
 
 // "No cuadra" porque un rescate o suscripción se hizo el día anterior pero se cargó con la fecha
 // del saldo (la de hoy): con la fecha del saldo cuenta recién después de ese saldo. Si pasando los
-// movimientos cargados en la app de ese día al período anterior la cuenta cuadra, se sugiere
-// cambiarles la fecha (tocándolos en FCI y Bolsa). movs: los del banco; devuelve null si no aplica.
+// movimientos de ese día al período anterior la cuenta cuadra, se sugiere cambiarles la fecha (los
+// cargados en la app, tocándolos en FCI y Bolsa; los de la planilla, en la planilla). Devuelve null si no aplica.
 function sugerenciaFechaFci(movs, desde, hasta, capital, fin, d) {
-  const delDia = movs.filter(m => m.manual && m.iso === hasta);
+  const delDia = movs.filter(m => m.iso === hasta);
   const x = delDia.reduce((a, m) => a + m.monto, 0);
   if (!delDia.length || !x) return null;
   const cap = capital + x;
   if (!(cap > 0) || Math.abs((fin - cap) / cap) / Math.max(1, d) > 0.003) return null;
   const a = habilAnterior(hasta) >= desde ? habilAnterior(hasta) : desde;
   const rend = fin - cap;
-  return { de: hasta, a: a, cantidad: delDia.length, monto: x, capital: cap, rend: rend, tna: d > 0 ? rend / cap * 365 / d : null };
+  return { de: hasta, a: a, cantidad: delDia.length, manuales: delDia.filter(m => m.manual).length, monto: x, capital: cap, rend: rend, tna: d > 0 ? rend / cap * 365 / d : null };
 }
 
 function textoSugerenciaFci(sg, fmt) {
-  return "Si " + (sg.cantidad === 1 ? "el movimiento cargado" : "los " + sg.cantidad + " movimientos cargados") + " con fecha " + isoADma(sg.de).substring(0, 5) +
+  const donde = sg.manuales === sg.cantidad ? "tocándolos en FCI y Bolsa" : !sg.manuales ? "en la planilla de flujo de fondos y volvé a importarla" : "los cargados en la app, tocándolos en FCI y Bolsa; los de la planilla, en la planilla";
+  return "Si " + (sg.cantidad === 1 ? "el movimiento" : "los " + sg.cantidad + " movimientos") + " con fecha " + isoADma(sg.de).substring(0, 5) +
     " (" + (sg.monto < 0 ? "neto − " : "neto + ") + fmt(Math.abs(sg.monto)) + ") se hicieron el " + isoADma(sg.a).substring(0, 5) + ", cuadra: rinde " + fmt(sg.rend) + (sg.tna === null ? "" : " (TNA " + pctTexto(sg.tna) + ")") +
-    ". Cambiales la fecha tocándolos en FCI y Bolsa.";
+    ". Cambiales la fecha (" + donde + ").";
 }
 
 function calcularRendimientoFciSaldos() {
