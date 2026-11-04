@@ -18883,8 +18883,8 @@ function inputPlanilla(item, alCambiar) {
   });
   inp.addEventListener("focus", () => inp.select());
   inp.addEventListener("keydown", e => { if (!teclaDecimalExcel(e, inp)) moverEnPlanilla(e, inp); });
-  // Formato número como en Excel: al salir de la casilla, lo escrito queda como 1.234.567,89.
-  inp.addEventListener("blur", () => { if (item.cambio) formatearCeldaImporte(inp, item.valor); });
+  // Al salir de la casilla (otra casilla, otra pestaña o ventana) el número queda tal cual se
+  // escribió: no se le agregan puntos de miles ni ",00". El total se calcula igual.
   return inp;
 }
 
@@ -18919,11 +18919,6 @@ function teclaDecimalExcel(e, inp) {
   else inp.value += ",";
   inp.dispatchEvent(new Event("input", { bubbles: true }));
   return true;
-}
-
-function formatearCeldaImporte(inp, valor) {
-  if (valor === null || valor === undefined) { if (!String(inp.value).trim()) inp.value = ""; return; }
-  inp.value = textoSaldo(valor);
 }
 
 // ----- Moverse por la planilla de Saldos como en Excel -----
