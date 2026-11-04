@@ -19164,21 +19164,21 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
 
   // Anchos de columna: lo que ocupe el texto más largo de cada una.
   const PAD = 14, FILA = 34, CAB = 30, MARGEN = 28;
-  let wCta = 0, wNum = ancho("TOTAL", "600", 12) + 2 * PAD;
+  let wCta = 0, wNum = ancho("TOTAL", "700", 12.5) + 2 * PAD;
   tablas.forEach(t => {
-    wCta = Math.max(wCta, ancho("CUENTA " + t.signo, "600", 12) + 2 * PAD, ancho("TOTAL " + t.signo, "700", 15) + 2 * PAD);
+    wCta = Math.max(wCta, ancho("CUENTA " + t.signo, "700", 12.5) + 2 * PAD, ancho("TOTAL " + t.signo, "800", 15) + 2 * PAD);
     let c = 0, f = 0;
     t.gs.forEach(g => {
       g.cuentas.forEach(x => {
         wCta = Math.max(wCta, ancho(g.banco + " ", "700", 15) + ancho(cuentaTxt(x), "400", 15) + 2 * PAD);
-        wNum = Math.max(wNum, ancho(num(x.valor), "400", 15) + 2 * PAD);
+        wNum = Math.max(wNum, ancho(num(x.valor), "600", 15) + 2 * PAD);
         c += x.valor || 0;
       });
       const sub = g.cuentas.reduce((a, x) => a + (x.valor || 0), 0) + (g.fci.valor || 0);
       f += g.fci.valor || 0;
-      wNum = Math.max(wNum, ancho(num(g.fci.valor), "400", 15) + 2 * PAD, ancho(num(sub), "700", 15) + 2 * PAD);
+      wNum = Math.max(wNum, ancho(num(g.fci.valor), "600", 15) + 2 * PAD, ancho(num(sub), "800", 15) + 2 * PAD);
     });
-    wNum = Math.max(wNum, ancho(num(c + f), "700", 15) + 2 * PAD);
+    wNum = Math.max(wNum, ancho(num(c + f), "800", 15) + 2 * PAD);
   });
   const anchoTabla = Math.ceil(wCta + 3 * wNum);
   const W = anchoTabla + 2 * MARGEN;
@@ -19204,8 +19204,8 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
 
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   const d = new Date(+fechaIso.substring(0, 4), +fechaIso.substring(5, 7) - 1, +fechaIso.substring(8, 10));
-  texto("Saldos y FCI", MARGEN, MARGEN + 12, { peso: "700", tam: 21, color: C.primario });
-  texto("al " + DIAS[d.getDay()] + " " + isoADma(fechaIso), MARGEN + ancho("Saldos y FCI", "700", 21) + 10, MARGEN + 13, { peso: "500", tam: 16, color: C.tenue });
+  texto("Saldos y FCI", MARGEN, MARGEN + 12, { peso: "800", tam: 21, color: C.primario });
+  texto("al " + DIAS[d.getDay()] + " " + isoADma(fechaIso), MARGEN + ancho("Saldos y FCI", "800", 21) + 10, MARGEN + 13, { peso: "600", tam: 16, color: C.tenue });
   texto((config.empresa || "Tesorería") + " · Tesorería", MARGEN, MARGEN + 38, { tam: 12.5, color: C.tenue });
   let y = MARGEN + 64;
   const xCol = [MARGEN, MARGEN + wCta, MARGEN + wCta + wNum, MARGEN + wCta + 2 * wNum, MARGEN + anchoTabla];
@@ -19213,7 +19213,7 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
   tablas.forEach(t => {
     // Encabezado
     ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, CAB);
-    ["CUENTA " + t.signo, "SALDOS", "FCI", "TOTAL"].forEach((h, i) => texto(h, i === 0 ? xCol[0] + PAD : xCol[i + 1] - PAD, y + CAB / 2, { peso: "600", tam: 12, color: C.tenue, alinear: i === 0 ? "left" : "right" }));
+    ["CUENTA " + t.signo, "SALDOS", "FCI", "TOTAL"].forEach((h, i) => texto(h, i === 0 ? xCol[0] + PAD : xCol[i + 1] - PAD, y + CAB / 2, { peso: "700", tam: 12.5, color: C.fuerte, alinear: i === 0 ? "left" : "right" }));
     const yTabla = y;
     linea(y + CAB - 2, C.fuerte, 2);
     y += CAB;
@@ -19227,7 +19227,7 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
         texto(g.banco, xCol[0] + PAD, yc, { peso: "700" });
         if (x) {
           texto(cuentaTxt(x), xCol[0] + PAD + ancho(g.banco + " ", "700", 15), yc, {});
-          texto(num(x.valor), xCol[2] - PAD, yc, { color: x.previo ? C.previo : C.texto, alinear: "right" });
+          texto(num(x.valor), xCol[2] - PAD, yc, { peso: "600", color: x.previo ? C.previo : C.texto, alinear: "right" });
           c += x.valor || 0;
         } else texto("Sin cuentas", xCol[2] - PAD, yc, { color: C.previo, alinear: "right", tam: 13 });
         if (i < filas - 1) linea(y + FILA - 0.5, C.linea, 1, xCol[0], xCol[2]);
@@ -19237,8 +19237,8 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
       const ym = y0 + (y - y0) / 2;
       const sub = g.cuentas.reduce((a, x) => a + (x.valor || 0), 0) + (g.fci.valor || 0);
       f += g.fci.valor || 0;
-      texto(num(g.fci.valor), xCol[3] - PAD, ym, { color: g.fci.previo ? C.previo : C.texto, alinear: "right" });
-      texto(num(sub), xCol[4] - PAD, ym, { peso: "700", alinear: "right" });
+      texto(num(g.fci.valor), xCol[3] - PAD, ym, { peso: "600", color: g.fci.previo ? C.previo : C.texto, alinear: "right" });
+      texto(num(sub), xCol[4] - PAD, ym, { peso: "800", alinear: "right" });
       // Entre bancos, línea más marcada que entre cuentas del mismo banco.
       if (gi < t.gs.length - 1) linea(y - 1, C.fuerte, 1.5);
     });
@@ -19246,9 +19246,9 @@ function dibujarImagenPlanilla(grupos, fechaIso) {
     ctx.fillStyle = C.banda; ctx.fillRect(MARGEN, y, anchoTabla, FILA);
     linea(y, C.fuerte, 2);
     const yt = y + FILA / 2 + 1;
-    texto("TOTAL " + t.signo, xCol[0] + PAD, yt, { peso: "700" });
-    texto(num(c), xCol[2] - PAD, yt, { peso: "700", alinear: "right" });
-    texto(num(f), xCol[3] - PAD, yt, { peso: "700", alinear: "right" });
+    texto("TOTAL " + t.signo, xCol[0] + PAD, yt, { peso: "800" });
+    texto(num(c), xCol[2] - PAD, yt, { peso: "800", alinear: "right" });
+    texto(num(f), xCol[3] - PAD, yt, { peso: "800", alinear: "right" });
     texto(num(c + f), xCol[4] - PAD, yt, { peso: "800", alinear: "right", color: C.primario });
     // Columnas y marco de toda la tabla.
     ctx.fillStyle = C.linea;
@@ -19428,10 +19428,12 @@ function imagenTabla(def) {
   const medir = document.createElement("canvas").getContext("2d");
   const ancho = (txt, peso, tam) => { medir.font = peso + " " + tam + "px " + fuente; return medir.measureText(String(txt)).width; };
   const PAD = 12, FILA = 30, CAB = 30, MARGEN = 24, TAM = 13;
-  const anchos = def.columnas.map((c, i) => Math.max(ancho(String(c).toUpperCase(), "600", 11),
-    ...filas.map(f => ancho(f.celdas[i] === undefined ? "" : f.celdas[i], f.clase === "total" ? "700" : "500", TAM))) + 2 * PAD);
+  // Negrita: encabezados y totales; seminegrita: las columnas de importes (lo que más se mira).
+  const pesoCelda = (f, i) => f.clase === "total" ? "800" : der.indexOf(i) >= 0 ? "600" : "500";
+  const anchos = def.columnas.map((c, i) => Math.max(ancho(String(c).toUpperCase(), "700", 11.5),
+    ...filas.map(f => ancho(f.celdas[i] === undefined ? "" : f.celdas[i], pesoCelda(f, i), TAM))) + 2 * PAD);
   const anchoTabla = anchos.reduce((a, b) => a + b, 0);
-  const anchoTit = Math.max(ancho(def.titulo, "700", 18), ancho(def.subtitulo || "", "500", 12.5));
+  const anchoTit = Math.max(ancho(def.titulo, "800", 18), ancho(def.subtitulo || "", "600", 12.5));
   const W = Math.ceil(Math.max(anchoTabla, anchoTit) + 2 * MARGEN);
   const altoNota = def.nota ? 26 : 0;
   const H = Math.ceil(MARGEN + 26 + (def.subtitulo ? 20 : 0) + 12 + CAB + filas.length * FILA + altoNota + MARGEN);
@@ -19443,12 +19445,12 @@ function imagenTabla(def) {
   g.fillStyle = C.fondo; g.fillRect(0, 0, W, H);
   let y = MARGEN;
   g.textBaseline = "middle";
-  g.fillStyle = C.primario; g.font = "700 18px " + fuente; g.fillText(def.titulo, MARGEN, y + 10); y += 26;
-  if (def.subtitulo) { g.fillStyle = C.tenue; g.font = "500 12.5px " + fuente; g.fillText(def.subtitulo, MARGEN, y + 8); y += 20; }
+  g.fillStyle = C.primario; g.font = "800 18px " + fuente; g.fillText(def.titulo, MARGEN, y + 10); y += 26;
+  if (def.subtitulo) { g.fillStyle = C.tenue; g.font = "600 12.5px " + fuente; g.fillText(def.subtitulo, MARGEN, y + 8); y += 20; }
   y += 12;
   // Encabezado
   g.fillStyle = C.primario; g.fillRect(MARGEN, y, anchoTabla, CAB);
-  g.fillStyle = "#ffffff"; g.font = "600 11px " + fuente;
+  g.fillStyle = "#ffffff"; g.font = "700 11.5px " + fuente;
   let x = MARGEN;
   def.columnas.forEach((c, i) => {
     const t = String(c).toUpperCase();
@@ -19463,7 +19465,7 @@ function imagenTabla(def) {
     x = MARGEN;
     f.celdas.forEach((c, i) => {
       const txt = c === undefined || c === null ? "" : String(c);
-      g.font = (f.clase === "total" ? "700 " : "500 ") + TAM + "px " + fuente;
+      g.font = pesoCelda(f, i) + " " + TAM + "px " + fuente;
       const num = der.indexOf(i) >= 0;
       g.fillStyle = num && /^[-−]/.test(txt.replace(/^[$U\sD]+/, "")) ? C.neg : num && /^\+/.test(txt) ? C.pos : C.texto;
       g.textAlign = num ? "right" : "left";
