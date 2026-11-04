@@ -19959,7 +19959,14 @@ $("movFciGuardar").addEventListener("click", async () => {
 // Un rescate o suscripción cargado en la app: se le cambia la fecha o se borra.
 let movFciEditando = null;
 function eliminarMovFci(f) {
-  if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) return;
+  if (String(f["ID Planilla"] || "").indexOf("FCIM-") !== 0) {
+    // Los de la planilla de flujo de fondos se corrigen allá (la importación los volvería a pisar);
+    // las filas calculadas (Cierre, Rendimiento) y los saldos no se editan acá.
+    const t = tipoMovFci(f);
+    if (!f.__virtual && (t === "RESCATE" || t === "SUSCRIPCION"))
+      toast("Este " + String(f["Movimiento"] || "movimiento").toLowerCase() + " viene de la planilla de flujo de fondos: cambiale la fecha en la planilla y volvé a importarla. Solo se editan acá los cargados en la app.", "error");
+    return;
+  }
   movFciEditando = f;
   $("editMovFciDato").textContent = f["Movimiento"] + " de " + f["Banco"] + (f["Fondo"] ? " · " + f["Fondo"] : "") + " por " + fmtImp(Math.abs(parseImporte(f["Monto"]))) + " · cargado con fecha " + f["Fecha"] + ".";
   $("editMovFciFecha").value = fechaAOrden(f["Fecha"]);
