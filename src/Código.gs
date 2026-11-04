@@ -256,6 +256,7 @@ const ACCIONES = {
   guardarRecibidoBolsa: guardarRecibidoBolsa_,
   guardarMovimientosFci: guardarMovimientosFci_,
   eliminarMovimientoFci: eliminarMovimientoFci_,
+  cambiarFechaMovimientoFci: cambiarFechaMovimientoFci_,
   registrarSalidaCheques: registrarSalidaCheques_,
   obtenerReporteConfig: obtenerReporteConfig_,
   guardarReporteConfig: guardarReporteConfig_,
@@ -3443,6 +3444,49 @@ function eliminarMovimientoFci_(d, u) {
     registrar_(u, 'FCI: movimiento eliminado', salen[0][HEADERS_FCI.indexOf('Movimiento')] + ' ' + salen[0][HEADERS_FCI.indexOf('Banco')] + ' del ' + salen[0][HEADERS_FCI.indexOf('Fecha')],
       id, filaComoObjeto_(HEADERS_FCI, salen[0]), '');
     return { ok: true };
+  });
+}
+
+/**
+ * Cambia la fecha de un rescate o suscripción cargado en la app (no los de la planilla).
+ * d: {id, fecha: 'dd/mm/aaaa'}. Por ejemplo, uno que se hizo ayer y se cargó hoy con la fecha de
+ * hoy: con la fecha correcta cuenta entre el saldo de inicio de ese día y su cierre. El ID nuevo es
+ * el mismo que tendría cargado de nuevo con esa fecha (así no se duplica si se vuelve a leer el comprobante).
+ */
+function cambiarFechaMovimientoFci_(d, u) {
+  return conLock_(() => {
+    const id = String(d.id || '').trim();
+    if (id.indexOf('FCIM-') !== 0) return { ok: false, error: 'Solo se puede cambiar la fecha de los movimientos cargados en la app. Los de la planilla se corrigen en la planilla.' };
+    const fecha = String(d.fecha || '').trim();
+    const p = fecha.split('/');
+    if (p.length !== 3 || p[2].length !== 4 || p[0].length !== 2 || p[1].length !== 2) return { ok: false, error: 'La fecha no es válida.' };
+    const H = HEADERS_FCI;
+    const hoja = obtenerHoja_(SHEET_FCI, H);
+    const ult = hoja.getLastRow();
+    const iId = H.indexOf('ID Planilla'), iFecha = H.indexOf('Fecha');
+    const ids = ult < 2 ? [] : hoja.getRange(2, iId + 1, ult - 1, 1).getDisplayValues().map(r => String(r[0]).trim());
+    const n = ids.indexOf(id);
+    if (n < 0) return { ok: false, error: 'No se encontró el movimiento.' };
+    const fila = hoja.getRange(n + 2, 1, 1, H.length).getDisplayValues()[0];
+    const campo = k => String(fila[H.indexOf(k)] || '').trim();
+    const anterior = campo('Fecha');
+    if (anterior === fecha) return { ok: true, id: id, sinCambios: true };
+    // Misma clave que guardarMovimientosFci_: fecha, banco, fondo, moneda, monto, Mov. N° y comprobante.
+    const sol = campo('Solicitud o rendimiento');
+    const mRef = /Mov\. N° (\S+)/.exec(sol), mComp = /Comprobante (\S+)/.exec(sol);
+    const ref = mRef ? mRef[1] : '', comprobante = mComp ? mComp[1] : '';
+    const moneda = campo('Moneda') === 'USD' ? 'USD' : 'Pesos';
+    const monto = importeANumero(campo('Monto'));
+    const base = [p[2] + p[1] + p[0], claveTexto(campo('Banco')), claveTexto(campo('Fondo')), moneda, monto.toFixed(2), ref].concat(comprobante ? [comprobante] : []).join('|');
+    const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, base + '|1')
+      .slice(0, 5).map(b => ('0' + (b & 255).toString(16)).slice(-2)).join('');
+    const nuevoId = 'FCIM-' + p[2] + p[1] + p[0] + '-' + hash;
+    if (ids.indexOf(nuevoId) >= 0) return { ok: false, error: 'Ya hay un movimiento igual cargado el ' + fecha + '. Si este está repetido, borralo.' };
+    hoja.getRange(n + 2, iFecha + 1).setNumberFormat('@').setValue(fecha);
+    hoja.getRange(n + 2, iId + 1).setNumberFormat('@').setValue(nuevoId);
+    registrar_(u, 'FCI: fecha cambiada', campo('Movimiento') + ' ' + campo('Banco') + ' por ' + campo('Monto') + ': del ' + anterior + ' al ' + fecha,
+      nuevoId, { 'Fecha': anterior, 'ID Planilla': id }, { 'Fecha': fecha, 'ID Planilla': nuevoId });
+    return { ok: true, id: nuevoId };
   });
 }
 
