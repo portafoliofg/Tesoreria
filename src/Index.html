@@ -912,6 +912,8 @@
   .posicion-barra label { max-width: 200px; margin: 0; }
   .posicion-atajos { display: flex; flex-wrap: wrap; gap: 6px; }
   .posicion-banda { background: var(--primary-soft); border: 1px solid var(--primary); color: var(--primary); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin-bottom: 12px; }
+  .posicion-hoja { display: block; width: 100%; max-width: 640px; margin: 4px auto 14px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 28px rgba(0,0,0,.10); background: #fff; }
+  .posicion-detalle > summary { cursor: pointer; font-weight: 600; color: var(--muted); margin: 6px 0 10px; }
   #posicionBox .rep-tabla { margin-bottom: 14px; }
   #posicionBox h2 { font-size: 15px; margin: 14px 0 6px; }
   .tb-img { display: inline-flex; flex-shrink: 0; }
@@ -3706,7 +3708,8 @@ const LIBRERIAS = {
     url: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", listo: () => typeof pdfjsLib !== "undefined", error: "No se pudo cargar el lector de PDF. Revisá la conexión y probá de nuevo.",
     alCargar: () => { pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }
   },
-  xlsx: { url: "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", listo: () => typeof XLSX !== "undefined", error: "No se pudo cargar el lector de Excel. Revisá la conexión y probá de nuevo." }
+  xlsx: { url: "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", listo: () => typeof XLSX !== "undefined", error: "No se pudo cargar el lector de Excel. Revisá la conexión y probá de nuevo." },
+  jspdf: { url: "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", listo: () => !!(window.jspdf && window.jspdf.jsPDF), error: "No se pudo cargar el generador de PDF. Revisá la conexión y probá de nuevo." }
 };
 const promesasLibreria = {};
 
@@ -12277,7 +12280,13 @@ function pintarPosicion() {
   const iso = $("posicionFecha").value || hoyIso();
   posicionActual = posicionAl(iso);
   const box = $("posicionBox");
-  box.replaceChildren(el("div", "posicion-banda", "Posición al " + isoADma(iso) + (iso > hoyIso() ? " · fecha futura: se ve lo cargado hasta hoy" : "")), hojaPosicion(posicionActual));
+  // Vista previa: la hoja resumida (la misma del PDF y la imagen); el detalle, plegado debajo.
+  const img = el("img", "posicion-hoja");
+  img.alt = "Posición al " + isoADma(iso);
+  try { img.src = dibujarPosicion(posicionActual).toDataURL("image/png"); } catch (e) { img.alt = "No se pudo dibujar: " + msgErr(e); }
+  const det = el("details", "posicion-detalle");
+  det.append(el("summary", null, "Ver el detalle (cuentas y cheques uno por uno)"), hojaPosicion(posicionActual));
+  box.replaceChildren(el("div", "posicion-banda", "Posición al " + isoADma(iso) + (iso > hoyIso() ? " · fecha futura: se ve lo cargado hasta hoy" : "")), img, det);
 }
 
 $("inicioPosicion").addEventListener("click", () => abrirPosicion());
@@ -12286,7 +12295,7 @@ $("posicionPdf").addEventListener("click", async () => {
   if (!posicionActual) return;
   const b = $("posicionPdf");
   b.disabled = true; b.classList.add("is-loading");
-  try { await descargarPdfDeNodo(hojaPosicion(posicionActual), "Posición al " + isoADma(posicionActual.iso).split("/").join("-")); }
+  try { await pdfPosicion(posicionActual); }
   catch (err) { toast("No se pudo generar el PDF: " + msgErr(err), "error"); }
   finally { b.disabled = false; b.classList.remove("is-loading"); }
 });
@@ -12309,19 +12318,259 @@ $("posicionExcel").addEventListener("click", () => {
 $("posicionImagen").addEventListener("click", () => {
   const p = posicionActual;
   if (!p) return;
-  const filas = [];
-  ["Pesos", "USD"].forEach(m => {
-    const t = p.tot[m];
-    if (!t.activo && !t.pasivo) return;
-    const s = m === "USD" ? " (U$D)" : "";
-    [["Cuentas bancarias", t.cuentas], ["FCI", t.fci], ["Cheques de terceros en cartera", t.cartera]].forEach(x => filas.push([x[0] + s, textoImporte(x[1] || 0, m)]));
-    filas.push({ clase: "total", celdas: ["Disponible" + s, textoImporte(t.activo, m)] });
-    [["Cheques emitidos sin debitar", t.emitidos], ["Deuda en bolsa", t.bolsa]].forEach(x => filas.push([x[0] + s, textoImporte(x[1] || 0, m)]));
-    filas.push({ clase: "total", celdas: ["Posición neta" + s, textoImporte(t.neto, m)] });
-  });
-  compartirCanvas(imagenTabla({ titulo: "Posición al " + isoADma(p.iso), subtitulo: config.empresa || "", columnas: ["Concepto", "Importe"], derecha: [1], filas: filas.length ? filas : [["Sin datos", ""]] }),
-    "Posición al " + isoADma(p.iso).split("/").join("-") + ".png", "Posición", $("posicionImagen"));
+  compartirCanvas(dibujarPosicion(p), "Posición al " + isoADma(p.iso).split("/").join("-") + ".png", "Posición", $("posicionImagen"));
 });
+
+// ----- Posición en una hoja: tablero A4 (PDF e imagen) -----
+// Hiper resumida y con la marca: posición neta, disponible y compromisos en tarjetas, la
+// composición en una barra, dónde está la plata por banco y lo que cobra y paga en los próximos
+// días. El detalle (cheque por cheque) va en el Excel. Se dibuja en un canvas A4 (794 × 1123
+// a 3x, ~290 ppp al imprimir) y se pasa a PDF con jsPDF en el navegador: el conversor de Google
+// no admite este diseño.
+const COLORES_POS = { verde: "#1c4a2c", verde2: "#2f6b42", oro: "#b8893a", oroClaro: "#ead9b5", salvia: "#7f9c86", tinta: "#18221c", tenue: "#6e746b",
+  linea: "#e6e0d5", fondoCard: "#ffffff", crema: "#f7f4ee", rojo: "#a8402c", rojo2: "#c77a52", pos: "#1d7a3e" };
+
+function cantidadTxt(n, uno, varios) {
+  return n + " " + (n === 1 ? uno : varios);
+}
+
+function millones(v, moneda) {
+  const s = moneda === "USD" ? "U$D " : "$ ";
+  const a = Math.abs(v || 0), neg = (v || 0) < 0 ? "−" : "";
+  if (a >= 1e6) return neg + s + (a / 1e6).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " M";
+  return neg + s + Math.round(a).toLocaleString("es-AR");
+}
+
+function dibujarPosicion(p) {
+  const C = COLORES_POS, ESC = 3, W = 794, H = 1123, M = 40;
+  const fuente = '"Manrope", "Inter", system-ui, sans-serif', serif = '"Cinzel", "Cormorant Garamond", Georgia, serif';
+  const cv = document.createElement("canvas");
+  cv.width = W * ESC; cv.height = H * ESC;
+  cv.__esc = ESC; cv.__conMarca = true;   // ya trae la marca: no se le agrega el marco de las imágenes
+  const g = cv.getContext("2d");
+  g.scale(ESC, ESC);
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+  const T = (txt, x, y, o) => {
+    o = o || {};
+    g.font = (o.peso || "500") + " " + (o.tam || 11) + "px " + (o.serif ? serif : fuente);
+    g.fillStyle = o.color || C.tinta; g.textAlign = o.alinear || "left"; g.textBaseline = o.base || "alphabetic";
+    if (o.espaciado) { try { g.letterSpacing = o.espaciado + "px"; } catch (e) {} }
+    g.fillText(txt, x, y);
+    if (o.espaciado) { try { g.letterSpacing = "0px"; } catch (e) {} }
+    return g.measureText(txt).width;
+  };
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const card = (x, y, w, h, o) => {
+    o = o || {};
+    g.save();
+    g.shadowColor = "rgba(24, 34, 28, .07)"; g.shadowBlur = 10; g.shadowOffsetY = 2;
+    rr(x, y, w, h, o.r || 12); g.fillStyle = o.fondo || C.fondoCard; g.fill();
+    g.restore();
+    if (!o.sinBorde) { rr(x + .5, y + .5, w - 1, h - 1, o.r || 12); g.strokeStyle = o.borde || C.linea; g.lineWidth = 1; g.stroke(); }
+  };
+  const pesos = p.tot.Pesos, usd = p.tot.USD;
+  const hayUsd = !!(usd.activo || usd.pasivo);
+
+  // Franja y encabezado
+  const grad = g.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, C.verde); grad.addColorStop(0.7, C.verde); grad.addColorStop(1, C.oro);
+  g.fillStyle = grad; g.fillRect(0, 0, W, 6);
+  const logo = logoMarca.complete && logoMarca.naturalWidth ? logoMarca : null;
+  let x = M;
+  if (logo) { const lh = 50, lw = lh * logo.naturalWidth / logo.naturalHeight; g.drawImage(logo, x, 26, lw, lh); x += lw + 12; }
+  T("ANDRÉS SAMMARTINO", x, 50, { peso: "600", tam: 16, serif: true, color: C.verde, espaciado: .6 });
+  T("Tesorería · Posición consolidada", x, 68, { peso: "600", tam: 10.5, color: C.oro });
+  T("POSICIÓN AL", W - M, 38, { peso: "700", tam: 9, color: C.tenue, alinear: "right", espaciado: 1.6 });
+  T(isoADma(p.iso), W - M, 64, { peso: "800", tam: 24, color: C.verde, alinear: "right" });
+  T(nombreDia(p.iso).split(",")[0].split(" ")[0], W - M, 80, { peso: "600", tam: 10, color: C.tenue, alinear: "right" });
+  g.fillStyle = C.linea; g.fillRect(M, 96, W - 2 * M, 1);
+
+  // 1. Posición neta (tarjeta principal)
+  let y = 114;
+  const hH = 128;
+  card(M, y, W - 2 * M, hH, { fondo: C.verde, sinBorde: true, r: 16 });
+  const hg = g.createLinearGradient(M, y, W - M, y + hH);
+  hg.addColorStop(0, "rgba(255,255,255,0)"); hg.addColorStop(1, "rgba(184,137,58,.22)");
+  rr(M, y, W - 2 * M, hH, 16); g.fillStyle = hg; g.fill();
+  T("POSICIÓN NETA", M + 26, y + 34, { peso: "700", tam: 9.5, color: C.oroClaro, espaciado: 1.6 });
+  T(formatImporte(pesos.neto || 0), M + 26, y + 74, { peso: "800", tam: 34, color: "#ffffff" });
+  T("Disponible " + millones(pesos.activo, "Pesos") + "  −  compromisos " + millones(-(pesos.pasivo || 0), "Pesos"), M + 26, y + 100, { peso: "600", tam: 11, color: "rgba(255,255,255,.78)" });
+  // Cobertura: cuántas veces lo disponible cubre los compromisos (anillo a la derecha)
+  const cx = W - M - 76, cy = y + hH / 2, rad = 40;
+  const comp = Math.abs(pesos.pasivo || 0), act = pesos.activo || 0;
+  const frac = act > 0 ? Math.min(1, comp / act) : (comp ? 1 : 0);
+  g.lineWidth = 9; g.lineCap = "round";
+  g.strokeStyle = "rgba(255,255,255,.16)"; g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke();
+  if (frac > 0) { g.strokeStyle = C.oro; g.beginPath(); g.arc(cx, cy, rad, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); g.stroke(); }
+  g.lineCap = "butt";
+  T(act > 0 ? Math.round(frac * 100) + " %" : "—", cx, cy + 2, { peso: "800", tam: 17, color: "#ffffff", alinear: "center" });
+  T("comprometido", cx, cy + 16, { peso: "600", tam: 8.5, color: "rgba(255,255,255,.72)", alinear: "center" });
+  T(comp && act > 0 ? "Lo disponible cubre " + (act / comp).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " veces los compromisos" : "Sin compromisos pendientes",
+    cx - rad - 18, y + hH - 14, { peso: "600", tam: 9, color: "rgba(255,255,255,.72)", alinear: "right" });
+  y += hH + 26;
+
+  // 2. Tarjetas: disponible y compromisos
+  const seccion = (txt, yy, extra) => {
+    T(txt, M, yy, { peso: "800", tam: 9.5, color: C.verde, espaciado: 1.6 });
+    if (extra) T(extra, W - M, yy, { peso: "600", tam: 9.5, color: C.tenue, alinear: "right" });
+  };
+  const kpi = (xx, yy, w, h, o) => {
+    card(xx, yy, w, h, { fondo: o.fondo, borde: o.borde });
+    g.fillStyle = o.color; rr(xx + 14, yy + 16, 4, 18, 2); g.fill();
+    T(o.titulo.toUpperCase(), xx + 24, yy + 29, { peso: "700", tam: 8.5, color: C.tenue, espaciado: .8 });
+    T(millones(o.valor, o.moneda || "Pesos"), xx + 16, yy + 62, { peso: "800", tam: o.grande ? 22 : 20, color: o.colorValor || C.tinta });
+    T(formatImporte(o.valor || 0).replace("$ -", "−$ "), xx + 16, yy + 79, { peso: "500", tam: 8.5, color: C.tenue });
+    if (o.pie) T(o.pie, xx + 16, yy + h - 13, { peso: "700", tam: 8.5, color: o.colorPie || o.color });
+  };
+  const nCuentas = p.cuentas.filter(c => c.moneda === "Pesos").length, nFci = p.fci.filter(c => c.moneda === "Pesos").length;
+  const nCart = p.cartera.filter(c => c.moneda === "Pesos").length, nEm = p.emitidos.filter(c => c.moneda === "Pesos").length, nBol = p.bolsa.filter(c => c.moneda === "Pesos").length;
+  const pct = v => act > 0 ? Math.round((v || 0) / act * 100) + " % del disponible" : "";
+  seccion("DISPONIBLE", y, "Pesos");
+  y += 12;
+  const gap = 12, w4 = (W - 2 * M - 3 * gap) / 4, kH = 112;
+  kpi(M, y, w4, kH, { titulo: "Cuentas bancarias", valor: pesos.cuentas, color: C.verde, pie: cantidadTxt(nCuentas, "cuenta", "cuentas") + " · " + pct(pesos.cuentas) });
+  kpi(M + (w4 + gap), y, w4, kH, { titulo: "FCI", valor: pesos.fci, color: C.oro, pie: cantidadTxt(nFci, "fondo", "fondos") + " · " + pct(pesos.fci) });
+  kpi(M + 2 * (w4 + gap), y, w4, kH, { titulo: "Cheques en cartera", valor: pesos.cartera, color: C.salvia, pie: cantidadTxt(nCart, "cheque", "cheques") + " · " + pct(pesos.cartera) });
+  kpi(M + 3 * (w4 + gap), y, w4, kH, { titulo: "Total disponible", valor: pesos.activo, color: C.verde, fondo: C.crema, borde: "#e3d6bd", colorValor: C.verde, pie: "Cuentas + FCI + cartera", colorPie: C.tenue });
+  y += kH + 14;
+  // Composición en una barra
+  const partes = [[pesos.cuentas || 0, C.verde, "Cuentas"], [pesos.fci || 0, C.oro, "FCI"], [pesos.cartera || 0, C.salvia, "Cartera"]].filter(q => q[0] > 0);
+  const tot = partes.reduce((a, q) => a + q[0], 0);
+  const bw = W - 2 * M;
+  rr(M, y, bw, 10, 5); g.fillStyle = "#efebe3"; g.fill();
+  if (tot > 0) {
+    g.save(); rr(M, y, bw, 10, 5); g.clip();
+    let bx = M;
+    partes.forEach(q => { const w = bw * q[0] / tot; g.fillStyle = q[1]; g.fillRect(bx, y, w, 10); bx += w; });
+    g.restore();
+    let lx = M;
+    partes.forEach(q => {
+      g.fillStyle = q[1]; rr(lx, y + 19, 8, 8, 2); g.fill();
+      lx += 12 + T(q[2] + " " + Math.round(q[0] / tot * 100) + " %", lx + 12, y + 27, { peso: "600", tam: 9, color: C.tenue }) + 16;
+    });
+  }
+  y += 50;
+
+  seccion("COMPROMISOS", y, "Pesos");
+  y += 12;
+  const w3 = (W - 2 * M - 2 * gap) / 3;
+  kpi(M, y, w3, kH, { titulo: "Cheques emitidos sin debitar", valor: pesos.emitidos, color: C.rojo2, colorValor: C.rojo, pie: cantidadTxt(nEm, "cheque", "cheques"), colorPie: C.rojo2 });
+  kpi(M + w3 + gap, y, w3, kH, { titulo: "Deuda en bolsa", valor: pesos.bolsa, color: C.rojo, colorValor: C.rojo, pie: cantidadTxt(nBol, "cheque", "cheques") + " negociados", colorPie: C.rojo });
+  kpi(M + 2 * (w3 + gap), y, w3, kH, { titulo: "Total compromisos", valor: pesos.pasivo, color: C.rojo, colorValor: C.rojo, fondo: "#fbf3ef", borde: "#efd9cf", pie: act > 0 ? pct(-(pesos.pasivo || 0)).replace("del disponible", "de lo disponible") : "", colorPie: C.tenue });
+  y += kH + 28;
+
+  // 3. Dos paneles: por banco y próximos días
+  // Los paneles llenan lo que queda de la hoja (arriba del pie y de la tira de dólares).
+  const pH = Math.max(240, H - 92 - y - (hayUsd ? 76 : 0)), wp = (W - 2 * M - gap) / 2;
+  card(M, y, wp, pH);
+  card(M + wp + gap, y, wp, pH);
+  T("DÓNDE ESTÁ LA PLATA", M + 18, y + 26, { peso: "800", tam: 9, color: C.verde, espaciado: 1.4 });
+  T("Cuentas + FCI por banco", M + 18, y + 40, { peso: "500", tam: 8.5, color: C.tenue });
+  const porBanco = {};
+  p.cuentas.concat(p.fci).filter(c => c.moneda === "Pesos").forEach(c => {
+    const b = c.nombre.indexOf("FCI · ") === 0 ? c.nombre.substring(6) : c.nombre.split(" · ")[0];
+    const k = nombreBancoCanonico(b) || b;
+    porBanco[k] = (porBanco[k] || 0) + c.saldo;
+  });
+  let bancos = Object.keys(porBanco).map(k => [k, porBanco[k]]).sort((a, b) => b[1] - a[1]);
+  const maxFilas = Math.max(4, Math.floor((pH - 80) / 32));
+  if (bancos.length > maxFilas) { const resto = bancos.slice(maxFilas - 1).reduce((a, q) => a + q[1], 0); bancos = bancos.slice(0, maxFilas - 1).concat([["Otros", resto]]); }
+  const maxB = Math.max(1, ...bancos.map(q => Math.abs(q[1])));
+  const totB = bancos.reduce((a, q) => a + q[1], 0);
+  let by = y + 64;
+  const filaB = Math.min(38, (pH - 80) / Math.max(1, bancos.length));
+  bancos.forEach(q => {
+    T(q[0], M + 18, by, { peso: "700", tam: 10, color: C.tinta });
+    T(millones(q[1], "Pesos"), M + wp - 18, by, { peso: "800", tam: 10, color: q[1] < 0 ? C.rojo : C.tinta, alinear: "right" });
+    const bw2 = (wp - 36) * Math.abs(q[1]) / maxB;
+    rr(M + 18, by + 6, wp - 36, 5, 2.5); g.fillStyle = "#f0ece4"; g.fill();
+    if (bw2 > 0) { rr(M + 18, by + 6, Math.max(5, bw2), 5, 2.5); g.fillStyle = q[1] < 0 ? C.rojo2 : C.verde2; g.fill(); }
+    if (totB > 0 && q[1] > 0) T((q[1] / totB < 0.01 ? "<1" : Math.round(q[1] / totB * 100)) + " %", M + wp - 18 - g.measureText(millones(q[1], "Pesos")).width - 10, by, { peso: "600", tam: 8.5, color: C.tenue, alinear: "right" });
+    by += filaB;
+  });
+  if (!bancos.length) T("Sin saldos informados a esa fecha.", M + 18, by, { tam: 10, color: C.tenue });
+
+  // Próximos días: cobros (cartera) y pagos (emitidos + bolsa) por fecha de pago desde la fecha de la posición.
+  const px = M + wp + gap;
+  T("COBROS Y PAGOS", px + 18, y + 26, { peso: "800", tam: 9, color: C.verde, espaciado: 1.4 });
+  T("Por fecha de pago, desde el " + isoADma(p.iso).substring(0, 5), px + 18, y + 40, { peso: "500", tam: 8.5, color: C.tenue });
+  const tramos = [["Vencidos", null, -1], ["Próximos 7 días", 0, 7], ["8 a 30 días", 8, 30], ["Más de 30 días", 31, Infinity]];
+  const tramo = iso => { if (!iso) return 3; const d = diasEntre(p.iso, iso); return d < 0 ? 0 : d <= 7 ? 1 : d <= 30 ? 2 : 3; };
+  const cob = [0, 0, 0, 0], pag = [0, 0, 0, 0];
+  p.cartera.filter(c => c.moneda === "Pesos").forEach(c => { cob[tramo(fechaAOrden(c.c["Fecha de Pago"] || ""))] += c.importe; });
+  p.emitidos.filter(c => c.moneda === "Pesos").forEach(c => { pag[tramo(fechaAOrden(c.c["Fecha de Pago"] || ""))] += Math.abs(c.importe); });
+  p.bolsa.filter(c => c.moneda === "Pesos").forEach(c => { pag[tramo(fechaAOrden(c.b["Fecha de pago"] || ""))] += Math.abs(c.importe); });
+  const colX = [px + 18, px + wp - 150, px + wp - 84, px + wp - 18];
+  let ty = y + 66;
+  ["", "Cobros", "Pagos", "Neto"].forEach((h, i) => { if (h) T(h.toUpperCase(), colX[i], ty, { peso: "700", tam: 8, color: C.tenue, alinear: "right", espaciado: .8 }); });
+  ty += 10;
+  g.fillStyle = C.linea; g.fillRect(px + 18, ty, wp - 36, 1);
+  const filaT = Math.min(60, (pH - 76 - 46) / 4);
+  const maxT = Math.max(1, ...cob, ...pag);
+  tramos.forEach((t, i) => {
+    const yy = ty + filaT * i + filaT / 2 + 4;
+    const neto = cob[i] - pag[i];
+    T(t[0], colX[0], yy, { peso: "700", tam: 10, color: i === 0 && (cob[i] || pag[i]) ? C.rojo : C.tinta });
+    T(cob[i] ? millones(cob[i], "Pesos") : "—", colX[1], yy, { peso: "700", tam: 9.5, color: cob[i] ? C.pos : C.tenue, alinear: "right" });
+    T(pag[i] ? millones(-pag[i], "Pesos") : "—", colX[2], yy, { peso: "700", tam: 9.5, color: pag[i] ? C.rojo : C.tenue, alinear: "right" });
+    T(cob[i] || pag[i] ? millones(neto, "Pesos") : "—", colX[3], yy, { peso: "800", tam: 9.5, color: !cob[i] && !pag[i] ? C.tenue : neto < 0 ? C.rojo : C.pos, alinear: "right" });
+    // barritas de cobros (verde) y pagos (rojo) debajo del nombre
+    const bwT = 92;
+    if (cob[i]) { rr(colX[0], yy + 6, Math.max(3, bwT * cob[i] / maxT), 3, 1.5); g.fillStyle = C.pos; g.fill(); }
+    if (pag[i]) { rr(colX[0], yy + 11, Math.max(3, bwT * pag[i] / maxT), 3, 1.5); g.fillStyle = C.rojo2; g.fill(); }
+    if (i < tramos.length - 1) { g.fillStyle = "#f0ece4"; g.fillRect(px + 18, ty + filaT * (i + 1), wp - 36, 1); }
+  });
+  const totCob = cob.reduce((a, b) => a + b, 0), totPag = pag.reduce((a, b) => a + b, 0);
+  const yTot = ty + filaT * 4 + 8;
+  rr(px + 12, yTot, wp - 24, 30, 8); g.fillStyle = C.crema; g.fill();
+  T("Total", colX[0], yTot + 19, { peso: "800", tam: 10, color: C.verde });
+  T(millones(totCob, "Pesos"), colX[1], yTot + 19, { peso: "800", tam: 9.5, color: C.pos, alinear: "right" });
+  T(millones(-totPag, "Pesos"), colX[2], yTot + 19, { peso: "800", tam: 9.5, color: C.rojo, alinear: "right" });
+  T(millones(totCob - totPag, "Pesos"), colX[3], yTot + 19, { peso: "800", tam: 9.5, color: totCob - totPag < 0 ? C.rojo : C.pos, alinear: "right" });
+  y += pH + 18;
+
+  // 4. Dólares (si hay): una tira
+  if (hayUsd) {
+    const uH = 58;
+    card(M, y, W - 2 * M, uH, { fondo: C.crema, borde: "#e3d6bd" });
+    T("DÓLARES", M + 18, y + 34, { peso: "800", tam: 9.5, color: C.oro, espaciado: 1.6 });
+    const cols = [["Disponible", usd.activo, C.tinta], ["Compromisos", usd.pasivo, C.rojo], ["Posición neta", usd.neto, (usd.neto || 0) < 0 ? C.rojo : C.verde]];
+    const cw = (W - 2 * M - 120) / 3;
+    cols.forEach((q, i) => {
+      const cx2 = M + 120 + cw * i;
+      T(q[0].toUpperCase(), cx2, y + 24, { peso: "700", tam: 8, color: C.tenue, espaciado: .8 });
+      T(textoImporte(q[1] || 0, "USD"), cx2, y + 44, { peso: "800", tam: 14, color: q[2] });
+    });
+    y += uH + 18;
+  }
+
+  // Marca de agua y pie
+  if (logo) {
+    const r = logo.naturalWidth / logo.naturalHeight, w = 380, h = w / r;
+    g.save(); g.globalAlpha = 0.045; g.globalCompositeOperation = "multiply";
+    g.drawImage(logo, (W - w) / 2, 560, w, h); g.restore();
+  }
+  const yPie = H - 44;
+  T("Saldos de cuentas: último informado hasta la fecha + movimientos y cheques registrados después. FCI: último saldo informado. Los dólares no se convierten. Detalle completo en el Excel.",
+    M, yPie - 16, { peso: "500", tam: 7.5, color: C.tenue });
+  g.fillStyle = C.linea; g.fillRect(M, yPie - 6, W - 2 * M, 1);
+  T("ANDRÉS SAMMARTINO", M, yPie + 14, { peso: "600", tam: 9, serif: true, color: C.verde, espaciado: .4 });
+  const quien = usuarioActual ? String(usuarioActual.nombre || usuarioActual.usuario || "").split(" ")[0] : "";
+  T("Generado el " + hoyTexto() + (quien ? " por " + quien : "") + " · Uso interno · Confidencial", W - M, yPie + 14, { peso: "500", tam: 8.5, color: C.tenue, alinear: "right" });
+  return cv;
+}
+
+async function pdfPosicion(p) {
+  await asegurarLibreria("jspdf");
+  try { await document.fonts.ready; } catch (e) {}
+  const cv = dibujarPosicion(p);
+  const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+  doc.setProperties({ title: "Posición al " + isoADma(p.iso), author: "Andrés Sammartino · Tesorería", creator: "Tesorería" });
+  doc.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297, undefined, "FAST");
+  const nombre = "Posición al " + isoADma(p.iso).split("/").join("-") + ".pdf";
+  doc.save(nombre);
+  toast("PDF descargado: " + nombre, "ok");
+}
 
 function renderCheques(filas) {
   ultimasFilasCheques = filas;
