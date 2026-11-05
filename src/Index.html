@@ -1741,6 +1741,9 @@
     :root[data-interfaz="bolsillo"] .nav-item, :root[data-interfaz="bolsillo"] .nav-item.active { width: 46px; height: 46px; padding: 0; gap: 0; font-size: 0; }
     :root[data-interfaz="bolsillo"] .nav-item.active { box-shadow: 0 6px 16px -6px rgba(var(--accent-rgb), .7); }
   }
+  .imp-solo { margin-top: 12px; align-items: flex-start; }
+  .imp-solo input { margin-top: 2px; }
+  .imp-solo-nota { margin: 4px 0 0 26px; }
   /* Cheques ya cargados */
   .alerta-banco.alerta-cargado { background: rgba(var(--warn-rgb), .08); border-color: rgba(var(--warn-rgb), .3); }
   .alerta-banco.alerta-cargado .a-ico { background: var(--warn); }
@@ -3524,6 +3527,8 @@
           <label class="imp-fecha">Fecha del resumen del día<input type="date" id="impFecha"></label></div>
         <div class="imp-tit">Qué se importa</div>
         <div id="impSecciones" class="imp-secciones"></div>
+        <label class="check imp-solo"><input type="checkbox" id="impSoloNuevas" checked> <span><b>Solo agregar las nuevas</b> — las filas que ya están en la app no se tocan (movimientos, cheques, FCI y Bolsa, compromisos)</span></label>
+        <p class="hint imp-solo-nota" id="impSoloNota">Si corregiste en el Excel una fila de FCI o de compromisos que ya estaba importada, con esta opción se agrega la versión corregida sin quitar la anterior. Para esos casos, destildala.</p>
         <div id="impNotas"></div>
         <div id="impEtiquetas"></div>
       </div>
@@ -16618,12 +16623,23 @@ function renderRevisionPlanilla() {
 // Antes de importar: de las filas leídas, cuántas ya están en la app (mismo ID Planilla: se
 // actualizan solo si cambiaron) y cuántas son nuevas. Las nuevas pueden coincidir igual con algo
 // cargado a mano o desde un comprobante: en ese caso se completa ese registro, no se duplica.
+/** IDs Planilla que ya están en la app, por sección. */
+async function idsPlanillaEnApp() {
+  try { await Promise.all([asegurarTransferencias(), asegurarCheques(), asegurarCompromisos(), asegurarInversiones()]); } catch (e) {}
+  const ids = lista => { const o = {}; lista.forEach(f => { const id = String(f["ID Planilla"] || "").trim(); if (id) o[id] = true; }); return o; };
+  return { movimientos: ids(transferenciasDatos), cheques: ids(chequesDatos), compromisos: ids(compromisosDatos), inversiones: Object.assign(ids(fciDatos), ids(bolsaDatos)) };
+}
+
+function soloNuevasPlanilla(filas, enApp) {
+  return filas.filter(f => !enApp[String(f["ID Planilla"] || "").trim()]);
+}
+
 async function previaImportacionPlanilla() {
   const p = planillaFlujo;
-  try { await Promise.all([asegurarTransferencias(), asegurarCheques(), asegurarCompromisos(), asegurarInversiones()]); } catch (e) {}
+  const enApp = await idsPlanillaEnApp();
   if (p !== planillaFlujo) return;
-  const ids = lista => { const o = {}; lista.forEach(f => { const id = String(f["ID Planilla"] || "").trim(); if (id) o[id] = true; }); return o; };
-  const enApp = { movimientos: ids(transferenciasDatos), cheques: ids(chequesDatos), compromisos: ids(compromisosDatos), inversiones: Object.assign(ids(fciDatos), ids(bolsaDatos)) };
+  p.enApp = enApp;
+  const solo = $("impSoloNuevas").checked;
   const filas = {
     movimientos: p.movimientos.map(r => r.fila), cheques: p.cheques.map(r => r.fila), compromisos: p.compromisos, inversiones: p.fci.concat(p.bolsa)
   };
@@ -16632,7 +16648,7 @@ async function previaImportacionPlanilla() {
     if (!nodo) return;
     const ya = filas[k].filter(f => enApp[k][String(f["ID Planilla"] || "").trim()]).length;
     const nuevas = filas[k].length - ya;
-    nodo.replaceChildren(el("b", null, formatEntero(ya)), document.createTextNode(" ya están en la app (se actualizan solo si cambiaron) · "),
+    nodo.replaceChildren(el("b", null, formatEntero(ya)), document.createTextNode(solo ? " ya están en la app (no se tocan) · " : " ya están en la app (se actualizan solo si cambiaron) · "),
       el("b", nuevas ? "imp-nuevas" : null, formatEntero(nuevas)), document.createTextNode(" nueva(s)" + (nuevas ? ": si alguna ya la cargaste a mano o desde un comprobante, se completa esa en vez de duplicarla" : "")));
   });
 }
@@ -16704,6 +16720,7 @@ async function enviarPorLotes(destino, filas, tam, avance) {
   return total;
 }
 
+$("impSoloNuevas").addEventListener("change", () => { $("impSoloNota").hidden = !$("impSoloNuevas").checked; if (planillaFlujo) previaImportacionPlanilla(); });
 $("impArchivo").addEventListener("change", () => { const f = $("impArchivo").files[0]; if (f) analizarYMostrar(f); });
 $("btnImportarPlanilla").addEventListener("click", () => abrirImportarPlanilla(null));
 
@@ -16719,6 +16736,15 @@ $("impImportar").addEventListener("click", async () => {
   barra.hidden = false;
   const pasos = ["cuentas", "saldos", "movimientos", "cheques", "inversiones", "compromisos"].filter(seccionElegida);
   const resumen = [];
+  // Solo las nuevas: se quitan las filas cuyo ID Planilla ya está en la app y no se depura nada.
+  const solo = $("impSoloNuevas").checked;
+  let enApp = null;
+  if (solo) {
+    setStatus(st, "Buscando cuáles ya están en la app…", "hint");
+    enApp = p.enApp || await idsPlanillaEnApp();
+  }
+  const filtrar = (filas, seccion) => solo ? soloNuevasPlanilla(filas, enApp[seccion]) : filas;
+  const yaEstaban = (total, nuevas) => solo && total > nuevas ? " · " + formatEntero(total - nuevas) + " ya estaban (sin tocar)" : "";
   const avisar = (txt, frac) => { setStatus(st, txt, "hint"); barra.firstElementChild.style.width = Math.round(frac * 100) + "%"; };
   let idsReales = {};
   try {
@@ -16745,31 +16771,36 @@ $("impImportar").addEventListener("click", async () => {
     }
     // 3. Movimientos.
     if (pasos.indexOf("movimientos") >= 0) {
-      const filas = p.movimientos.map(r => Object.assign({}, r.fila, { "Moneda": r.moneda }, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
-      const r = await enviarPorLotes("movimientos", filas, 400, (i, n) => avisar("Guardando movimientos: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      resumen.push(["Movimientos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "")]);
+      const todas = p.movimientos.map(r => Object.assign({}, r.fila, { "Moneda": r.moneda }, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
+      const filas = filtrar(todas, "movimientos");
+      const r = filas.length ? await enviarPorLotes("movimientos", filas, 400, (i, n) => avisar("Guardando movimientos: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n)) : { nuevos: 0, actualizados: 0 };
+      resumen.push(["Movimientos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "") + yaEstaban(todas.length, filas.length)]);
       base += pesoPaso;
     }
     // 4. Cheques.
     if (pasos.indexOf("cheques") >= 0) {
-      const filas = p.cheques.map(r => Object.assign({}, r.fila, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
-      const r = await enviarPorLotes("cheques", filas, 400, (i, n) => avisar("Guardando cheques: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      resumen.push(["Cheques", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "")]);
+      const todas = p.cheques.map(r => Object.assign({}, r.fila, r.claveEtiqueta ? camposCuentaPlanilla(r.claveEtiqueta, idsReales) : { "Banco": "", "Tipo de Cuenta": "", "N° de Cuenta": "" }));
+      const filas = filtrar(todas, "cheques");
+      const r = filas.length ? await enviarPorLotes("cheques", filas, 400, (i, n) => avisar("Guardando cheques: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n)) : { nuevos: 0, actualizados: 0 };
+      resumen.push(["Cheques", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (r.conciliados ? ", " + r.conciliados + " conciliado(s) sin tocar" : "") + yaEstaban(todas.length, filas.length)]);
       base += pesoPaso;
     }
     // 5. FCI y Bolsa, a su pestaña.
     if (pasos.indexOf("inversiones") >= 0) {
-      const rf = await enviarPorLotes("fci", p.fci, 600, (i, n) => avisar("Guardando FCI: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * 0.7 * i / n));
-      const rb = await enviarPorLotes("bolsa", p.bolsa, 600, (i, n) => avisar("Guardando Bolsa: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * (0.7 + 0.3 * i / n)));
-      const qf = await depurarImportacion("fci", p.fci, "Fecha");
-      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s)" + (qf ? ", " + qf + " reemplazado(s) por su versión corregida" : "") + (rf.manualesRepetidos ? ", " + rf.manualesRepetidos + " cargado(s) a mano quitado(s) porque la planilla trae el mismo" : "") + " · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)"]);
+      const fciF = filtrar(p.fci, "inversiones"), bolsaF = filtrar(p.bolsa, "inversiones");
+      const vacio = { nuevos: 0, actualizados: 0, manualesRepetidos: 0 };
+      const rf = fciF.length ? await enviarPorLotes("fci", fciF, 600, (i, n) => avisar("Guardando FCI: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * 0.7 * i / n)) : vacio;
+      const rb = bolsaF.length ? await enviarPorLotes("bolsa", bolsaF, 600, (i, n) => avisar("Guardando Bolsa: lote " + (i + 1) + " de " + n + "…", base + pesoPaso * (0.7 + 0.3 * i / n))) : vacio;
+      const qf = solo ? 0 : await depurarImportacion("fci", p.fci, "Fecha");
+      resumen.push(["FCI y Bolsa", "FCI: " + rf.nuevos + " nuevo(s), " + rf.actualizados + " actualizado(s)" + (qf ? ", " + qf + " reemplazado(s) por su versión corregida" : "") + (rf.manualesRepetidos ? ", " + rf.manualesRepetidos + " cargado(s) a mano quitado(s) porque la planilla trae el mismo" : "") + " · Bolsa: " + rb.nuevos + " nuevo(s), " + rb.actualizados + " actualizado(s)" + yaEstaban(p.fci.length + p.bolsa.length, fciF.length + bolsaF.length)]);
       base += pesoPaso;
     }
     // 6. Compromisos.
     if (pasos.indexOf("compromisos") >= 0) {
-      const r = await enviarPorLotes("compromisos", p.compromisos, 500, (i, n) => avisar("Guardando compromisos " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n));
-      const qc = await depurarImportacion("compromisos", p.compromisos, "Fecha de Vencimiento");
-      resumen.push(["Compromisos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (qc ? ", " + qc + " reemplazado(s) por su versión corregida" : "")]);
+      const filas = filtrar(p.compromisos, "compromisos");
+      const r = filas.length ? await enviarPorLotes("compromisos", filas, 500, (i, n) => avisar("Guardando compromisos " + (i + 1) + " de " + n + "…", base + pesoPaso * i / n)) : { nuevos: 0, actualizados: 0 };
+      const qc = solo ? 0 : await depurarImportacion("compromisos", p.compromisos, "Fecha de Vencimiento");
+      resumen.push(["Compromisos", r.nuevos + " nuevo(s), " + r.actualizados + " actualizado(s)" + (qc ? ", " + qc + " reemplazado(s) por su versión corregida" : "") + yaEstaban(p.compromisos.length, filas.length)]);
     }
     avisar("", 1);
     $("impRevision").hidden = true;
