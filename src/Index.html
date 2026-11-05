@@ -3452,9 +3452,9 @@
 <!-- ===================== BARRA DE SELECCIÓN ===================== -->
 <div class="barra-sel" id="barraSeleccion" hidden>
   <span id="selTexto"></span>
-  <button id="selExcel" class="secondary" type="button" title="Reporte en Excel con los cheques seleccionados">Excel</button>
-  <button id="selPdf" class="secondary" type="button" title="Reporte en PDF con los cheques seleccionados">PDF</button>
-  <button id="selImagen" class="secondary" type="button" title="Los cheques seleccionados como imagen, copiada para pegar en WhatsApp">Copiar imagen</button>
+  <button id="selExcel" class="secondary" type="button" title="Reporte en Excel con lo seleccionado">Excel</button>
+  <button id="selPdf" class="secondary" type="button" title="Reporte en PDF con lo seleccionado">PDF</button>
+  <button id="selImagen" class="secondary" type="button" title="Lo seleccionado como imagen, copiada para pegar en WhatsApp">Copiar imagen</button>
   <button id="selCambiarCuenta" type="button">Cambiar cuenta</button>
   <button id="selLimpiar" class="secondary" type="button">Quitar selección</button>
 </div>
@@ -13324,7 +13324,7 @@ function actualizarBarraSeleccion() {
   const filas = datos.filter(f => lista.indexOf(idSeleccion(vista, f)) >= 0);
   const total = filas.reduce((a, f) => a + (vista === "cheques" ? importeCheque(f) : parseImporte(f["Monto"])), 0);
   $("selTexto").textContent = lista.length + (vista === "cheques" ? " cheque(s)" : " movimiento(s)") + " seleccionado(s) · " + formatImporte(total);
-  $("selExcel").hidden = $("selPdf").hidden = $("selImagen").hidden = vista !== "cheques";
+  $("selExcel").hidden = $("selPdf").hidden = $("selImagen").hidden = vista !== "cheques" && vista !== "transferencias";
 }
 
 function casillaSeleccion(vista, filas, esEncabezado) {
@@ -13405,9 +13405,101 @@ async function reporteChequesSeleccionados(formato) {
   }
 }
 
-$("selExcel").addEventListener("click", () => reporteChequesSeleccionados("excel"));
-$("selPdf").addEventListener("click", () => reporteChequesSeleccionados("pdf"));
+// ----- Reporte de los movimientos seleccionados (Excel, PDF o imagen) -----
+function movimientosSeleccionados() {
+  const ids = seleccionados("transferencias");
+  return transferenciasDatos.filter(f => ids.indexOf(idSeleccion("transferencias", f)) >= 0)
+    .sort((a, b) => (fechaAOrden(fechaMov(a)) || "").localeCompare(fechaAOrden(fechaMov(b)) || "") || (Number(a["N° Interno"]) || 0) - (Number(b["N° Interno"]) || 0));
+}
+
+function monedaMov(f) {
+  return f["Moneda"] === "USD" ? "USD" : "Pesos";
+}
+
+/** Ingresos, egresos y neto por moneda (no se mezclan pesos y dólares). */
+function totalesMovimientos(lista) {
+  const t = {};
+  lista.forEach(f => {
+    const m = monedaMov(f), v = parseImporte(f["Monto"]);
+    const x = t[m] || (t[m] = { ing: 0, egr: 0, nIng: 0, nEgr: 0 });
+    if (v >= 0) { x.ing += v; x.nIng++; } else { x.egr += v; x.nEgr++; }
+  });
+  return t;
+}
+
+function cuentaMovTexto(f) {
+  return [f["Banco"] || "", f["N° de Cuenta"] ? siglaTipo(f["Tipo de Cuenta"]) + " " + f["N° de Cuenta"] : ""].filter(Boolean).join(" · ");
+}
+
+function contraparteMovTexto(f) {
+  return f["Contraparte"] || f["Destinatario"] || f["Persona"] || "";
+}
+
+async function reporteMovimientosSeleccionados(formato) {
+  const lista = movimientosSeleccionados();
+  if (!lista.length) { toast("Seleccioná al menos un movimiento.", "error"); return; }
+  const nombre = "Movimientos seleccionados " + hoyIso();
+  const tot = totalesMovimientos(lista);
+  const monedas = Object.keys(tot).sort();
+  if (formato === "excel") {
+    const filas = filasExcelMovimientos(lista);
+    filas.push([]);
+    monedas.forEach(m => {
+      const x = tot[m], s = m === "USD" ? " (USD)" : "";
+      filas.push(["Ingresos" + s, x.nIng + " mov.", "", "", "", "", "", x.ing], ["Egresos" + s, x.nEgr + " mov.", "", "", "", "", "", x.egr], ["Neto" + s, "", "", "", "", "", "", x.ing + x.egr]);
+    });
+    descargarExcel(nombre, [{ nombre: "Movimientos", filas: filas, anchos: ANCHOS_MOV }]);
+    return;
+  }
+  const lineas = [lista.length + " movimiento(s)"];
+  monedas.forEach(m => { const x = tot[m]; lineas.push((m === "USD" ? "Dólares: " : "Pesos: ") + "ingresos " + textoImporte(x.ing, m) + " · egresos " + textoImporte(x.egr, m) + " · neto " + textoImporte(x.ing + x.egr, m)); });
+  const rep = el("div", "rep");
+  rep.append(encabezadoReporte("Movimientos seleccionados", lineas));
+  const filas = lista.map(f => [f["N° Interno"] || "", fechaMov(f), cuentaMovTexto(f), f["Concepto"] || "", contraparteMovTexto(f),
+    esPropia(f) ? "Entre cuentas propias" : (f["Condición"] || ""), String(f["N° de Referencia"] || "").indexOf("RES-") === 0 ? "" : (f["N° de Referencia"] || ""),
+    textoImporte(parseImporte(f["Monto"]), monedaMov(f))]);
+  monedas.forEach(m => {
+    const x = tot[m], s = m === "USD" ? " (U$S)" : "";
+    filas.push({ clase: "rep-total", celdas: ["", "", "", "Ingresos" + s, x.nIng + " mov.", "", "", textoImporte(x.ing, m)] },
+      { clase: "rep-total", celdas: ["", "", "", "Egresos" + s, x.nEgr + " mov.", "", "", textoImporte(x.egr, m)] },
+      { clase: "rep-total", celdas: ["", "", "", "Neto" + s, "", "", "", textoImporte(x.ing + x.egr, m)] });
+  });
+  rep.append(tablaReporte(["N°", "Fecha", "Cuenta", "Concepto", "Contraparte", "Condición", "Referencia", "Importe"], filas, [7]));
+  const b = $("selPdf");
+  b.disabled = true;
+  b.classList.add("is-loading");
+  try {
+    await descargarPdfDeNodo(rep, nombre);
+  } catch (err) {
+    toast("No se pudo generar el PDF: " + msgErr(err), "error");
+  } finally {
+    b.disabled = false;
+    b.classList.remove("is-loading");
+  }
+}
+
+function imagenMovimientos(lista, titulo) {
+  const filas = lista.map(f => [fechaMov(f), cuentaMovTexto(f), f["Concepto"] || "", contraparteMovTexto(f), textoImporte(parseImporte(f["Monto"]), monedaMov(f))]);
+  const tot = totalesMovimientos(lista);
+  Object.keys(tot).sort().forEach(m => {
+    const x = tot[m], s = m === "USD" ? "U$S" : "$";
+    if (x.nIng && x.nEgr) {
+      filas.push({ clase: "total", celdas: ["Ingresos " + s, x.nIng + " mov.", "", "", textoImporte(x.ing, m)] }, { clase: "total", celdas: ["Egresos " + s, x.nEgr + " mov.", "", "", textoImporte(x.egr, m)] });
+    }
+    filas.push({ clase: "total", celdas: ["Total " + s, (x.nIng + x.nEgr) + " movimiento(s)", "", "", textoImporte(x.ing + x.egr, m)] });
+  });
+  return imagenTabla({ titulo: titulo, subtitulo: nombreDia(hoyIso()), columnas: ["Fecha", "Cuenta", "Concepto", "Contraparte", "Importe"], derecha: [4], filas: filas });
+}
+
+$("selExcel").addEventListener("click", () => vistaActual() === "transferencias" ? reporteMovimientosSeleccionados("excel") : reporteChequesSeleccionados("excel"));
+$("selPdf").addEventListener("click", () => vistaActual() === "transferencias" ? reporteMovimientosSeleccionados("pdf") : reporteChequesSeleccionados("pdf"));
 $("selImagen").addEventListener("click", () => {
+  if (vistaActual() === "transferencias") {
+    const movs = movimientosSeleccionados();
+    if (!movs.length) { toast("Seleccioná al menos un movimiento.", "error"); return; }
+    compartirCanvas(imagenMovimientos(movs, "Movimientos seleccionados"), "Movimientos " + isoADma(hoyIso()).split("/").join("-") + ".png", "Movimientos", $("selImagen"));
+    return;
+  }
   const lista = chequesSeleccionados();
   if (!lista.length) { toast("Seleccioná al menos un cheque.", "error"); return; }
   compartirCanvas(imagenCheques(lista, "Cheques seleccionados"), "Cheques " + isoADma(hoyIso()).split("/").join("-") + ".png", "Cheques", $("selImagen"));
