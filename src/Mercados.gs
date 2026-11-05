@@ -72,8 +72,14 @@ function mercControlUso_(u) {
   const k = 'merc_uso_' + u['ID'] + '_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHH');
   const n = parseInt(cache.get(k), 10) || 0;
   if (n >= MERC_LIMITE_HORA) return { ok: false, error: 'Llegaste al máximo de ' + MERC_LIMITE_HORA + ' análisis por hora. Probá en un rato.' };
-  cache.put(k, String(n + 1), 3700);
   return { ok: true };
+}
+
+/** Solo cuentan los análisis que salieron bien. */
+function mercSumarUso_(u) {
+  const cache = CacheService.getScriptCache();
+  const k = 'merc_uso_' + u['ID'] + '_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHH');
+  cache.put(k, String((parseInt(cache.get(k), 10) || 0) + 1), 3700);
 }
 
 // ======================= Análisis =======================
@@ -119,6 +125,7 @@ function mercAnalizar_(d, u) {
     verificarEl: sumarDias(hoy, h.dias)
   };
   mercGuardar_(res, u);
+  mercSumarUso_(u);
   return { ok: true, analisis: res };
 }
 
@@ -180,16 +187,19 @@ function mercPrompt_(pedido, simbolo, nombre, h, tecnico, noticias, hoy) {
 
 /** Primero con búsqueda de Google; si el modelo o la cuota no la permiten, sin búsqueda. */
 function mercPreguntarGemini_(clave, prompt) {
-  const modelos = typeof asisModelos_ === 'function' ? asisModelos_(clave) : ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+  const modelos = typeof asisModelos_ === 'function' ? asisModelos_(clave) : [];
+  // Respaldo: los alias "latest" (si un modelo está saturado, otro suele responder).
+  ['gemini-flash-latest', 'gemini-flash-lite-latest'].forEach(m => { if (modelos.indexOf(m) < 0) modelos.push(m); });
   if (!modelos.length) return { ok: false, error: 'Se agotó la cuota gratuita de Gemini de hoy. Se renueva a la madrugada.' };
   let ultimo = 'No se pudo obtener respuesta de Gemini.';
   const inicio = Date.now();
   for (let conBusqueda = 1; conBusqueda >= 0; conBusqueda--) {
     for (let i = 0; i < modelos.length; i++) {
-      if (Date.now() - inicio > 200000) return { ok: false, error: ultimo };
+      if (Date.now() - inicio > 150000) return { ok: false, error: ultimo };
       const cuerpo = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
       if (conBusqueda) cuerpo.tools = [{ google_search: {} }];
-      const r = mercLlamar_(clave, modelos[i], cuerpo);
+      let r = mercLlamar_(clave, modelos[i], cuerpo);
+      if (!r.ok && r.saturado && Date.now() - inicio < 120000) { Utilities.sleep(3000); r = mercLlamar_(clave, modelos[i], cuerpo); }
       console.log('Mercados · ' + modelos[i] + (conBusqueda ? ' con búsqueda' : ' sin búsqueda') + ' · ' + (r.ok ? 'ok' : r.error));
       if (r.ok) { r.modelo = modelos[i]; r.conBusqueda = !!conBusqueda; return r; }
       ultimo = r.error;
@@ -238,6 +248,8 @@ function mercLlamar_(clave, modelo, cuerpo) {
     if (!conTools && typeof asisMarcarAgotado_ === 'function') asisMarcarAgotado_(modelo);
     return { ok: false, busqueda: conTools, error: 'Se agotó la cuota gratuita de Gemini por ahora. Probá en unos minutos.' };
   }
+  if (codigo >= 500) return { ok: false, saturado: true, error: 'Gemini está saturado en este momento (error ' + codigo + '). Probá de nuevo en unos minutos.' };
+  if (codigo === 404) return { ok: false, error: 'El modelo ' + modelo + ' no está disponible.' };
   if (conTools && (codigo === 400 || codigo === 403)) return { ok: false, busqueda: true, error: 'La búsqueda de Google no está disponible para este modelo.' };
   return { ok: false, error: 'Gemini respondió con un error (' + codigo + ')' + (mensaje ? ': ' + mensaje.substring(0, 200) : '.') };
 }

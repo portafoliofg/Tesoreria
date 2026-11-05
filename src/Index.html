@@ -23495,6 +23495,8 @@ async function analizarMercado() {
   const espera = el("div", "card");
   espera.append(el("div", "card-title", "Analizando " + simbolo.toUpperCase() + "…"), el("p", "hint", "Buscando precios y noticias recientes. Puede tardar hasta un minuto."), nodoCargando());
   box.replaceChildren(espera);
+  // Si tarda, se avisa que sigue (está probando otro modelo de Gemini).
+  const aviso = setTimeout(() => { const h = espera.querySelector(".hint"); if (h) h.textContent = "Sigue buscando: Gemini está lento o saturado y está probando con otro modelo. Puede tardar hasta tres minutos."; }, 45000);
   try {
     const res = await runJson("mercados", { op: "analizar", simbolo: simbolo, horizonte: $("mercHorizonte").value });
     box.replaceChildren(nodoMercAnalisis(res.analisis));
@@ -23503,6 +23505,7 @@ async function analizarMercado() {
   } catch (err) {
     box.replaceChildren(nodoError("No se pudo analizar: " + msgErr(err)));
   } finally {
+    clearTimeout(aviso);
     btn.classList.remove("is-loading");
     btn.disabled = false;
   }
