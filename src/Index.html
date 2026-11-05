@@ -18881,7 +18881,14 @@ function inputPlanilla(item, alCambiar) {
     inp.classList.add("pl-cambio");
     alCambiar();
   });
-  inp.addEventListener("focus", () => inp.select());
+  // Al entrar a la casilla (con Tab, flechas, clic o al volver de otra pestaña o ventana) el texto
+  // no queda seleccionado: el cursor va al final, así lo que se escribe se agrega y no borra lo puesto.
+  let conMouse = false;
+  inp.addEventListener("mousedown", () => { conMouse = true; });
+  inp.addEventListener("focus", () => {
+    if (conMouse) { conMouse = false; return; }
+    setTimeout(() => { if (document.activeElement === inp) cursorAlFinal(inp); }, 0);
+  });
   inp.addEventListener("keydown", e => { if (!teclaDecimalExcel(e, inp)) moverEnPlanilla(e, inp); });
   // Al salir de la casilla (otra casilla, otra pestaña o ventana) el número queda tal cual se
   // escribió: no se le agregan puntos de miles ni ",00". El total se calcula igual.
@@ -18925,7 +18932,7 @@ function teclaDecimalExcel(e, inp) {
 // Dos columnas que se pueden editar: Saldos (una casilla por cuenta) y FCI (una por banco).
 // ↑ ↓, Enter y Shift+Enter: casilla de arriba o de abajo en la misma columna, pasando de la
 // tabla de pesos a la de dólares. ← →: a la otra columna cuando el cursor está en el borde del
-// texto (o el texto está todo seleccionado, como al llegar a la casilla). Escape: deshace lo
+// texto (al llegar a la casilla el cursor queda al final, sin seleccionar). Escape: deshace lo
 // escrito en la casilla. planillaNav lo arma renderPlanillaInicio.
 let planillaNav = { saldos: [], fci: [], grupoDe: new Map(), primeraDe: new Map() };
 
@@ -18951,7 +18958,7 @@ function moverEnPlanilla(e, inp) {
     if (!destino) return;
     e.preventDefault();
     destino.focus();
-    destino.select();
+    cursorAlFinal(destino);
     return;
   }
   if (e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey)) destino = col[i + 1];
@@ -18962,11 +18969,17 @@ function moverEnPlanilla(e, inp) {
     e.preventDefault();
     inp.value = inp.dataset.inicial;
     inp.dispatchEvent(new Event("input"));
-    inp.select();
+    cursorAlFinal(inp);
     return;
   } else return;
   e.preventDefault();
-  if (destino) { destino.focus(); destino.select(); }
+  if (destino) { destino.focus(); cursorAlFinal(destino); }
+}
+
+// Deja el cursor al final del texto, sin nada seleccionado.
+function cursorAlFinal(inp) {
+  const n = inp.value.length;
+  try { inp.setSelectionRange(n, n); } catch (err) { /* sin cursor en este tipo de casilla */ }
 }
 
 // ----- Rendimiento del FCI (cuadro de Inicio) -----
