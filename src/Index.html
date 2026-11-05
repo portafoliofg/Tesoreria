@@ -1741,6 +1741,23 @@
     :root[data-interfaz="bolsillo"] .nav-item, :root[data-interfaz="bolsillo"] .nav-item.active { width: 46px; height: 46px; padding: 0; gap: 0; font-size: 0; }
     :root[data-interfaz="bolsillo"] .nav-item.active { box-shadow: 0 6px 16px -6px rgba(var(--accent-rgb), .7); }
   }
+  /* Cheques ya cargados */
+  .alerta-banco.alerta-cargado { background: rgba(var(--warn-rgb), .08); border-color: rgba(var(--warn-rgb), .3); }
+  .alerta-banco.alerta-cargado .a-ico { background: var(--warn); }
+  .alerta-banco.alerta-cargado.posible { background: var(--surface-2); border-color: var(--border-strong); }
+  .alerta-banco.alerta-cargado.posible .a-ico { background: var(--muted); }
+  .alerta-banco.alerta-cargado.omitido { opacity: .75; }
+  .alerta-cargado .a-body b { display: block; }
+  .alerta-cargado .a-sub { display: block; font-size: 12.5px; margin-top: 2px; }
+  .t-cargado { color: var(--warn); }
+  .tab.t-omitido .t-name { text-decoration: line-through; opacity: .7; }
+  .chc-item { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .chc-item:first-child { padding-top: 0; } .chc-item:last-child { border-bottom: 0; }
+  .chc-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  table.chc-tabla td, table.chc-tabla th { padding: 7px 12px; }
+  table.chc-tabla tr.chc-dif td { color: var(--bad); background: rgba(var(--bad-rgb), .05); font-weight: 600; }
+  table.chc-tabla tr.chc-dif td:first-child { font-weight: 500; }
+  .chc-acc { margin-top: 10px; }
   /* MERCADOS */
   .merc-form { align-items: flex-end; }
   .merc-form > label:first-child { flex: 2 1 240px; }
@@ -2975,6 +2992,20 @@
     <div class="modal__foot">
       <button class="secondary" data-cerrar="modalDuplicadas" type="button">Cancelar</button>
       <button id="dupUnificar" type="button" hidden>Unificar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CHEQUES YA CARGADOS ===================== -->
+<div class="modal-overlay" id="modalChequesCargados">
+  <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="chcTitulo">
+    <div class="modal__head">
+      <div><h3 id="chcTitulo">Cheques ya cargados</h3><div class="sub-dato">Lo leído ahora al lado de lo que ya está en la planilla. En rojo, lo que no coincide.</div></div>
+      <button class="modal__close" data-cerrar="modalChequesCargados" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body"><div id="chcLista"></div></div>
+    <div class="modal__foot">
+      <button data-cerrar="modalChequesCargados" type="button">Listo</button>
     </div>
   </div>
 </div>
@@ -5525,6 +5556,167 @@ function alertaBanco(partes, boton) {
   return a;
 }
 
+// ----- Cheques ya cargados -----
+// Al leer un cheque (foto, PDF o listado de e-cheqs) se busca en los cheques de la planilla:
+// mismo N° (sin ceros adelante) y, según el tipo, mismo banco (emitidos) o mismo importe
+// (de terceros, igual que al guardar). Si coincide el N° pero no el resto, se avisa como posible.
+// También se avisa si el mismo cheque se leyó dos veces en esta carga.
+const CAMPOS_COMPARAR_CHEQUE = [["N° de Cheque", "N° de cheque"], ["Tipo", "Tipo"], ["Banco", "Banco"], ["Titular", "Destinatario / librador"],
+  ["Importe", "Importe"], ["Fecha de Emisión", "Emisión"], ["Fecha de Pago", "Pago"], ["Estado", "Estado"]];
+
+function numChequeNorm(s) {
+  let d = String(s || "").split("").filter(ch => ch >= "0" && ch <= "9").join("");
+  while (d.length > 1 && d.charAt(0) === "0") d = d.substring(1);
+  return d;
+}
+
+function valorLeido(r, campo) {
+  if (campo === "Tipo") return r.tipoCheque || "";
+  if (campo === "Banco") return esChequeTerceros(r) ? "" : (r.banco || "");
+  const x = (r.parsed || []).find(p => p.Campo === campo);
+  return x ? String(x.Valor || "").trim() : "";
+}
+
+function mismoImporteCheque(a, b) {
+  const x = Math.abs(parseImporte(a)), y = Math.abs(parseImporte(b));
+  return x > 0 && Math.abs(x - y) < 0.01;
+}
+
+async function asegurarChequesDatos() {
+  if (chequesCargados) return true;
+  try {
+    chequesDatos = (await traerFilas("obtenerCheques")) || [];
+    chequesCargados = true;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Busca el cheque leído r entre los cargados (y los leídos antes en esta carga). */
+function buscarChequeCargado(r) {
+  if (!r || r.destino !== "cheques" || !r.structured || r.sent) return null;
+  const num = numChequeNorm(valorLeido(r, "N° de Cheque"));
+  if (!num) return null;
+  const importe = valorLeido(r, "Importe");
+  const terceros = esChequeTerceros(r);
+  let posible = null;
+  for (let i = 0; i < chequesDatos.length; i++) {
+    const c = chequesDatos[i];
+    if (numChequeNorm(c["N° de Cheque"]) !== num) continue;
+    const cTerceros = c["Tipo"] === "De terceros";
+    const exacto = terceros ? cTerceros && mismoImporteCheque(c["Importe"], importe) : !cTerceros && mismoBanco(c["Banco"], r.banco);
+    if (exacto) return { nivel: "exacto", cheque: c };
+    if (!posible && (mismoImporteCheque(c["Importe"], importe) || terceros === cTerceros)) posible = c;
+  }
+  if (posible) return { nivel: "posible", cheque: posible };
+  // El mismo cheque leído dos veces en esta carga (por ejemplo, la foto y el listado).
+  const otro = results.find(x => x !== r && !x.error && x.destino === "cheques" && x.structured && results.indexOf(x) < results.indexOf(r) &&
+    numChequeNorm(valorLeido(x, "N° de Cheque")) === num && mismoImporteCheque(valorLeido(x, "Importe"), importe));
+  if (otro) return { nivel: "repetido", leido: otro };
+  return null;
+}
+
+async function marcarChequesCargados(lista) {
+  const cheques = (lista || results).filter(r => r.destino === "cheques" && r.structured && !r.sent);
+  if (!cheques.length) return;
+  if (!(await asegurarChequesDatos())) return;
+  cheques.forEach(r => { r.yaCargado = buscarChequeCargado(r); });
+}
+
+function textoYaCargado(r) {
+  const y = r.yaCargado;
+  if (y.nivel === "repetido") return "Este cheque se leyó dos veces en esta carga (también en " + y.leido.filename + ").";
+  const c = y.cheque;
+  const quien = [c["Estado"] ? "estado " + c["Estado"] : "", c["Fecha de Ingreso"] ? "cargado el " + c["Fecha de Ingreso"] : "", c["Cargado por"] ? "por " + c["Cargado por"] : ""].filter(Boolean).join(", ");
+  return (y.nivel === "exacto" ? "Este cheque ya está cargado" : "Puede que este cheque ya esté cargado") +
+    ": N° " + c["N° de Cheque"] + (c["Banco"] ? " de " + c["Banco"] : "") + " por " + (c["Importe"] || "—") + (quien ? " (" + quien + ")" : "") + ".";
+}
+
+function queHaraAlGuardar(r) {
+  const y = r.yaCargado;
+  if (r.omitirCheque) return "No se va a guardar (lo marcaste así).";
+  if (y.nivel === "repetido") return "Conviene guardar una sola: tocá “No guardar este” en una de las dos.";
+  if (y.nivel === "posible") return "Coincide el número pero no todos los datos: si guardás, se carga como un cheque nuevo. Revisá el detalle.";
+  if (esChequeTerceros(r)) return "Al guardar se descarta: no se carga dos veces.";
+  return "Al guardar no se duplica: si estaba abierto, se le pasa el estado nuevo y se completan el concepto y el banco aceptante que falten.";
+}
+
+function alertaChequeCargado(r) {
+  const a = el("div", "alerta-banco alerta-cargado" + (r.yaCargado.nivel === "exacto" ? "" : " posible") + (r.omitirCheque ? " omitido" : ""));
+  a.setAttribute("role", "alert");
+  a.append(el("span", "a-ico", "≡"));
+  const body = el("div", "a-body");
+  body.append(el("b", null, textoYaCargado(r)), el("span", "a-sub", queHaraAlGuardar(r)));
+  a.append(body);
+  const ver = el("button", "small secondary", "Ver detalle");
+  ver.type = "button";
+  ver.addEventListener("click", () => abrirDetalleChequesCargados([r]));
+  a.append(ver);
+  return a;
+}
+
+/** Modal con el cheque leído al lado del que ya está cargado, marcando lo que cambia. */
+function abrirDetalleChequesCargados(lista) {
+  const box = $("chcLista");
+  box.replaceChildren();
+  const seguros = lista.filter(r => r.yaCargado && r.yaCargado.nivel === "exacto").length;
+  $("chcTitulo").textContent = lista.length === 1 ? (seguros ? "Cheque ya cargado" : "Posible cheque repetido") :
+    seguros === lista.length ? lista.length + " cheques ya cargados" : lista.length + " cheques para revisar";
+  lista.forEach(r => {
+    const y = r.yaCargado;
+    if (!y) return;
+    const item = el("div", "chc-item");
+    const cab = el("div", "chc-cab");
+    const tit = el("b", null, r.filename);
+    const nivel = el("span", "badge " + (y.nivel === "exacto" ? "badge-pendiente" : "badge-texto"),
+      y.nivel === "exacto" ? "Ya cargado" : y.nivel === "posible" ? "Posible duplicado" : "Leído dos veces");
+    cab.append(tit, nivel);
+    item.append(cab);
+    const otro = y.cheque || null;
+    const table = el("table", "chc-tabla");
+    const trh = el("tr");
+    ["Dato", "Leído ahora", y.leido ? "Leído en " + y.leido.filename : "Ya cargado"].forEach(h => trh.append(el("th", null, h)));
+    table.append(trh);
+    let difs = 0;
+    CAMPOS_COMPARAR_CHEQUE.forEach(campo => {
+      const a = valorLeido(r, campo[0]);
+      const b = otro ? String(otro[campo[0]] || "").trim() : valorLeido(y.leido, campo[0]);
+      if (!a && !b) return;
+      const igual = campo[0] === "Importe" ? mismoImporteCheque(a, b) : campo[0] === "N° de Cheque" ? numChequeNorm(a) === numChequeNorm(b) :
+        campo[0] === "Banco" ? (!a && !b) || mismoBanco(a, b) : normalizar(a).toLowerCase() === normalizar(b).toLowerCase();
+      if (!igual && a && b) difs++;
+      const tr = el("tr", !igual && a && b ? "chc-dif" : "");
+      tr.append(el("td", null, campo[1]), el("td", null, a || "—"), el("td", null, b || "—"));
+      table.append(tr);
+    });
+    item.append(envolverTabla(table));
+    if (otro) {
+      const extra = [["Concepto", otro["Concepto"]], ["Fecha de ingreso", otro["Fecha de Ingreso"]], ["Cargado por", otro["Cargado por"]],
+        ["Fecha de débito", otro["Fecha de Débito"]], ["Conciliado", otro["Conciliación"] ? "Sí" : ""], ["Canal", otro["Canal"]], ["ALYC", otro["ALYC"]]]
+        .filter(x => String(x[1] || "").trim());
+      if (extra.length) {
+        const p = el("p", "hint chc-extra");
+        extra.forEach((x, i) => { if (i) p.append(" · "); p.append(el("strong", null, x[0] + ": "), x[1]); });
+        item.append(p);
+      }
+    }
+    item.append(el("p", "hint", (difs ? difs + " dato(s) distintos, marcados en la tabla. " : "Los datos coinciden. ") + queHaraAlGuardar(r)));
+    const acc = el("div", "actions chc-acc");
+    const ir = el("button", "small secondary", "Ir a la pestaña");
+    ir.type = "button";
+    ir.addEventListener("click", () => { cerrarModal("modalChequesCargados"); tabActiva = results.indexOf(r); render(); });
+    const omitir = el("button", "small " + (r.omitirCheque ? "" : "danger"), r.omitirCheque ? "Guardarlo igual" : "No guardar este");
+    omitir.type = "button";
+    omitir.disabled = !!r.sent;
+    omitir.addEventListener("click", () => { r.omitirCheque = !r.omitirCheque; render(); abrirDetalleChequesCargados(lista); });
+    acc.append(ir, omitir);
+    item.append(acc);
+    box.append(item);
+  });
+  abrirModal("modalChequesCargados");
+}
+
 function irATab(i) {
   if (!results.length) return;
   tabActiva = (i + results.length) % results.length;
@@ -5568,6 +5760,19 @@ function render() {
       " parecen de un banco distinto al que elegiste. Revisá las pestañas marcadas con ⚠ antes de guardar."], todos));
   }
 
+  const yaCargados = results.filter(r => !r.sent && r.yaCargado);
+  if (yaCargados.length) {
+    const ver = el("button", "small secondary", "Ver detalle");
+    ver.type = "button";
+    ver.addEventListener("click", () => abrirDetalleChequesCargados(yaCargados));
+    const exactos = yaCargados.filter(r => r.yaCargado.nivel === "exacto").length;
+    const a = alertaBanco([el("b", null, yaCargados.length + " cheque(s)"),
+      exactos === yaCargados.length ? " de esta carga ya están en la planilla." : " de esta carga ya están o pueden estar en la planilla (" + exactos + " seguro(s))." ,
+      " Están marcados con ≡ en las pestañas."], ver);
+    a.classList.add("alerta-cargado");
+    ag.append(a);
+  }
+
   results.forEach((r, idx) => {
     const t = el("button", "tab" + (idx === tabActiva ? " active" : ""));
     t.type = "button";
@@ -5577,6 +5782,8 @@ function render() {
     t.tabIndex = idx === tabActiva ? 0 : -1;
     t.append(el("span", "t-est " + estadoDe(r)), el("span", "t-num", String(idx + 1).padStart(2, "0")), el("span", "t-name", r.filename));
     if (!r.sent && bancoNoCoincide(r)) t.append(el("span", "t-alerta", "⚠"));
+    if (!r.sent && r.yaCargado) { const d = el("span", "t-alerta t-cargado", "≡"); d.title = "Ya cargado"; t.append(d); }
+    if (!r.sent && r.omitirCheque) t.classList.add("t-omitido");
     t.addEventListener("click", () => { tabActiva = idx; render(); });
     bar.append(t);
   });
@@ -5598,7 +5805,7 @@ function panelComprobante(r, idx) {
   h3.append(ico, document.createTextNode(r.filename));
   const estado = estadoDe(r);
   const badge = el("span", "badge badge-" + estado,
-    r.error ? "Error" : r.duplicado ? "Ya existía" : r.sent ? "Guardado" : r.structured ? "Pendiente" : "Solo texto");
+    r.error ? "Error" : r.duplicado ? "Ya existía" : r.sent ? "Guardado" : r.omitirCheque ? "No se guarda" : r.structured ? "Pendiente" : "Solo texto");
   head.append(h3, badge);
   card.append(head);
 
@@ -5634,6 +5841,7 @@ function panelComprobante(r, idx) {
   }
 
   if (r.motivoSinSoporte && (!r.structured || r.generico) && !r.sent) card.append(el("p", "warn", r.motivoSinSoporte));
+  if (r.yaCargado && !r.sent) card.append(alertaChequeCargado(r));
 
   if (esChequeTerceros(r)) {
     card.append(el("p", "hint sin-banco-nota", "Cheque de terceros: se guarda sin banco ni cuenta propia."));
@@ -5735,6 +5943,12 @@ function formChequeLeido(r) {
     input.disabled = r.sent;
     if (c[0] === "Importe") input.inputMode = "decimal";
     input.addEventListener("input", () => { x.Valor = input.value; });
+    if (c[0] === "N° de Cheque" || c[0] === "Importe") input.addEventListener("change", () => {
+      const antes = r.yaCargado ? r.yaCargado.nivel + (r.yaCargado.cheque || {})["N° de Cheque"] : "";
+      r.yaCargado = buscarChequeCargado(r);
+      const ahora = r.yaCargado ? r.yaCargado.nivel + (r.yaCargado.cheque || {})["N° de Cheque"] : "";
+      if (antes !== ahora) render();
+    });
     const titulo = c[1] || (r.tipoCheque === "Emitido" ? "Destinatario" : "Librador");
     grid.append(campoForm(titulo, input, c[0] === "Importe" ? "cf-importe" : null));
   });
@@ -6033,6 +6247,9 @@ $("btnProcesar").addEventListener("click", async () => {
   for (let k = 0; k < enParalelo; k++) equipo.push(trabajar(k));
   await Promise.all(equipo);
   ocrProgress = () => {};
+  // Cheques que ya están en la planilla: se avisa antes de guardar.
+  await marcarChequesCargados(results.slice(inicio));
+  render();
   const segundos = Math.round((Date.now() - t0) / 100) / 10;
   setProgreso(1);
   setStatus($("status"), "Listo: " + files.length + " archivo(s) procesado(s) en " + String(segundos).split(".").join(",") + " s.", "msg-ok");
@@ -6162,7 +6379,7 @@ function filaDesde(r, headers) {
 $("btnGuardar").addEventListener("click", async () => {
   const st = $("saveStatus");
   const pendientesTransferencias = results.filter(r => !r.error && !r.sent && r.structured && r.destino === "transferencias");
-  const pendientesCheques = results.filter(r => !r.error && !r.sent && r.structured && r.destino === "cheques");
+  const pendientesCheques = results.filter(r => !r.error && !r.sent && r.structured && r.destino === "cheques" && !r.omitirCheque);
 
   const pendientesResumen = results.filter(r => !r.error && !r.sent && r.destino === "resumen");
 
