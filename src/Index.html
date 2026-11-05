@@ -1768,6 +1768,21 @@
   .merc-fuentes a { color: var(--primary); text-decoration: none; } .merc-fuentes a:hover { text-decoration: underline; }
   details.merc-det summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 12px; }
   tr.merc-fila { cursor: pointer; }
+  .merc-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 2px; }
+  .merc-peso.alto { color: var(--text); background: var(--surface-3); font-weight: 700; }
+  .merc-desc.si { color: var(--warn); background: rgba(var(--warn-rgb), .12); }
+  .merc-desc.no { color: var(--accent); background: rgba(var(--accent-rgb), .1); }
+  .merc-motivo.descontado > b { color: var(--muted); }
+  .merc-motivo span.merc-porque { font-style: italic; font-size: 12.5px; }
+  .merc-esc { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 8px 0 6px; }
+  .merc-esc-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); }
+  .merc-esc-item.probable { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+  .merc-esc-item.favorable .merc-esc-cab b { color: var(--ok); } .merc-esc-item.desfavorable .merc-esc-cab b { color: var(--bad); }
+  .merc-esc-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .merc-esc-item p { margin: 0 0 4px; font-size: 13px; line-height: 1.5; }
+  .merc-esc-item p.merc-efecto { color: var(--muted); }
+  .merc-probable { color: var(--primary); background: var(--primary-soft); }
+  .merc-eventos li span { color: var(--muted); }
   @media (max-width: 760px) { .merc-cols.grid-2 { grid-template-columns: minmax(0, 1fr); } }
 </style>
 <script>
@@ -23364,6 +23379,8 @@ document.addEventListener("keydown", e => {
 let mercCargado = false;
 let mercItems = [];
 const MERC_INCL = { alcista: "Inclinación alcista", bajista: "Inclinación bajista", neutral: "Sin inclinación clara" };
+const MERC_DESC = { si: "Ya descontado", parcial: "Descontado en parte", no: "Todavía no descontado" };
+const MERC_ESC = { favorable: "Favorable", base: "Base", desfavorable: "Desfavorable" };
 const fmtMercPrecio = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function mercPct(v) {
@@ -23400,8 +23417,15 @@ function nodoMercAnalisis(a) {
     c.append(el("h3", null, titulo));
     if (!lista || !lista.length) c.append(el("p", "hint", "No encontró motivos de peso de este lado."));
     (lista || []).forEach(m => {
-      const d = el("div", "merc-motivo");
-      d.append(el("b", null, m.titulo), el("span", null, m.detalle || ""));
+      const d = el("div", "merc-motivo" + (m.descontado === "si" ? " descontado" : ""));
+      const t = el("b", null, m.titulo);
+      d.append(t);
+      const chips = el("div", "merc-chips");
+      if (m.peso) chips.append(el("span", "pill merc-peso " + m.peso, "Peso " + m.peso));
+      if (m.descontado) chips.append(el("span", "pill merc-desc " + m.descontado, MERC_DESC[m.descontado] || m.descontado));
+      if (chips.childNodes.length) d.append(chips);
+      d.append(el("span", null, m.detalle || ""));
+      if (m.descontadoPorque) d.append(el("span", "merc-porque", m.descontadoPorque));
       c.append(d);
     });
     return c;
@@ -23416,11 +23440,41 @@ function nodoMercAnalisis(a) {
     items.forEach(t => ul.append(el("li", null, t)));
     card.append(ul);
   };
+  if (a.escenarios && a.escenarios.length) {
+    card.append(el("div", "merc-sec", "Escenarios"));
+    const g = el("div", "merc-esc");
+    a.escenarios.forEach(e => {
+      const x = el("div", "merc-esc-item " + e.tipo + (a.masProbable === e.tipo ? " probable" : ""));
+      const cab = el("div", "merc-esc-cab");
+      cab.append(el("b", null, MERC_ESC[e.tipo] || e.tipo), el("span", "pill", "Probabilidad " + e.probabilidad));
+      if (a.masProbable === e.tipo) cab.append(el("span", "pill merc-probable", "El más probable"));
+      x.append(cab, el("p", null, e.que));
+      if (e.efecto) x.append(el("p", "merc-efecto", e.efecto));
+      g.append(x);
+    });
+    card.append(g);
+  }
+
+  if (a.eventos && a.eventos.length) {
+    card.append(el("div", "merc-sec", "Próximos eventos"));
+    const ul = el("ul", "merc-lista merc-eventos");
+    a.eventos.forEach(e => {
+      const li = el("li");
+      li.append(el("b", null, (e.fecha ? e.fecha + " · " : "") + e.evento));
+      if (e.porQueImporta) li.append(el("span", null, " — " + e.porQueImporta));
+      ul.append(li);
+    });
+    card.append(ul);
+  } else lista("Para seguir de cerca", a.aMirar);
   lista("Qué cambiaría el pronóstico", a.queCambiaria);
-  lista("Para seguir de cerca", a.aMirar);
 
   const det = el("details", "merc-det");
-  det.append(el("summary", null, "Datos del precio y fuentes"));
+  det.append(el("summary", null, "Datos del precio, contexto y fuentes"));
+  if (a.contexto && a.contexto.length) {
+    const ul = el("ul", "merc-lista");
+    a.contexto.forEach(t => ul.append(el("li", null, t)));
+    det.append(ul);
+  }
   if (a.tecnico && a.tecnico.length) {
     const ul = el("ul", "merc-lista");
     a.tecnico.forEach(t => ul.append(el("li", null, t)));

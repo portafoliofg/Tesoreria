@@ -100,10 +100,11 @@ function mercAnalizar_(d, u) {
   const grafico = mercGrafico_(simbolo);
   const tecnico = grafico.ok ? mercTecnico_(grafico) : null;
   const nombre = (grafico.ok && grafico.nombre) || busqueda.nombre || simbolo;
+  const contexto = mercContexto_(simbolo, busqueda, grafico);
 
   // 2) Gemini arma el pronóstico (con búsqueda de Google si la cuota lo permite).
   const hoy = ahoraLocal().hoy;
-  const prompt = mercPrompt_(pedido, simbolo, nombre, h, tecnico, busqueda.noticias, hoy);
+  const prompt = mercPrompt_(pedido, simbolo, nombre, h, tecnico, contexto, busqueda.noticias, hoy);
   const r = mercPreguntarGemini_(clave, prompt);
   if (!r.ok) return r;
   const p = mercParsear_(r.texto);
@@ -119,6 +120,8 @@ function mercAnalizar_(d, u) {
     resumen: String(p.resumen || ''),
     motivosSuba: mercMotivos_(p.motivosSuba), motivosBaja: mercMotivos_(p.motivosBaja),
     queCambiaria: mercTextos_(p.queCambiaria), aMirar: mercTextos_(p.aMirar),
+    escenarios: mercEscenarios_(p.escenarios), masProbable: mercUnoDe_(p.masProbable, ['favorable', 'base', 'desfavorable'], ''),
+    eventos: mercEventos_(p.eventos), contexto: contexto.lineas, argentina: contexto.argentina,
     precio: tecnico ? tecnico.precio : null, moneda: grafico.ok ? grafico.moneda : '',
     tecnico: tecnico ? tecnico.lineas : [], conNoticiasEnVivo: r.conBusqueda,
     fuentes: fuentes.slice(0, 10), modelo: r.modelo,
@@ -135,17 +138,39 @@ function mercUnoDe_(v, lista, def) {
 }
 
 function mercMotivos_(lista) {
+  const orden = { alto: 0, medio: 1, bajo: 2 };
   return (Array.isArray(lista) ? lista : []).slice(0, 6).map(m => ({
     titulo: String((m && m.titulo) || m || '').substring(0, 160),
-    detalle: String((m && m.detalle) || '').substring(0, 700)
-  })).filter(m => m.titulo);
+    detalle: String((m && m.detalle) || '').substring(0, 700),
+    peso: mercUnoDe_(m && m.peso, ['alto', 'medio', 'bajo'], 'medio'),
+    descontado: mercUnoDe_(m && m.descontado, ['si', 'parcial', 'no'], ''),
+    descontadoPorque: String((m && m.descontadoPorque) || '').substring(0, 400)
+  })).filter(m => m.titulo).sort((a, b) => orden[a.peso] - orden[b.peso]);
+}
+
+function mercEscenarios_(lista) {
+  const orden = { favorable: 0, base: 1, desfavorable: 2 };
+  return (Array.isArray(lista) ? lista : []).slice(0, 3).map(e => ({
+    tipo: mercUnoDe_(e && e.tipo, ['favorable', 'base', 'desfavorable'], 'base'),
+    que: String((e && e.que) || '').substring(0, 500),
+    efecto: String((e && e.efecto) || '').substring(0, 400),
+    probabilidad: mercUnoDe_(e && e.probabilidad, ['alta', 'media', 'baja'], 'media')
+  })).filter(e => e.que).sort((a, b) => orden[a.tipo] - orden[b.tipo]);
+}
+
+function mercEventos_(lista) {
+  return (Array.isArray(lista) ? lista : []).slice(0, 6).map(e => ({
+    fecha: String((e && e.fecha) || '').substring(0, 40),
+    evento: String((e && e.evento) || e || '').substring(0, 200),
+    porQueImporta: String((e && e.porQueImporta) || '').substring(0, 400)
+  })).filter(e => e.evento);
 }
 
 function mercTextos_(lista) {
   return (Array.isArray(lista) ? lista : []).slice(0, 5).map(x => String(x || '').substring(0, 300)).filter(Boolean);
 }
 
-function mercPrompt_(pedido, simbolo, nombre, h, tecnico, noticias, hoy) {
+function mercPrompt_(pedido, simbolo, nombre, h, tecnico, contexto, noticias, hoy) {
   const l = [];
   l.push('Hoy es ' + isoAMostrar(hoy) + '. Analizá la acción "' + nombre + '" (símbolo ' + simbolo + '; el usuario escribió "' + pedido + '").');
   l.push('Horizonte del pronóstico: ' + h.nombre.toLowerCase() + '.');
@@ -162,6 +187,15 @@ function mercPrompt_(pedido, simbolo, nombre, h, tecnico, noticias, hoy) {
     l.push('');
     l.push('No se pudieron traer los precios: no inventes datos del precio, basate en lo que encuentres.');
   }
+  if (contexto.lineas.length) {
+    l.push('');
+    l.push('Contexto de mercado (datos reales, usalos tal cual):');
+    contexto.lineas.forEach(x => l.push('- ' + x));
+  }
+  l.push('');
+  l.push('Buscá también los próximos eventos con fecha que pueden mover el precio dentro del horizonte o poco después: ' +
+    'presentación de balance, pago de dividendos, asambleas, decisiones de tasas de la Reserva Federal' +
+    (contexto.argentina ? ', medidas del Banco Central y del gobierno argentino, licitaciones y vencimientos de deuda, datos de inflación del INDEC' : ', datos de inflación y empleo de EE.UU.') + '.');
   if (noticias.length) {
     l.push('');
     l.push('Titulares recientes de Yahoo Finance (pueden servir de punto de partida):');
@@ -172,15 +206,23 @@ function mercPrompt_(pedido, simbolo, nombre, h, tecnico, noticias, hoy) {
   l.push('- No des precios objetivo ni porcentajes inventados: el usuario quiere motivos claros, no cifras.');
   l.push('- Cada motivo tiene que ser concreto y explicar por qué empujaría el precio (causa → efecto). Si sale de una noticia, mencioná de cuándo es.');
   l.push('- No inventes noticias. Si no encontrás información reciente, decilo en el resumen y bajá la confianza.');
+  l.push('- A cada motivo poné un peso (alto, medio o bajo) según cuánto puede mover el precio en este horizonte.');
+  l.push('- Indicá si cada motivo ya está descontado: "si" si es algo que el mercado conoce hace tiempo y el precio ya lo refleja (por ejemplo, la acción ya subió o bajó fuerte con esa noticia), "parcial" o "no" si todavía puede sorprender. Explicá en una oración por qué.');
+  l.push('- La inclinación sale de los motivos de peso que NO están descontados. Una buena noticia que ya hizo subir mucho la acción no es motivo para que siga subiendo.');
+  l.push('- Compará contra el índice y el sector: si la acción solo se movió con todo el mercado, decilo.');
   l.push('- La confianza es "alta" solo si casi todo empuja para el mismo lado; si hay fuerzas parejas, "baja" o "media" e inclinación "neutral".');
+  l.push('- Armá tres escenarios (favorable, base y desfavorable): qué tendría que pasar, cómo reaccionaría el precio (en palabras, sin cifras) y qué tan probable es cada uno. Marcá cuál es el más probable; tiene que ser coherente con la inclinación.');
   l.push('- Escribí en español de Argentina, con voseo, claro y sin jerga innecesaria.');
   l.push('');
   l.push('Respondé SOLO con un objeto JSON válido, sin texto antes ni después, con esta forma:');
   l.push('{"empresa": "nombre de la empresa", "inclinacion": "alcista" | "bajista" | "neutral", "confianza": "baja" | "media" | "alta", ' +
     '"resumen": "2 o 3 oraciones con la conclusión y el motivo principal", ' +
-    '"motivosSuba": [{"titulo": "frase corta", "detalle": "explicación de 1 a 3 oraciones"}], ' +
-    '"motivosBaja": [{"titulo": "frase corta", "detalle": "explicación de 1 a 3 oraciones"}], ' +
-    '"queCambiaria": ["qué hecho daría vuelta el pronóstico"], "aMirar": ["próximos eventos con fecha si se sabe: balance, datos, decisiones"]}');
+    '"motivosSuba": [{"titulo": "frase corta", "detalle": "explicación de 1 a 3 oraciones", "peso": "alto" | "medio" | "bajo", "descontado": "si" | "parcial" | "no", "descontadoPorque": "una oración"}], ' +
+    '"motivosBaja": [mismo formato que motivosSuba], ' +
+    '"escenarios": [{"tipo": "favorable" | "base" | "desfavorable", "que": "qué tendría que pasar", "efecto": "cómo reaccionaría el precio, sin cifras", "probabilidad": "alta" | "media" | "baja"}], ' +
+    '"masProbable": "favorable" | "base" | "desfavorable", ' +
+    '"eventos": [{"fecha": "dd/mm/aaaa, o aproximada si no se sabe el día", "evento": "qué pasa", "porQueImporta": "una oración"}], ' +
+    '"queCambiaria": ["qué hecho daría vuelta el pronóstico"]}');
   l.push('Entre 2 y 5 motivos de cada lado (si de un lado no hay motivos de peso, poné los que haya y decilo).');
   return l.join('\n');
 }
@@ -291,7 +333,7 @@ function mercFetchJson_(url) {
 /** Símbolo, nombre y titulares a partir de lo que escribió el usuario. */
 function mercBuscarYahoo_(texto) {
   const json = mercFetchJson_('https://query2.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(texto) + '&quotesCount=6&newsCount=8&lang=es-AR&region=AR');
-  const vacio = { simbolo: '', nombre: '', noticias: [] };
+  const vacio = { simbolo: '', nombre: '', noticias: [], sector: '', industria: '', bolsa: '' };
   if (!json) return vacio;
   const quotes = (json.quotes || []).filter(q => q && q.symbol && (q.quoteType === 'EQUITY' || q.quoteType === 'ETF'));
   const exacto = quotes.filter(q => String(q.symbol).toUpperCase() === String(texto).toUpperCase())[0];
@@ -301,7 +343,8 @@ function mercBuscarYahoo_(texto) {
     titulo: String(n.title || ''), medio: String(n.publisher || ''), url: String(n.link || ''),
     fecha: n.providerPublishTime ? Utilities.formatDate(new Date(n.providerPublishTime * 1000), tz, 'dd/MM/yyyy') : ''
   })).filter(n => n.titulo);
-  return { simbolo: q ? String(q.symbol) : '', nombre: q ? String(q.longname || q.shortname || '') : '', noticias: noticias };
+  return { simbolo: q ? String(q.symbol) : '', nombre: q ? String(q.longname || q.shortname || '') : '', noticias: noticias,
+    sector: q ? String(q.sector || q.sectorDisp || '') : '', industria: q ? String(q.industry || q.industryDisp || '') : '', bolsa: q ? String(q.exchange || '') : '' };
 }
 
 /** Cierres diarios del último año (y los cacheados por 30 minutos). */
@@ -360,12 +403,99 @@ function mercTecnico_(g) {
   return { precio: precio, lineas: lineas };
 }
 
+
+// ======================= Contexto de mercado =======================
+
+// ADR de empresas argentinas que cotizan en EE.UU.
+const MERC_ADR_ARG = ['YPF', 'GGAL', 'BMA', 'BBAR', 'SUPV', 'PAM', 'TGS', 'CEPU', 'EDN', 'LOMA', 'CRESY', 'IRS', 'TEO', 'CAAP', 'VIST', 'DESP', 'GLOB', 'MELI', 'BIOX', 'TX'];
+// Sector de Yahoo → ETF del sector en EE.UU.
+const MERC_SECTOR_ETF = {
+  'energy': ['XLE', 'energía'], 'financial services': ['XLF', 'financiero'], 'financial': ['XLF', 'financiero'], 'technology': ['XLK', 'tecnología'],
+  'consumer cyclical': ['XLY', 'consumo discrecional'], 'healthcare': ['XLV', 'salud'], 'industrials': ['XLI', 'industria'],
+  'communication services': ['XLC', 'comunicaciones'], 'consumer defensive': ['XLP', 'consumo básico'], 'utilities': ['XLU', 'servicios públicos'],
+  'real estate': ['XLRE', 'inmobiliario'], 'basic materials': ['XLB', 'materiales']
+};
+
+function mercContexto_(simbolo, busqueda, grafico) {
+  const sim = String(simbolo || '').toUpperCase();
+  const local = sim.length > 3 && sim.substring(sim.length - 3) === '.BA';
+  const argentina = local || MERC_ADR_ARG.indexOf(sim) >= 0 || busqueda.bolsa === 'BUE';
+  const lineas = [];
+  const pct = x => (x >= 0 ? '+' : '') + (x * 100).toFixed(1).split('.').join(',') + ' %';
+  const varDias = (g, dias) => g && g.ok && g.filas.length > dias ? g.precio / g.filas[g.filas.length - 1 - dias][1] - 1 : null;
+  const comparar = (nombre, g) => {
+    if (!grafico.ok || !g || !g.ok) return;
+    const partes = [];
+    [['un mes', 21], ['tres meses', 63]].forEach(x => {
+      const a = varDias(grafico, x[1]), b = varDias(g, x[1]);
+      if (a === null || b === null) return;
+      const dif = a - b;
+      partes.push('en ' + x[0] + ' la acción ' + pct(a) + ' contra ' + pct(b) + (Math.abs(dif) < 0.01 ? ' (parecido)' : ' (' + (dif > 0 ? 'mejor' : 'peor') + ' por ' + pct(Math.abs(dif)).substring(1) + ')'));
+    });
+    if (partes.length) lineas.push('Contra ' + nombre + ': ' + partes.join('; '));
+  };
+
+  // Índice: Merval para las locales, S&P 500 para el resto (y también para los ADR argentinos).
+  if (local) comparar('el Merval (en pesos)', mercGrafico_('^MERV'));
+  comparar('el S&P 500', mercGrafico_('^GSPC'));
+  const sec = MERC_SECTOR_ETF[claveTexto(busqueda.sector)];
+  if (sec) comparar('su sector, ' + sec[1] + ' en EE.UU. (' + sec[0] + ')', mercGrafico_(sec[0]));
+  if (busqueda.sector) lineas.push('Sector: ' + busqueda.sector + (busqueda.industria ? ' · ' + busqueda.industria : ''));
+
+  if (argentina) {
+    try {
+      const d = cotizacionesDolar_();
+      if (d && d.ok) {
+        const t = [];
+        if (d.oficial) t.push('oficial ' + mercNum_(d.oficial.venta));
+        if (d.mep) t.push('MEP ' + mercNum_(d.mep.venta));
+        if (d.ccl) t.push('contado con liqui ' + mercNum_(d.ccl.venta));
+        if (d.oficial && d.ccl) t.push('brecha CCL/oficial ' + pct(d.ccl.venta / d.oficial.venta - 1));
+        if (t.length) lineas.push('Dólar hoy (venta): ' + t.join(', ') + (d.fecha ? ' (' + d.fecha + ')' : ''));
+      }
+    } catch (e) {}
+    const rp = mercRiesgoPais_();
+    if (rp) lineas.push('Riesgo país: ' + rp.valor + ' puntos' + (rp.hace30 ? ' (hace un mes ' + rp.hace30 + ', ' + (rp.valor < rp.hace30 ? 'bajó' : rp.valor > rp.hace30 ? 'subió' : 'igual') + ')' : '') + (rp.hace90 ? '; hace tres meses ' + rp.hace90 : ''));
+  }
+  return { lineas: lineas, argentina: argentina };
+}
+
+/** 1234567 → "$ 1.234.567". */
+function mercNum_(n) {
+  const t = String(Math.round(Math.abs(n)));
+  let r = '';
+  for (let i = 0; i < t.length; i++) {
+    if (i > 0 && (t.length - i) % 3 === 0) r += '.';
+    r += t.charAt(i);
+  }
+  return (n < 0 ? '-$ ' : '$ ') + r;
+}
+
+/** Riesgo país de argentinadatos.com (guardado 1 hora). */
+function mercRiesgoPais_() {
+  const cache = CacheService.getScriptCache();
+  const g = cache.get('merc_riesgo');
+  if (g) { try { return JSON.parse(g); } catch (e) {} }
+  const lista = mercFetchJson_('https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais');
+  if (!Array.isArray(lista) || !lista.length) return null;
+  const ult = lista[lista.length - 1];
+  const antes = dias => {
+    const lim = sumarDias(String(ult.fecha).substring(0, 10), -dias);
+    for (let i = lista.length - 1; i >= 0; i--) if (String(lista[i].fecha).substring(0, 10) <= lim) return Number(lista[i].valor);
+    return null;
+  };
+  const r = { valor: Number(ult.valor), fecha: String(ult.fecha).substring(0, 10), hace30: antes(30), hace90: antes(90) };
+  try { cache.put('merc_riesgo', JSON.stringify(r), 3600); } catch (e) {}
+  return r;
+}
+
 // ======================= Historial y verificación =======================
 
 function mercGuardar_(a, u) {
   try {
     const hoja = obtenerHoja_(MERC_HOJA, MERC_HEADERS);
-    const detalle = { motivosSuba: a.motivosSuba, motivosBaja: a.motivosBaja, queCambiaria: a.queCambiaria, aMirar: a.aMirar, tecnico: a.tecnico, conNoticiasEnVivo: a.conNoticiasEnVivo };
+    const detalle = { motivosSuba: a.motivosSuba, motivosBaja: a.motivosBaja, queCambiaria: a.queCambiaria, aMirar: a.aMirar, tecnico: a.tecnico, conNoticiasEnVivo: a.conNoticiasEnVivo,
+      escenarios: a.escenarios, masProbable: a.masProbable, eventos: a.eventos, contexto: a.contexto, argentina: a.argentina };
     const fila = {
       'ID': a.id, 'Fecha': a.fecha, 'Usuario': u['Usuario'], 'Símbolo': a.simbolo, 'Nombre': a.nombre, 'Horizonte': a.horizonte,
       'Inclinación': a.inclinacion, 'Confianza': a.confianza, 'Precio': a.precio === null ? '' : a.precio, 'Moneda': a.moneda,
@@ -418,6 +548,7 @@ function mercHistorial_() {
       precio: f[col('Precio')] === '' ? null : Number(f[col('Precio')]), moneda: String(f[col('Moneda')]), resumen: String(f[col('Resumen')]),
       motivosSuba: detalle.motivosSuba || [], motivosBaja: detalle.motivosBaja || [], queCambiaria: detalle.queCambiaria || [],
       aMirar: detalle.aMirar || [], tecnico: detalle.tecnico || [], conNoticiasEnVivo: !!detalle.conNoticiasEnVivo, fuentes: fuentes,
+      escenarios: detalle.escenarios || [], masProbable: detalle.masProbable || '', eventos: detalle.eventos || [], contexto: detalle.contexto || [],
       verificarEl: mercIso_(f[col('Verificar el')]), precioFinal: f[col('Precio al verificar')] === '' ? null : Number(f[col('Precio al verificar')]),
       variacion: f[col('Variación')] === '' ? null : Number(f[col('Variación')]), resultado: String(f[col('Resultado')] || ''), modelo: String(f[col('Modelo')] || '')
     };
