@@ -26,6 +26,9 @@ ni su enlace en `docs/index.html`.
   listado, saldo desde la entrada manual y fondos sugeridos en la carga masiva.
 - **Cheques**: filtros rápidos por solapa, concepto en pagados, conceptos históricos, imagen al
   portapapeles; el listado de e-cheqs actualiza los ya cargados.
+- **Mercados** (solo para el dueño, `src/Mercados.gs`): pronóstico de subas y bajas de una acción con los motivos
+  de cada lado, qué lo cambiaría y la confianza, con precios de Yahoo Finance y noticias vía Gemini. Cada
+  pronóstico se guarda en "Mercados · Pronósticos" y se verifica solo al vencer el plazo (porcentaje de aciertos).
 - **Filtros por columna** como Excel en todas las tablas, **Posición al** (31/12) y **Parte del día**
   para WhatsApp (4 imágenes).
 

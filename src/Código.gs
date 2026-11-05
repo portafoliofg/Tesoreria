@@ -288,7 +288,9 @@ const ACCIONES = {
   suscripcionCalendario: (d, u) => suscripcionCalendario_(d, u),
   cotizacionesDolar: cotizacionesDolar_,
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
-  asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' }
+  asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' },
+  // MERCADOS: pronóstico de acciones, solo para el dueño (Mercados.gs). Si se borra ese archivo, borrar también esta línea.
+  mercados: (d, u) => typeof mercados_ === 'function' ? mercados_(d, u) : { ok: false, error: 'Mercados no está instalado.' }
 };
 
 /** json: {token, accion, datos}. Devuelve siempre JSON como texto. */
@@ -444,7 +446,8 @@ function usuarioPublico_(u) {
   return {
     id: u['ID'], usuario: u['Usuario'], nombre: u['Nombre'], activo: u['Activo'] === 'Sí',
     telefono: u['Teléfono WhatsApp'], creado: u['Creado'], ultimoIngreso: u['Último Ingreso'],
-    facturas: tieneAccesoFacturas_(u)
+    facturas: tieneAccesoFacturas_(u),
+    mercados: typeof tieneAccesoMercados_ === 'function' && tieneAccesoMercados_(u) // MERCADOS
   };
 }
 
