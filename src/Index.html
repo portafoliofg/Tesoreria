@@ -1742,6 +1742,11 @@
     :root[data-interfaz="bolsillo"] .nav-item.active { box-shadow: 0 6px 16px -6px rgba(var(--accent-rgb), .7); }
   }
   .imp-solo { margin-top: 12px; align-items: flex-start; }
+  .imp-buscar { margin-top: 14px; }
+  table.imp-buscar-tabla { font-size: 12.5px; }
+  table.imp-buscar-tabla td, table.imp-buscar-tabla th { padding: 6px 9px; vertical-align: top; }
+  table.imp-buscar-tabla .badge { white-space: normal; display: inline-block; }
+  .imp-app { margin-top: 4px; }
   .imp-solo input { margin-top: 2px; }
   .imp-solo-nota { margin: 4px 0 0 26px; }
   /* Cheques ya cargados */
@@ -3529,6 +3534,10 @@
         <div id="impSecciones" class="imp-secciones"></div>
         <label class="check imp-solo"><input type="checkbox" id="impSoloNuevas" checked> <span><b>Solo agregar las nuevas</b> — las filas que ya están en la app no se tocan (movimientos, cheques, FCI y Bolsa, compromisos)</span></label>
         <p class="hint imp-solo-nota" id="impSoloNota">Si corregiste en el Excel una fila de FCI o de compromisos que ya estaba importada, con esta opción se agrega la versión corregida sin quitar la anterior. Para esos casos, destildala.</p>
+        <div class="imp-buscar">
+          <label>Buscar en el Excel y ver qué pasa al importar<input type="text" id="impBuscar" placeholder="N° de cheque, concepto, destinatario… (por ejemplo: Polo 52)" autocomplete="off"></label>
+          <div id="impBuscarRes"></div>
+        </div>
         <div id="impNotas"></div>
         <div id="impEtiquetas"></div>
       </div>
@@ -15999,9 +16008,12 @@ function filasHoja(wb, nombre) {
 }
 
 // Índice de columnas por título (la primera aparición), sin acentos ni mayúsculas.
+// La columna del N° de fila a veces queda sin título (un espacio en vez de "N°"): si la primera
+// columna no tiene título y no hay otra llamada "N", se toma esa.
 function columnasPorTitulo(fila) {
   const m = {};
   (fila || []).forEach((v, i) => { const k = palabras(v).join(" "); if (k && m[k] === undefined) m[k] = i; });
+  if (m["N"] === undefined && fila && fila.length && !palabras(fila[0]).length) m["N"] = 0;
   return m;
 }
 
@@ -16515,6 +16527,8 @@ function abrirImportarPlanilla(file) {
   $("impImportar").hidden = true;
   $("impImportar").disabled = false;
   $("impArchivo").value = "";
+  $("impBuscar").value = "";
+  $("impBuscarRes").replaceChildren();
   $("impFecha").value = hoyIso();
   setStatus($("impStatus"), "", "hint");
   $("impProgreso").hidden = true;
@@ -16623,15 +16637,35 @@ function renderRevisionPlanilla() {
 // Antes de importar: de las filas leídas, cuántas ya están en la app (mismo ID Planilla: se
 // actualizan solo si cambiaron) y cuántas son nuevas. Las nuevas pueden coincidir igual con algo
 // cargado a mano o desde un comprobante: en ese caso se completa ese registro, no se duplica.
-/** IDs Planilla que ya están en la app, por sección. */
+/** Filas de la app por ID Planilla, por sección. */
 async function idsPlanillaEnApp() {
   try { await Promise.all([asegurarTransferencias(), asegurarCheques(), asegurarCompromisos(), asegurarInversiones()]); } catch (e) {}
-  const ids = lista => { const o = {}; lista.forEach(f => { const id = String(f["ID Planilla"] || "").trim(); if (id) o[id] = true; }); return o; };
+  const ids = lista => { const o = {}; lista.forEach(f => { const id = String(f["ID Planilla"] || "").trim(); if (id) o[id] = f; }); return o; };
   return { movimientos: ids(transferenciasDatos), cheques: ids(chequesDatos), compromisos: ids(compromisosDatos), inversiones: Object.assign(ids(fciDatos), ids(bolsaDatos)) };
 }
 
-function soloNuevasPlanilla(filas, enApp) {
-  return filas.filter(f => !enApp[String(f["ID Planilla"] || "").trim()]);
+/**
+ * Datos clave que no coinciden entre la fila del Excel y la de la app con el mismo ID Planilla.
+ * Si cambian, es otro registro (por ejemplo, la planilla reusó el N° de fila): no "ya está".
+ */
+function diferenciasPlanilla(seccion, x, a) {
+  if (!a) return [];
+  const difs = [];
+  const imp = (v, w) => Math.abs(Math.abs(parseImporte(v)) - Math.abs(parseImporte(w))) < 0.01;
+  if (seccion === "cheques") {
+    if (numChequeNorm(x["N° de Cheque"]) !== numChequeNorm(a["N° de Cheque"])) difs.push("N° de cheque");
+    if (!imp(x["Importe"], a["Importe"])) difs.push("importe");
+    if (String(x["Tipo"] || "") !== String(a["Tipo"] || "")) difs.push("tipo");
+  } else if (seccion === "movimientos") {
+    if (!imp(x["Monto"], a["Monto"])) difs.push("monto");
+    if (fechaAOrden(x["Fecha del Movimiento"] || "") !== fechaAOrden(a["Fecha del Movimiento"] || a["Fecha de Carga"] || "")) difs.push("fecha");
+  }
+  return difs;
+}
+
+/** Las que no están en la app, más las que tienen el mismo ID pero son otro registro. */
+function soloNuevasPlanilla(filas, enApp, seccion) {
+  return filas.filter(f => { const a = enApp[String(f["ID Planilla"] || "").trim()]; return !a || diferenciasPlanilla(seccion, f, a).length > 0; });
 }
 
 async function previaImportacionPlanilla() {
@@ -16646,11 +16680,87 @@ async function previaImportacionPlanilla() {
   Object.keys(filas).forEach(k => {
     const nodo = document.querySelector('#impSecciones [data-prev="' + k + '"]');
     if (!nodo) return;
-    const ya = filas[k].filter(f => enApp[k][String(f["ID Planilla"] || "").trim()]).length;
-    const nuevas = filas[k].length - ya;
-    nodo.replaceChildren(el("b", null, formatEntero(ya)), document.createTextNode(solo ? " ya están en la app (no se tocan) · " : " ya están en la app (se actualizan solo si cambiaron) · "),
-      el("b", nuevas ? "imp-nuevas" : null, formatEntero(nuevas)), document.createTextNode(" nueva(s)" + (nuevas ? ": si alguna ya la cargaste a mano o desde un comprobante, se completa esa en vez de duplicarla" : "")));
+    const distintas = filas[k].filter(f => { const a = enApp[k][String(f["ID Planilla"] || "").trim()]; return a && diferenciasPlanilla(k, f, a).length; }).length;
+    const ya = filas[k].filter(f => enApp[k][String(f["ID Planilla"] || "").trim()]).length - distintas;
+    const nuevas = filas[k].length - ya - distintas;
+    const partes = [el("b", null, formatEntero(ya)), document.createTextNode(solo ? " ya están en la app (no se tocan) · " : " ya están en la app (se actualizan solo si cambiaron) · "),
+      el("b", nuevas ? "imp-nuevas" : null, formatEntero(nuevas)), document.createTextNode(" nueva(s)")];
+    if (distintas) partes.push(document.createTextNode(" · "), el("b", "imp-nuevas", formatEntero(distintas)),
+      document.createTextNode(" con el mismo N° de la planilla pero otros datos en la app: se actualizan con los del Excel"));
+    nodo.replaceChildren(...partes);
   });
+}
+
+// ----- Buscar en el Excel: qué pasa con cada fila al importar -----
+let impBuscarTimer = null;
+
+function filasPlanillaParaBuscar(p) {
+  const l = [];
+  p.movimientos.forEach(r => l.push({ sec: "movimientos", nombre: "Movimiento (" + r.hoja + ")", f: Object.assign({}, r.fila, { "Moneda": r.moneda }), etiqueta: r.etiqueta }));
+  p.cheques.forEach(r => l.push({ sec: "cheques", nombre: r.hoja === "CH" ? "Cheque emitido (CH)" : "Cheque de terceros (CH T)", f: r.fila, etiqueta: r.etiqueta, claveEtiqueta: r.claveEtiqueta }));
+  p.fci.forEach(f => l.push({ sec: "inversiones", nombre: "FCI", f: f }));
+  p.bolsa.forEach(f => l.push({ sec: "inversiones", nombre: "Bolsa", f: f }));
+  p.compromisos.forEach(f => l.push({ sec: "compromisos", nombre: "Compromiso", f: f }));
+  return l;
+}
+
+function textoBuscablePlanilla(x) {
+  return normalizar(Object.keys(x.f).map(k => x.f[k]).concat([x.etiqueta || ""]).join(" ")).toLowerCase();
+}
+
+/** Qué pasaría con la fila al importar, con la opción elegida. */
+function destinoFilaPlanilla(x, enApp, solo) {
+  const id = String(x.f["ID Planilla"] || "").trim();
+  const a = enApp[x.sec] ? enApp[x.sec][id] : null;
+  if (a) {
+    if (String(a["Conciliación"] || "").trim()) return { clase: "badge-texto", txt: "Ya está y está conciliado: no se toca", app: a };
+    const difs = diferenciasPlanilla(x.sec, x.f, a);
+    if (difs.length) return { clase: "badge-pendiente", txt: "En la app ese N° (" + id + ") es otro registro (" + difs.join(", ") + " distinto): se actualiza con el Excel", app: a };
+    return solo ? { clase: "badge-guardado", txt: "Ya está en la app: no se toca", app: a } : { clase: "badge-guardado", txt: "Ya está en la app: se actualiza si cambió algo", app: a };
+  }
+  // Cheque cargado antes a mano o por imagen, sin ID de la planilla: se completa ese.
+  if (x.sec === "cheques") {
+    const num = numChequeNorm(x.f["N° de Cheque"]);
+    const banco = x.claveEtiqueta ? camposCuentaPlanilla(x.claveEtiqueta, {})["Banco"] : "";
+    const m = num ? chequesDatos.find(c => !String(c["ID Planilla"] || "").trim() && numChequeNorm(c["N° de Cheque"]) === num &&
+      (x.f["Tipo"] === "Emitido" ? c["Tipo"] === "Emitido" && (!banco || mismoBanco(c["Banco"], banco)) : c["Tipo"] === "De terceros" && mismoImporteCheque(c["Importe"], x.f["Importe"]))) : null;
+    if (m) return { clase: "badge-pendiente", txt: "Ya estaba cargado a mano o por imagen: se le completan los datos de la planilla (no se duplica)", app: m };
+  }
+  return { clase: "badge-guardado", txt: "Nueva: se agrega", nueva: true };
+}
+
+async function buscarEnPlanilla() {
+  const p = planillaFlujo;
+  const box = $("impBuscarRes");
+  const q = normalizar($("impBuscar").value || "").toLowerCase().trim();
+  if (!p || q.length < 2) { box.replaceChildren(); return; }
+  if (!p.enApp) { box.replaceChildren(el("p", "hint", "Comparando con la app…")); p.enApp = await idsPlanillaEnApp(); }
+  const palabrasQ = q.split(" ").filter(Boolean);
+  const todas = filasPlanillaParaBuscar(p).filter(x => { const t = textoBuscablePlanilla(x); return palabrasQ.every(w => t.indexOf(w) >= 0); });
+  if (!todas.length) { box.replaceChildren(el("p", "hint", "No hay filas del Excel con “" + $("impBuscar").value.trim() + "”. Si está en tu planilla, fijate que tenga monto y N° (las filas sin monto no se importan).")); return; }
+  const solo = $("impSoloNuevas").checked;
+  const table = el("table", "imp-buscar-tabla");
+  const trh = el("tr");
+  ["ID planilla", "Tipo", "Fecha", "Detalle", "Importe", "Al importar"].forEach(h => trh.append(el("th", null, h)));
+  table.append(trh);
+  todas.slice(0, 60).forEach(x => {
+    const f = x.f, d = destinoFilaPlanilla(x, p.enApp, solo);
+    const fecha = f["Fecha de Pago"] || f["Fecha del Movimiento"] || f["Fecha de Vencimiento"] || f["Fecha"] || f["Fecha de pago"] || "";
+    const detalle = [f["N° de Cheque"] ? "N° " + f["N° de Cheque"] : "", f["Titular"] || f["Destinatario"] || f["Fondo"] || f["ALYC"] || "", f["Concepto"] || "", f["Estado"] || f["Condicion"] || ""].filter(Boolean).join(" · ");
+    const tr = el("tr");
+    const res = el("td");
+    res.append(el("span", "badge " + d.clase, d.txt));
+    if (d.app) {
+      const a = d.app;
+      res.append(el("div", "hint imp-app", "En la app: " + [a["N° de Cheque"] ? "N° " + a["N° de Cheque"] : "", a["Titular"] || a["Destinatario"] || "", a["Concepto"] || "",
+        a["Importe"] || a["Monto"] || "", a["Estado"] || "", a["Fecha de Pago"] || a["Fecha del Movimiento"] || ""].filter(Boolean).join(" · ")));
+    }
+    tr.append(el("td", null, f["ID Planilla"] || ""), el("td", null, x.nombre), el("td", null, fecha), el("td", null, detalle),
+      el("td", "num", f["Importe"] || f["Monto"] || ""), res);
+    table.append(tr);
+  });
+  const nuevas = todas.filter(x => destinoFilaPlanilla(x, p.enApp, solo).nueva).length;
+  box.replaceChildren(el("p", "hint", todas.length + " fila(s) del Excel" + (todas.length > 60 ? " (se muestran 60)" : "") + " · " + nuevas + " nueva(s)."), envolverTabla(table));
 }
 
 function opcionesCuentasPlanilla(e) {
@@ -16720,7 +16830,8 @@ async function enviarPorLotes(destino, filas, tam, avance) {
   return total;
 }
 
-$("impSoloNuevas").addEventListener("change", () => { $("impSoloNota").hidden = !$("impSoloNuevas").checked; if (planillaFlujo) previaImportacionPlanilla(); });
+$("impSoloNuevas").addEventListener("change", () => { $("impSoloNota").hidden = !$("impSoloNuevas").checked; if (planillaFlujo) { previaImportacionPlanilla(); buscarEnPlanilla(); } });
+$("impBuscar").addEventListener("input", () => { clearTimeout(impBuscarTimer); impBuscarTimer = setTimeout(buscarEnPlanilla, 250); });
 $("impArchivo").addEventListener("change", () => { const f = $("impArchivo").files[0]; if (f) analizarYMostrar(f); });
 $("btnImportarPlanilla").addEventListener("click", () => abrirImportarPlanilla(null));
 
@@ -16743,7 +16854,7 @@ $("impImportar").addEventListener("click", async () => {
     setStatus(st, "Buscando cuáles ya están en la app…", "hint");
     enApp = p.enApp || await idsPlanillaEnApp();
   }
-  const filtrar = (filas, seccion) => solo ? soloNuevasPlanilla(filas, enApp[seccion]) : filas;
+  const filtrar = (filas, seccion) => solo ? soloNuevasPlanilla(filas, enApp[seccion], seccion) : filas;
   const yaEstaban = (total, nuevas) => solo && total > nuevas ? " · " + formatEntero(total - nuevas) + " ya estaban (sin tocar)" : "";
   const avisar = (txt, frac) => { setStatus(st, txt, "hint"); barra.firstElementChild.style.width = Math.round(frac * 100) + "%"; };
   let idsReales = {};
