@@ -2677,6 +2677,17 @@
         <p class="hint">Incluye el estado de conciliación, las partidas conciliadas y las pendientes de cada lado, con espacio para firmas.</p>
       </div>
       <div class="card">
+        <div class="card-title">Reporte por contraparte</div>
+        <div class="row"><label>Proveedor o cliente<input type="text" id="repCpTexto" placeholder="Ej.: Polo 52, o su CUIT" autocomplete="off"></label></div>
+        <div class="row">
+          <label>Desde<input type="date" id="repCpDesde"></label>
+          <label>Hasta<input type="date" id="repCpHasta"></label>
+        </div>
+        <div class="actions"><button id="repCpExcel" type="button">Excel</button></div>
+        <p class="hint" id="repCpInfo"></p>
+        <p class="hint">Un Excel con una hoja por tipo: transferencias enviadas y recibidas, cheques emitidos, cheques de terceros endosados, cheques de terceros que vinieron de ella y los que siguen en cartera, con todos los datos y totales. Para varios nombres, separalos con coma.</p>
+      </div>
+      <div class="card">
         <div class="card-title">Resumen general de tesorería</div>
         <div class="row">
           <label>Desde<input type="date" id="repGenDesde"></label>
@@ -11565,10 +11576,200 @@ $("repGenPdf").addEventListener("click", () => exportarResumenGeneral("pdf"));
 $("repGenExcel").addEventListener("click", () => exportarResumenGeneral("excel"));
 $("repGenImprimir").addEventListener("click", () => exportarResumenGeneral("imprimir"));
 
+// ---------------- Reporte por contraparte ----------------
+// Todo lo que se movió con un proveedor o cliente (por ejemplo "Polo 52") en un período, en un Excel
+// con una hoja por tipo: transferencias enviadas y recibidas, cheques propios emitidos, cheques de
+// terceros endosados, cheques de terceros que vinieron de esa contraparte y los que siguen en cartera.
+// Se busca el nombre (o el CUIT) en los campos de cada registro, sin importar mayúsculas, tildes ni espacios.
+const CP_CAMPOS_MOV = ["Destinatario", "Contraparte", "Persona", "Ordenante", "Concepto", "Factura Asociada"];
+const CP_CAMPOS_CHEQUE = ["Titular", "Destino", "Persona", "Concepto"];
+const CP_ESTADOS_CARTERA = ["EN CARTERA", "PENDIENTE", "CUSTODIA DEPOSITANTE"];
+
+function cpCompacto(s) {
+  return normalizar(s).replace(/[^A-Z0-9]/g, "");
+}
+
+/** Arma la función que dice si un texto nombra a la contraparte. Acepta varios nombres separados por coma. */
+function cpBuscador(texto) {
+  const terminos = String(texto || "").split(",").map(t => t.trim()).filter(Boolean);
+  const nombres = terminos.map(cpCompacto).filter(t => t.length >= 3 && !/^\d+$/.test(t));
+  const cuits = terminos.map(t => soloDigitosTexto(t)).filter(t => t.length >= 8);
+  return {
+    nombres: nombres, cuits: cuits,
+    texto: v => { const c = cpCompacto(v); return !!c && nombres.some(n => c.indexOf(n) >= 0); },
+    cuit: v => { const d = soloDigitosTexto(v); return !!d && cuits.some(c => d === c); }
+  };
+}
+
+function soloDigitosTexto(s) {
+  return String(s || "").replace(/\D/g, "");
+}
+
+/** Primer campo de fecha con valor, como aaaa-mm-dd. */
+function cpFecha(f, campos) {
+  for (let i = 0; i < campos.length; i++) { const iso = fechaAOrden(f[campos[i]]); if (iso) return { iso: iso, campo: campos[i] }; }
+  return { iso: "", campo: "" };
+}
+
+function cpMoneda(f) {
+  const m = normalizar(f["Moneda"] || "");
+  return m === "USD" || m.indexOf("U$") >= 0 || m.indexOf("DOLAR") >= 0 || m.indexOf("US$") >= 0 ? "USD" : "Pesos";
+}
+
+function datosContraparte(texto, desde, hasta) {
+  const b = cpBuscador(texto);
+  if (!b.nombres.length && !b.cuits.length) throw new Error("Escribí el nombre (al menos 3 letras) o el CUIT.");
+  const enRango = iso => !!iso && iso >= desde && iso <= hasta;
+  const coincideEn = (f, campos) => campos.filter(c => b.texto(f[c]));
+  const encontrados = {};
+  const anotar = (f, campos) => campos.forEach(c => { const v = String(f[c] || "").trim(); if (v && c !== "Concepto") encontrados[v] = (encontrados[v] || 0) + 1; });
+
+  const enviadas = [], recibidas = [];
+  transferenciasDatos.forEach(f => {
+    if (esPropia(f)) return;
+    const campos = coincideEn(f, CP_CAMPOS_MOV);
+    const porCuit = b.cuit(f["CUIT Destino"]);
+    if (!campos.length && !porCuit) return;
+    const fe = cpFecha(f, ["Fecha del Movimiento", "Fecha de Carga"]);
+    if (!enRango(fe.iso)) return;
+    anotar(f, campos);
+    const x = { f: f, iso: fe.iso, por: campos.concat(porCuit ? ["CUIT Destino"] : []) };
+    (f["Condición"] === "Ingreso" ? recibidas : enviadas).push(x);
+  });
+
+  const emitidos = [], endosados = [], deTerceros = [], cartera = [];
+  chequesDatos.forEach(f => {
+    const campos = coincideEn(f, CP_CAMPOS_CHEQUE);
+    const porCuit = b.cuit(f["CUIT"]);
+    if (!campos.length && !porCuit) return;
+    const por = campos.concat(porCuit ? ["CUIT"] : []);
+    const estado = normalizar(f["Estado"] || "");
+    if (f["Tipo"] === "Emitido") {
+      const fe = cpFecha(f, ["Fecha de Emisión", "Fecha de Pago", "Fecha de Ingreso"]);
+      if (enRango(fe.iso)) { anotar(f, campos); emitidos.push({ f: f, iso: fe.iso, por: por }); }
+      return;
+    }
+    // De terceros: endosados a la contraparte (el destino la nombra) o recibidos de ella.
+    const aElla = estado === "ENDOSADO" && (b.texto(f["Destino"]) || b.texto(f["Persona"]) && !b.texto(f["Titular"]));
+    if (aElla) {
+      const fe = cpFecha(f, ["Fecha de Débito", "Fecha de Pago", "Fecha de Ingreso"]);
+      if (enRango(fe.iso)) { anotar(f, campos); endosados.push({ f: f, iso: fe.iso, por: por }); }
+      return;
+    }
+    const fe = cpFecha(f, ["Fecha de Ingreso", "Fecha de Emisión", "Fecha de Pago"]);
+    const enCartera = CP_ESTADOS_CARTERA.indexOf(estado) >= 0 || !estado;
+    // Los que siguen en cartera van siempre (aunque hayan entrado antes del período): son plata de hoy.
+    if (enCartera) { anotar(f, campos); cartera.push({ f: f, iso: fe.iso, por: por }); }
+    if (enRango(fe.iso)) { anotar(f, campos); deTerceros.push({ f: f, iso: fe.iso, por: por }); }
+  });
+  const ordenar = l => l.sort((a, c) => a.iso.localeCompare(c.iso));
+  [enviadas, recibidas, emitidos, endosados, deTerceros].forEach(ordenar);
+  cartera.sort((a, c) => fechaAOrden(a.f["Fecha de Pago"]).localeCompare(fechaAOrden(c.f["Fecha de Pago"])));
+  return { texto: texto, desde: desde, hasta: hasta, enviadas: enviadas, recibidas: recibidas, emitidos: emitidos, endosados: endosados,
+    deTerceros: deTerceros, cartera: cartera, encontrados: encontrados };
+}
+
+function cpTotales(lista, campoImporte) {
+  const t = { Pesos: 0, USD: 0 };
+  lista.forEach(x => { t[cpMoneda(x.f)] += Math.abs(parseImporte(x.f[campoImporte])); });
+  return t;
+}
+
+function excelContraparte(d) {
+  const r2 = n => Math.round(n * 100) / 100;
+  const imp = (f, campo) => r2(Math.abs(parseImporte(f[campo])));
+  const cuenta = f => [f["Tipo de Cuenta"], f["N° de Cuenta"]].filter(Boolean).join(" ");
+  const fechaHora = f => [f["Fecha de Débito"], f["Hora de Débito"]].filter(Boolean).join(" ");
+  const nombre = d.texto.split(",")[0].trim();
+
+  const titMov = ["Fecha", "Condición", "Importe", "Moneda", "Banco", "Cuenta", "Destinatario", "CUIT destino", "Banco destino", "Cuenta destino",
+    "Concepto", "Factura asociada", "Instrumento", "Persona", "Ordenante", "Clase", "Estado", "N° de referencia", "N° interno", "Conciliación",
+    "Comprobante", "Origen", "Cargado por", "Coincide en"];
+  const filaMov = x => { const f = x.f; return [isoADma(x.iso), f["Condición"], imp(f, "Monto"), cpMoneda(f), f["Banco"], cuenta(f), f["Destinatario"], f["CUIT Destino"],
+    f["Banco Destino"], f["Cuenta Destino"], f["Concepto"], f["Factura Asociada"], f["Instrumento"], f["Persona"], f["Ordenante"], f["Clase"], f["Estado"],
+    f["N° de Referencia"], f["N° Interno"], f["Conciliación"], linkDrive(f["Comprobante"]), f["Origen"], f["Cargado por"], x.por.join(", ")]; };
+
+  const titCh = ["Fecha del reporte", "Tipo", "Estado", "Importe", "Moneda", "N° de cheque", "Banco", "Banco emisor", "Titular", "CUIT", "Destino", "Persona",
+    "Concepto", "Fecha de emisión", "Fecha de pago (vencimiento)", "Débito / endoso", "Fecha de ingreso", "Canal", "ALYC", "SGR / emisor", "Chequera",
+    "Banco aceptante", "N° de cuenta", "Conciliación", "Comprobante", "Cargado por", "Coincide en"];
+  const filaCh = x => { const f = x.f; return [x.iso ? isoADma(x.iso) : "", f["Tipo"], f["Estado"], imp(f, "Importe"), cpMoneda(f), f["N° de Cheque"], f["Banco"], f["Banco Emisor"],
+    f["Titular"], f["CUIT"], f["Destino"], f["Persona"], f["Concepto"], f["Fecha de Emisión"], f["Fecha de Pago"], fechaHora(f), f["Fecha de Ingreso"], f["Canal"],
+    f["ALYC"], f["SGR / Emisor"], f["Chequera"], f["Banco Aceptante"], f["N° de Cuenta"], f["Conciliación"], linkDrive(f["Comprobante"]), f["Cargado por"], x.por.join(", ")]; };
+
+  const hojaCon = (titulo, lista, titulos, fila, campoImporte, colImporte, nota) => {
+    const filas = [[titulo], [nota], [], titulos];
+    lista.forEach(x => filas.push(fila(x)));
+    if (!lista.length) filas.push(["No hay registros en el período."]);
+    else {
+      const t = cpTotales(lista, campoImporte);
+      filas.push([]);
+      ["Pesos", "USD"].forEach(m => { if (t[m]) { const r = new Array(titulos.length).fill(""); r[0] = "Total " + m; r[colImporte] = r2(t[m]); filas.push(r); } });
+    }
+    return filas;
+  };
+
+  const periodo = isoADma(d.desde) + " al " + isoADma(d.hasta);
+  const bloques = [
+    ["Transferencias enviadas", d.enviadas, titMov, filaMov, "Monto", 2, "Pagos (egresos) por transferencia o efectivo con fecha del movimiento entre el " + periodo + ". No incluye movimientos entre cuentas propias."],
+    ["Transferencias recibidas", d.recibidas, titMov, filaMov, "Monto", 2, "Cobros (ingresos) con fecha del movimiento entre el " + periodo + "."],
+    ["Cheques emitidos", d.emitidos, titCh, filaCh, "Importe", 3, "Cheques propios (incluidos e-cheqs y los de bolsa) a nombre de la contraparte o con su nombre en el destino o concepto, emitidos entre el " + periodo + " (si no tienen emisión, por vencimiento)."],
+    ["Cheques endosados", d.endosados, titCh, filaCh, "Importe", 3, "Cheques de terceros endosados a la contraparte, con fecha de endoso entre el " + periodo + " (si no la tienen, por vencimiento)."],
+    ["Cheques de terceros de ella", d.deTerceros, titCh, filaCh, "Importe", 3, "Cheques de terceros recibidos de la contraparte o librados por ella (no endosados a ella), ingresados entre el " + periodo + ". Cualquier estado."],
+    ["En cartera hoy", d.cartera, titCh, filaCh, "Importe", 3, "Cheques de terceros relacionados con la contraparte que siguen en cartera (o pendientes) hoy, sin importar cuándo entraron."]
+  ];
+
+  const resumen = [["Reporte por contraparte: " + nombre], ["Buscado: " + d.texto], ["Período: " + periodo], ["Generado: " + hoyTexto()], [],
+    ["Hoja", "Cantidad", "Total en pesos", "Total en USD"]];
+  bloques.forEach(bq => { const t = cpTotales(bq[1], bq[4]); resumen.push([bq[0], bq[1].length, r2(t.Pesos), r2(t.USD)]); });
+  const tEnv = cpTotales(d.enviadas, "Monto"), tEmi = cpTotales(d.emitidos, "Importe"), tEnd = cpTotales(d.endosados, "Importe");
+  resumen.push([]);
+  resumen.push(["Total pagado a la contraparte (transferencias + cheques emitidos + endosados)", "", r2(tEnv.Pesos + tEmi.Pesos + tEnd.Pesos), r2(tEnv.USD + tEmi.USD + tEnd.USD)]);
+  resumen.push([]);
+  resumen.push(["Nombres que coincidieron (revisá que sean todos de la contraparte)", "Veces"]);
+  Object.keys(d.encontrados).sort((a, c) => d.encontrados[c] - d.encontrados[a]).forEach(n => resumen.push([n, d.encontrados[n]]));
+  resumen.push([]);
+  resumen.push(["Cómo se busca: el nombre (o CUIT) se busca en destinatario, contraparte, persona, ordenante, concepto, factura, titular y destino, sin importar mayúsculas, tildes ni espacios. Si la contraparte figura con otro nombre, agregalo separado por coma (por ejemplo: Polo 52, Polo Cincuenta y Dos)."]);
+
+  const hojas = [{ nombre: "Resumen", filas: resumen, anchos: [70, 12, 18, 16] }];
+  bloques.forEach(bq => hojas.push({ nombre: bq[0], filas: hojaCon(bq[0] + " · " + nombre, bq[1], bq[2], bq[3], bq[4], bq[5], bq[6]),
+    anchos: bq[2].map((t, i) => i === 0 ? 14 : /Concepto|Destinatario|Titular|Destino|Comprobante/.test(t) ? 32 : t.length > 14 ? 18 : 14) }));
+  descargarExcel(nombre + " " + isoADma(d.desde).split("/").join("-") + " al " + isoADma(d.hasta).split("/").join("-"), hojas);
+}
+
+async function exportarContraparte() {
+  const btn = $("repCpExcel");
+  try {
+    const texto = $("repCpTexto").value.trim();
+    const desde = $("repCpDesde").value, hasta = $("repCpHasta").value;
+    if (!texto) throw new Error("Escribí el nombre o el CUIT de la contraparte.");
+    if (!desde || !hasta || desde > hasta) throw new Error("Revisá el período.");
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    await Promise.all([asegurarTransferencias(), asegurarCheques()]);
+    const d = datosContraparte(texto, desde, hasta);
+    const n = d.enviadas.length + d.recibidas.length + d.emitidos.length + d.endosados.length + d.deTerceros.length + d.cartera.length;
+    $("repCpInfo").textContent = n ? d.enviadas.length + " transferencia(s) enviada(s), " + d.recibidas.length + " recibida(s), " + d.emitidos.length + " cheque(s) emitido(s), " +
+      d.endosados.length + " endosado(s), " + d.deTerceros.length + " de terceros de ella y " + d.cartera.length + " en cartera hoy."
+      : "No encontré nada con ese nombre en el período. Probá con otra forma de escribirlo o con el CUIT.";
+    if (n) excelContraparte(d);
+  } catch (err) {
+    toast("No se pudo generar el reporte: " + msgErr(err), "error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
+}
+
+$("repCpExcel").addEventListener("click", exportarContraparte);
+$("repCpTexto").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); exportarContraparte(); } });
+
 function prepararVistaReportes() {
   cargarReporteConfig();
   if (!$("repGenDesde").value) $("repGenDesde").value = isoHoyMas(0, 1);
   if (!$("repGenHasta").value) $("repGenHasta").value = hoyIso();
+  // Reporte por contraparte: por defecto, los últimos 4 meses hasta hoy.
+  if (!$("repCpDesde").value) { const d = new Date(); const f = new Date(d.getFullYear(), d.getMonth() - 4, d.getDate()); $("repCpDesde").value = f.getFullYear() + "-" + dosDigitos(f.getMonth() + 1) + "-" + dosDigitos(f.getDate()); }
+  if (!$("repCpHasta").value) $("repCpHasta").value = hoyIso();
   const banco = $("repBanco").value;
   llenarSelect($("repBanco"), opcionesBancos(), "Elegí el banco");
   if (banco) $("repBanco").value = banco;
