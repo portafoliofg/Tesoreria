@@ -1842,6 +1842,7 @@
   .merc-semaforo.mal { color: var(--bad); background: rgba(var(--bad-rgb), .12); }
   .merc-semaforo.neutro { color: var(--muted); background: var(--surface-3); }
   .merc-explica { margin: 0 0 6px; }
+  .rep-cp-rapidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
   .merc-estad { margin-bottom: 14px; }
 </style>
 <script>
@@ -2678,10 +2679,20 @@
       </div>
       <div class="card">
         <div class="card-title">Reporte por contraparte</div>
-        <div class="row"><label>Proveedor o cliente<input type="text" id="repCpTexto" placeholder="Ej.: Polo 52, o su CUIT" autocomplete="off"></label></div>
+        <div class="row"><label>Proveedor o cliente<input type="text" id="repCpTexto" list="repCpLista" placeholder="Escribí un nombre o un CUIT" autocomplete="off"></label></div>
+        <datalist id="repCpLista"></datalist>
         <div class="row">
           <label>Desde<input type="date" id="repCpDesde"></label>
           <label>Hasta<input type="date" id="repCpHasta"></label>
+        </div>
+        <div class="rep-cp-rapidos" role="group" aria-label="Período rápido">
+          <button type="button" class="secondary small" data-cp-meses="1">Último mes</button>
+          <button type="button" class="secondary small" data-cp-meses="3">3 meses</button>
+          <button type="button" class="secondary small" data-cp-meses="4">4 meses</button>
+          <button type="button" class="secondary small" data-cp-meses="6">6 meses</button>
+          <button type="button" class="secondary small" data-cp-meses="12">12 meses</button>
+          <button type="button" class="secondary small" data-cp-meses="anio">Este año</button>
+          <button type="button" class="secondary small" data-cp-meses="todo">Todo</button>
         </div>
         <div class="actions"><button id="repCpExcel" type="button">Excel</button></div>
         <p class="hint" id="repCpInfo"></p>
@@ -11761,6 +11772,46 @@ async function exportarContraparte() {
 }
 
 $("repCpExcel").addEventListener("click", exportarContraparte);
+
+// Período rápido: desde N meses atrás (o el 1/1, o todo) hasta hoy. Las fechas se pueden cambiar a mano igual.
+function cpIso(d) {
+  return d.getFullYear() + "-" + dosDigitos(d.getMonth() + 1) + "-" + dosDigitos(d.getDate());
+}
+document.querySelectorAll("[data-cp-meses]").forEach(b => b.addEventListener("click", () => {
+  const v = b.dataset.cpMeses, hoy = new Date();
+  const desde = v === "anio" ? new Date(hoy.getFullYear(), 0, 1) : v === "todo" ? new Date(2000, 0, 1)
+    : new Date(hoy.getFullYear(), hoy.getMonth() - Number(v), hoy.getDate());
+  $("repCpDesde").value = cpIso(desde);
+  $("repCpHasta").value = cpIso(hoy);
+}));
+
+// Sugerencias de nombres: los destinatarios, ordenantes, titulares y destinos de tus movimientos y cheques
+// (los más usados primero). Se arman la primera vez que se entra al campo.
+let cpSugerenciasListas = false;
+$("repCpTexto").addEventListener("focus", async () => {
+  if (cpSugerenciasListas) return;
+  cpSugerenciasListas = true;
+  try {
+    await Promise.all([asegurarTransferencias(), asegurarCheques()]);
+    const cuenta = {}, nombre = {};
+    const sumar = v => {
+      const t = String(v || "").trim();
+      const k = cpCompacto(t);
+      if (k.length < 3 || /^\d+$/.test(k)) return;
+      cuenta[k] = (cuenta[k] || 0) + 1;
+      if (!nombre[k]) nombre[k] = t;
+    };
+    transferenciasDatos.forEach(f => { if (!esPropia(f)) ["Destinatario", "Ordenante", "Contraparte"].forEach(c => sumar(f[c])); });
+    chequesDatos.forEach(f => ["Titular", "Destino"].forEach(c => sumar(f[c])));
+    const lista = $("repCpLista");
+    lista.replaceChildren();
+    Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a]).slice(0, 400).forEach(k => {
+      const o = document.createElement("option");
+      o.value = nombre[k];
+      lista.append(o);
+    });
+  } catch (e) { cpSugerenciasListas = false; }
+});
 $("repCpTexto").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); exportarContraparte(); } });
 
 function prepararVistaReportes() {
