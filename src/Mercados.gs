@@ -225,6 +225,7 @@ function mercAnalizar_(d, u) {
     verificarEl: sumarDias(hoy, h.dias),
     grafico: grafico.ok ? mercSerieGrafico_(grafico, resumenYahoo) : null
   };
+  res.proyeccion = mercProyeccion_(res.probabilidad, base, cuant);
   mercGuardar_(res, u);
   mercSumarUso_(u);
   return { ok: true, analisis: res };
@@ -934,6 +935,53 @@ function mercBanda_(al, t, ruedas) {
   return Math.round(mercAcotar_(0.5 * mercDesvio_(rets) * Math.sqrt(ruedas), 0.005, 0.15) * 10000) / 10000;
 }
 
+// ======================= Proyección: probabilidad de subir y rango =======================
+
+/** Distribución normal acumulada (Abramowitz-Stegun 7.1.26). */
+function mercNormal_(z) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
+  const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2);
+  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
+}
+
+/** Inversa de la normal (Acklam), para p entre 0 y 1. */
+function mercNormalInv_(p) {
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const q0 = Math.min(Math.max(p, 1e-9), 1 - 1e-9);
+  if (q0 < 0.02425) { const q = Math.sqrt(-2 * Math.log(q0)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  if (q0 > 1 - 0.02425) { const q = Math.sqrt(-2 * Math.log(1 - q0)); return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  const q = q0 - 0.5, r = q * q;
+  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+
+/**
+ * Cuánto puede subir o bajar la acción en el plazo, en su moneda (pesos para las .BA, dólares el resto):
+ *  - parte de cómo se movió ESA acción en ventanas del mismo plazo en los últimos 3 años (tasa base): el rango
+ *    normal (2 de cada 3 veces) da el desvío, y la mitad de la mediana histórica da la tendencia (la mitad: lo
+ *    que pasó suele exagerar lo que viene);
+ *  - corre el centro según la probabilidad de ganarle al índice del pronóstico: si es p, el centro se mueve
+ *    z(p) veces el desvío habitual de la acción contra el índice (56 % → +0,15 desvíos).
+ * Devuelve {probSube, centro, desde, hasta} (desde/hasta: 2 de cada 3 veces), o null sin tasa base.
+ */
+function mercProyeccion_(probabilidad, tasaBase, cuant) {
+  const t = tasaBase;
+  if (!t || !t.rango || !t.rangoExceso) return null;
+  const sOwn = (t.rango.p84 - t.rango.p16) / 2, sRel = (t.rangoExceso.p84 - t.rangoExceso.p16) / 2;
+  if (!(sOwn > 0) || !(sRel >= 0)) return null;
+  let p = probabilidad !== null && probabilidad !== undefined && probabilidad !== '' ? Number(probabilidad) : (cuant ? cuant.probabilidad : 50);
+  if (!isFinite(p)) p = 50;
+  p = Math.max(5, Math.min(95, p)) / 100;
+  const tendencia = 0.5 * (t.rango.p50 || 0);
+  const ajuste = sRel * mercNormalInv_(p);
+  const centro = tendencia + ajuste;
+  const r4 = x => Math.round(x * 10000) / 10000;
+  return { probSube: Math.round(mercNormal_(centro / sOwn) * 100), centro: r4(centro), desde: r4(centro - sOwn), hasta: r4(centro + sOwn),
+    desvio: r4(sOwn), tendencia: r4(tendencia), ajuste: r4(ajuste), probIndice: Math.round(p * 100) };
+}
+
 // ======================= Contexto de mercado =======================
 
 function mercContexto_(simbolo, busqueda, grafico) {
@@ -1223,6 +1271,7 @@ function mercHistorial_() {
       verificarEl: mercIso_(f[col('Verificar el')]), precioFinal: num(f[col('Precio al verificar')]),
       variacion: num(f[col('Variación')]), variacionReferencia: num(f[col('Variación referencia')]), exceso: num(f[col('Exceso')]),
       variacionUsd: num(f[col('Variación USD')]), resultado: String(f[col('Resultado')] || ''), modelo: String(f[col('Modelo')] || ''),
+      proyeccion: mercProyeccion_(num(f[col('Probabilidad')]), detalle.tasaBase || null, detalle.cuant || null),
       _fila: f
     };
   }).reverse();

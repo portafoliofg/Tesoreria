@@ -1,7 +1,7 @@
 /**
  * Mercados — análisis cargados a mano (escritos por Claude, sin Gemini) el 06/11/2026.
  *
- * Son pronósticos a UN MES contra el índice (Merval para las .BA, S&P 500 para el resto), igual que los de
+ * Son pronósticos a UN MES (MERC_CARGA) y a UNA SEMANA (MERC_CARGA_SEMANA, que reusa los motivos del mes) contra el índice (Merval para las .BA, S&P 500 para el resto), igual que los de
  * Gemini. El texto (inclinación, probabilidad, motivos) se escribió con búsquedas web de ese día y sin acceso a
  * precios en vivo; por eso la confianza es baja en todos. Los números (precio, índice, indicadores, tasa base,
  * banda) NO están acá: los calcula el servidor con Yahoo en el momento de cargarlos, así la verificación es real.
@@ -182,6 +182,66 @@ const MERC_CARGA = [
     ['Medidas antidumping o una suba del acero.'], [], []]
 ];
 
+/**
+ * A UNA SEMANA (06/11 al 13/11/2026): casi todo es ruido, así que la mayoría queda "parecido al índice". Solo se
+ * inclina donde hay un motivo de corto plazo: el arrastre después de un balance recién publicado (MercadoLibre,
+ * YPF y Vista para arriba; ServiceNow para abajo) y la volatilidad de C3.ai. Los motivos de fondo son los del mes.
+ * símbolo → [inclinación, probabilidad de ganarle al índice, resumen de la semana, eventos de la semana]
+ */
+const MERC_SEM_RUIDO = 'A una semana el movimiento contra el índice es casi todo ruido y no hay un evento propio en el plazo: lo más probable es que se mueva parecido. ';
+const MERC_CARGA_SEMANA = {
+  'AAPL': ['neutral', 50, MERC_SEM_RUIDO + 'Pesa casi como el índice, así que es aún más probable que lo acompañe.'],
+  'AI': ['bajista', 46, 'Acción chica y muy volátil, en un clima de desconfianza con el software de IA: en una semana es algo más probable que quede atrás del índice, aunque un rebote violento es posible.'],
+  'AMZN': ['neutral', 49, MERC_SEM_RUIDO + 'Sigue digiriendo el balance flojo de fines de octubre; leve sesgo negativo.'],
+  'BBD': ['neutral', 50, MERC_SEM_RUIDO + 'Lo puede mover cualquier noticia fiscal de Brasil.'],
+  'COPX': ['neutral', 50, MERC_SEM_RUIDO + 'Depende del cobre y de los datos de China de la semana.'],
+  'EWZ': ['neutral', 50, MERC_SEM_RUIDO + 'Lo mueven el real y las noticias fiscales de Brasil.'],
+  'GOOGL': ['neutral', 49, MERC_SEM_RUIDO + 'Leve sesgo negativo por la desconfianza con el gasto en IA.'],
+  'KO': ['neutral', 51, MERC_SEM_RUIDO + 'Defensiva: si la semana es mala para las tecnológicas, le va un poco mejor.'],
+  'META': ['neutral', 50, MERC_SEM_RUIDO + 'Después de la caída por el balance puede rebotar algo, pero sin motivo firme.'],
+  'MSFT': ['neutral', 50, MERC_SEM_RUIDO],
+  'NKE': ['neutral', 50, MERC_SEM_RUIDO],
+  'NOW': ['bajista', 47, 'Después de un balance que decepcionó, la acción suele seguir floja algunas semanas. A una semana el efecto es chico, pero inclina levemente hacia "peor que el índice".'],
+  'NU': ['neutral', 50, 'Su balance del tercer trimestre suele salir a mediados de noviembre: si cae en la semana, define el movimiento. Sin saber el resultado, parecido al índice.',
+    [{ fecha: 'mediados de noviembre (aprox.)', evento: 'Balance del tercer trimestre', porQueImporta: 'Puede moverla más de 5 % en un día.' }]],
+  'NVDA': ['neutral', 50, 'El balance es el 17-18/11, después de esta semana. En la semana previa suele haber posiciones tomadas de antemano, para un lado o el otro: parecido al índice.',
+    [{ fecha: '17 o 18/11/2026', evento: 'Balance (después del plazo)', porQueImporta: 'La semana previa suele moverse por expectativas.' }]],
+  'PAGS': ['neutral', 50, MERC_SEM_RUIDO],
+  'PEP': ['neutral', 51, MERC_SEM_RUIDO + 'Defensiva: le va un poco mejor si la semana es mala para las tecnológicas.'],
+  'V': ['neutral', 51, MERC_SEM_RUIDO + 'Baja volatilidad: suele moverse menos que el índice.'],
+  'VALE': ['neutral', 50, MERC_SEM_RUIDO + 'Depende del mineral de hierro y de China.'],
+  'MELI': ['alcista', 55, 'Presentó balance el 04/11 con crecimiento muy alto (ingresos +45 %). En las semanas después de un balance fuerte la acción suele seguir en esa dirección: inclinación a ganarle al índice, con el margen bajo como riesgo.'],
+  'YPFD.BA': ['alcista', 54, 'Balance fuerte del tercer trimestre (ganancia de US$ 1.196 millones y menos deuda). En las semanas después de un buen balance la acción suele seguir firme; el riesgo es el petróleo y el riesgo país.'],
+  'VIST.BA': ['alcista', 54, 'Récord de producción e ingresos en el tercer trimestre, con recompra de acciones: suele seguir firme las semanas después del balance. El riesgo es el petróleo.'],
+  'PAMP.BA': ['neutral', 51, MERC_SEM_RUIDO + 'Buen balance, pero menos explosivo que YPF y Vista.'],
+  'TGSU2.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'TGNO4.BA': ['neutral', 50, MERC_SEM_RUIDO + 'Poca liquidez: puede moverse fuerte sin noticias.'],
+  'CEPU.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'GGAL.BA': ['neutral', 49, MERC_SEM_RUIDO + 'Los bancos son los más sensibles a un salto del riesgo país.'],
+  'SUPV.BA': ['neutral', 48, MERC_SEM_RUIDO + 'Banco de mayor volatilidad: se mueve más que el Merval para los dos lados.'],
+  'CRES.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'IRSA.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'COME.BA': ['neutral', 49, MERC_SEM_RUIDO + 'Se mueve mucho por compras y ventas de pequeños inversores.'],
+  'ECOG.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'HARG.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'METR.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'TRAN.BA': ['neutral', 50, MERC_SEM_RUIDO],
+  'TXAR.BA': ['neutral', 48, MERC_SEM_RUIDO + 'Leve sesgo negativo por el acero flojo y la competencia importada.']
+};
+
+/** Todos los análisis a cargar: [{id, hId, x}] con x en el formato de MERC_CARGA. */
+function mercListaManual_() {
+  const lista = MERC_CARGA.map(x => ({ id: mercIdManual_(x[0]), hId: 'mes', x: x }));
+  MERC_CARGA.forEach(x => {
+    const w = MERC_CARGA_SEMANA[x[0]];
+    if (!w) return;
+    const y = x.slice();
+    y[2] = w[0]; y[3] = w[1]; y[4] = w[2]; y[8] = w[3] || [];
+    lista.push({ id: 'cl-s-' + String(x[0]).toLowerCase().replace(/[^a-z0-9]/g, ''), hId: 'semana', x: y });
+  });
+  return lista;
+}
+
 /** Carga los análisis que todavía no están en la hoja (de a tandas). Devuelve cuántos faltan todavía. */
 function mercCargarManuales_() {
   if (!MERC_CARGA.length) return 0;
@@ -189,18 +249,18 @@ function mercCargarManuales_() {
   const ultima = hoja.getLastRow();
   const ids = {};
   if (ultima >= 2) hoja.getRange(2, 1, ultima - 1, 1).getValues().forEach(f => { ids[String(f[0])] = 1; });
-  const faltan = MERC_CARGA.filter(x => !ids[mercIdManual_(x[0])]);
+  const faltan = mercListaManual_().filter(m => !ids[m.id]);
   if (!faltan.length) return 0;
   const inicio = Date.now();
   let cargados = 0;
   for (let i = 0; i < faltan.length; i++) {
     if (Date.now() - inicio > 45000 || cargados >= 12) break;
     try {
-      const res = mercArmarManual_(faltan[i]);
+      const res = mercArmarManual_(faltan[i].x, faltan[i].hId, faltan[i].id);
       mercGuardar_(res, { 'Usuario': 'Claude' });
       cargados++;
     } catch (e) {
-      console.log('Mercados · carga manual ' + faltan[i][0] + ': ' + e.message);
+      console.log('Mercados · carga manual ' + faltan[i].id + ': ' + e.message);
     }
   }
   // Si en esta tanda no se pudo cargar ninguno, no se insiste (la pantalla dejaría de esperar en vano).
@@ -212,8 +272,9 @@ function mercIdManual_(simbolo) {
 }
 
 /** Arma el análisis como lo haría mercAnalizar_, pero con el texto escrito acá en lugar de Gemini. */
-function mercArmarManual_(x) {
-  const simbolo = x[0], hId = MERC_CARGA_HORIZONTE, h = MERC_HORIZONTES[hId];
+function mercArmarManual_(x, hId, id) {
+  hId = MERC_HORIZONTES[hId] ? hId : MERC_CARGA_HORIZONTE;
+  const simbolo = x[0], h = MERC_HORIZONTES[hId];
   const hoy = ahoraLocal().hoy;
   const grafico = mercGrafico_(simbolo);
   const ref = mercReferencia_(simbolo);
@@ -232,7 +293,7 @@ function mercArmarManual_(x) {
   let sobre = 'Escrito sin ver estos indicadores (se calcularon al cargarlo).';
   if (cuant) sobre += cuant.direccion === incl ? ' Coinciden con el pronóstico.' : cuant.direccion === 'neutral' || incl === 'neutral' ? ' Los indicadores no contradicen de lleno el pronóstico.' : ' Los indicadores apuntan para el otro lado: tomalo con más cuidado.';
   return {
-    id: mercIdManual_(simbolo),
+    id: id || mercIdManual_(simbolo),
     fecha: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
     simbolo: simbolo, nombre: x[1], horizonte: hId, horizonteNombre: h.nombre,
     inclinacion: incl, confianza: 'baja', probabilidad: prob,
@@ -246,6 +307,7 @@ function mercArmarManual_(x) {
     precio: tecnico ? tecnico.precio : null, moneda: grafico.ok ? grafico.moneda : '',
     tecnico: tecnico ? tecnico.lineas : [], conNoticiasEnVivo: false,
     fuentes: (x[9] || []).map(k => MERC_FUENTES_[k]).filter(Boolean), modelo: MERC_CARGA_MODELO,
-    verificarEl: sumarDias(hoy, h.dias)
+    verificarEl: sumarDias(hoy, h.dias),
+    proyeccion: mercProyeccion_(prob, base, cuant)
   };
 }

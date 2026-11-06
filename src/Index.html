@@ -1842,6 +1842,19 @@
   .merc-semaforo.mal { color: var(--bad); background: rgba(var(--bad-rgb), .12); }
   .merc-semaforo.neutro { color: var(--muted); background: var(--surface-3); }
   .merc-explica { margin: 0 0 6px; }
+  .merc-pano-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 10px; margin-bottom: 12px; }
+  .merc-pano-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .merc-pano-grupo { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); }
+  .merc-pano-grupo .merc-clave-sub { margin-top: 3px; }
+  .merc-pano-prom { font-size: 26px; font-weight: 700; margin: 2px 0; font-variant-numeric: tabular-nums; }
+  .merc-pano-prom.pos, .merc-pos { color: var(--ok); } .merc-pano-prom.neg, .merc-neg { color: var(--bad); }
+  .merc-rango-barra { position: relative; width: 140px; height: 12px; background: var(--surface-3); border-radius: 6px; }
+  .merc-rango-cero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--border-strong); }
+  .merc-rango-tramo { position: absolute; top: 2px; height: 8px; border-radius: 4px; opacity: .55; }
+  .merc-rango-tramo.pos { background: var(--ok); } .merc-rango-tramo.neg { background: var(--bad); }
+  .merc-rango-centro { position: absolute; top: -1px; width: 3px; height: 14px; margin-left: -1px; background: var(--text); border-radius: 2px; }
+  .merc-proy { border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; font-size: 13.5px; line-height: 1.55; background: var(--surface-2); }
+  .merc-proy b.pos { color: var(--ok); } .merc-proy b.neg { color: var(--bad); }
   .rep-cp-rapidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
   .merc-estad { margin-bottom: 14px; }
 </style>
@@ -2359,6 +2372,20 @@
       </div>
       <p class="hint">Para acciones argentinas en pesos usá el símbolo con <strong>.BA</strong> (YPFD.BA, GGAL.BA); sin eso toma el ADR en dólares. Se compara contra el Merval (las .BA) o el S&amp;P 500 (el resto). El análisis tarda entre 30 segundos y un minuto y medio.</p>
       <p class="hint merc-aviso">Es una opinión armada con información pública, no una recomendación de inversión. Una explicación convincente puede fallar igual: fijate cuánto viene acertando abajo.</p>
+    </div>
+    <div class="card">
+      <div class="card-title merc-hist-tit">Panorama: cuánto puede subir o bajar cada acción</div>
+      <div class="merc-pano-filtros">
+        <label>Plazo<select id="mpPlazo"><option value="semana" selected>Una semana</option><option value="mes">Un mes</option><option value="trimestre">Tres meses</option><option value="">Todos</option></select></label>
+        <label>Mercado<select id="mpMercado"><option value="">Todos</option><option value="Pesos">Argentinas en pesos (.BA)</option><option value="Dólares">En dólares</option></select></label>
+        <label>Tendencia<select id="mpTendencia"><option value="">Todas</option><option value="sube">Más chances de subir (55 % o más)</option><option value="baja">Más chances de bajar (45 % o menos)</option><option value="neutra">Parejas</option></select></label>
+        <label>Confianza<select id="mpConfianza"><option value="">Todas</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></label>
+        <label>Modelo<select id="mpModelo"><option value="">Todos</option><option value="claude">Claude</option><option value="gemini">Gemini</option></select></label>
+        <label>Estado<select id="mpEstado"><option value="vigentes" selected>Vigentes</option><option value="verificados">Verificados</option><option value="">Todos</option></select></label>
+        <label>Ordenar<select id="mpOrden"><option value="prob">Prob. de subir</option><option value="centro">Esperado</option><option value="rango">Rango más amplio</option><option value="nombre">Nombre</option></select></label>
+        <label>Buscar<input type="text" id="mpTexto" placeholder="YPF, MELI…" autocomplete="off"></label>
+      </div>
+      <div id="mercPanorama"><p class="hint">Cargando…</p></div>
     </div>
     <div id="mercResultado"></div>
     <div class="card">
@@ -24309,6 +24336,7 @@ async function cargarMercados(forzar) {
     mercCargado = true;
     mercItems = res.items || [];
     renderMercHistorial(res.resumen || {});
+    renderMercPanorama();
     // Si quedan análisis cargados a mano por sumar (MercadosCarga.gs), se pide otra tanda.
     if (res.resumen && res.resumen.manualesFaltan > 0) {
       $("mercHistorial").prepend(el("p", "hint", "Cargando los análisis preparados: faltan " + res.resumen.manualesFaltan + "…"));
@@ -24344,6 +24372,18 @@ function nodoMercAnalisis(a) {
     const s = a.seguimiento;
     card.append(el("p", "merc-final " + (s.va === "bien" ? "bien" : "mal"), "Hasta ahora " + (s.va === "bien" ? "va bien" : "va mal") + ": la acción " + mercPct(s.variacion) +
       ", " + mercRefNombre(a) + " " + mercPct(s.variacionReferencia) + " (diferencia " + mercPct(s.exceso) + "). Faltan " + s.faltan + " día(s)."));
+  }
+
+  // Proyección: probabilidad de subir y rango probable.
+  if (a.proyeccion) {
+    const p = a.proyeccion, mon = /\.BA$/i.test(a.simbolo || "") ? "en pesos" : "en dólares";
+    const proy = el("div", "merc-proy");
+    proy.append("En " + a.horizonteNombre.toLowerCase() + " tiene ", el("b", p.probSube >= 50 ? "pos" : "neg", p.probSube + " % de probabilidad de subir"),
+      " (" + (100 - p.probSube) + " % de bajar), " + mon + ". 2 de cada 3 veces quedaría entre ", el("b", p.desde >= 0 ? "pos" : "neg", mercPct(p.desde)), " y ",
+      el("b", p.hasta >= 0 ? "pos" : "neg", mercPct(p.hasta)), "; lo más esperable, alrededor de ", el("b", p.centro >= 0 ? "pos" : "neg", mercPct(p.centro)), ".");
+    const ley = el("div", "merc-expl", "Sale del movimiento de esta acción en ventanas del mismo plazo (3 años) y de la probabilidad de ganarle al índice (" + p.probIndice + " %). No es un precio objetivo.");
+    proy.append(ley);
+    card.append(proy);
   }
 
   // Números clave: probabilidad, indicadores propios, coincidencia y tasa base.
@@ -24676,6 +24716,151 @@ function nodoMercEstadistica(r) {
   });
   return det;
 }
+
+// ---------------- Panorama de acciones (MERCADOS) ----------------
+// Una fila por acción y plazo con la probabilidad de subir y el rango probable (2 de cada 3 veces), filtros, y
+// un resumen "a nivel sistema": cuánto podría subir o bajar en promedio el conjunto filtrado. Pesos y dólares
+// se resumen por separado (no se mezclan monedas).
+const MERC_CORRELACION = 0.5;   // supuesto: correlación promedio entre las acciones del grupo
+const mercFiltro = { plazo: "semana", mercado: "", tendencia: "", confianza: "", modelo: "", estado: "vigentes", texto: "", orden: "prob" };
+
+function mercMonedaGrupo(a) {
+  return /\.BA$/i.test(a.simbolo || "") ? "Pesos" : "Dólares";
+}
+
+function mercTendencia(p) {
+  return !p ? "" : p.probSube >= 55 ? "sube" : p.probSube <= 45 ? "baja" : "neutra";
+}
+
+/** Último pronóstico de cada acción, plazo y modelo que cumple los filtros. */
+function mercPanoramaFilas() {
+  const f = mercFiltro, txt = normalizar(f.texto || "");
+  const vistos = {};
+  return mercItems.filter(a => {
+    if (!a.proyeccion) return false;
+    if (f.plazo && a.horizonte !== f.plazo) return false;
+    if (f.mercado && mercMonedaGrupo(a) !== f.mercado) return false;
+    if (f.tendencia && mercTendencia(a.proyeccion) !== f.tendencia) return false;
+    if (f.confianza && a.confianza !== f.confianza) return false;
+    if (f.modelo && (f.modelo === "claude" ? !/^Claude/.test(a.modelo) : /^Claude/.test(a.modelo))) return false;
+    if (f.estado === "vigentes" && a.resultado) return false;
+    if (f.estado === "verificados" && !(a.resultado === "Acertó" || a.resultado === "Falló")) return false;
+    if (txt && normalizar(a.simbolo + " " + a.nombre).indexOf(txt) < 0) return false;
+    const k = a.simbolo + "|" + a.horizonte + "|" + (/^Claude/.test(a.modelo) ? "c" : "g");
+    if (vistos[k]) return false;   // mercItems viene del más nuevo al más viejo
+    vistos[k] = true;
+    return true;
+  }).sort((a, b) => {
+    if (mercFiltro.orden === "centro") return b.proyeccion.centro - a.proyeccion.centro;
+    if (mercFiltro.orden === "nombre") return a.simbolo.localeCompare(b.simbolo);
+    if (mercFiltro.orden === "rango") return (b.proyeccion.hasta - b.proyeccion.desde) - (a.proyeccion.hasta - a.proyeccion.desde);
+    return b.proyeccion.probSube - a.proyeccion.probSube;
+  });
+}
+
+/** Resumen de un grupo (misma moneda): promedio esperado, rango del promedio y cuántas suben o bajan. */
+function mercResumenGrupo(lista) {
+  const n = lista.length;
+  if (!n) return null;
+  const prom = lista.reduce((s, a) => s + a.proyeccion.centro, 0) / n;
+  const desv = Math.sqrt(lista.reduce((s, a) => s + a.proyeccion.desvio * a.proyeccion.desvio, 0) / n);
+  // Desvío del promedio de n acciones con correlación ρ: σ·√(ρ + (1−ρ)/n).
+  const desvProm = desv * Math.sqrt(MERC_CORRELACION + (1 - MERC_CORRELACION) / n);
+  const probSube = 0.5 * (1 + mercErf(prom / desvProm / Math.SQRT2));
+  return { n: n, prom: prom, desde: prom - desvProm, hasta: prom + desvProm, probSube: probSube,
+    suben: lista.filter(a => mercTendencia(a.proyeccion) === "sube").length, bajan: lista.filter(a => mercTendencia(a.proyeccion) === "baja").length,
+    mejores: lista.slice().sort((a, b) => b.proyeccion.probSube - a.proyeccion.probSube).slice(0, 3),
+    peores: lista.slice().sort((a, b) => a.proyeccion.probSube - b.proyeccion.probSube).slice(0, 3) };
+}
+
+function mercErf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x));
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return x >= 0 ? y : -y;
+}
+
+/** Barra del rango: de dónde a dónde puede ir (2 de cada 3 veces), con el centro marcado y el cero de referencia. */
+function nodoMercRango(p, escala) {
+  const caja = el("div", "merc-rango-barra");
+  const pos = v => Math.max(0, Math.min(100, 50 + v / escala * 50));
+  const tramo = el("span", "merc-rango-tramo " + (p.centro >= 0 ? "pos" : "neg"));
+  tramo.style.left = pos(p.desde) + "%";
+  tramo.style.width = Math.max(1, pos(p.hasta) - pos(p.desde)) + "%";
+  const centro = el("span", "merc-rango-centro");
+  centro.style.left = pos(p.centro) + "%";
+  caja.append(el("span", "merc-rango-cero"), tramo, centro);
+  caja.title = "Entre " + mercPct(p.desde) + " y " + mercPct(p.hasta) + " (2 de cada 3 veces); centro " + mercPct(p.centro);
+  return caja;
+}
+
+function renderMercPanorama() {
+  const box = $("mercPanorama");
+  if (!box) return;
+  const filas = mercPanoramaFilas();
+  const resumenes = el("div", "merc-pano-grupos");
+  ["Pesos", "Dólares"].forEach(m => {
+    const g = mercResumenGrupo(filas.filter(a => mercMonedaGrupo(a) === m));
+    if (!g) return;
+    const c = el("div", "merc-pano-grupo");
+    c.append(el("div", "merc-clave-tit", (m === "Pesos" ? "Acciones argentinas en pesos (.BA)" : "Acciones y ETF en dólares") + " · " + g.n));
+    const val = el("div", "merc-pano-prom " + (g.prom >= 0 ? "pos" : "neg"), mercPct(g.prom));
+    c.append(val, el("div", "merc-clave-sub", "Movimiento esperado del promedio (todas con el mismo peso). 2 de cada 3 veces, entre " + mercPct(g.desde) + " y " + mercPct(g.hasta) +
+      ". Probabilidad de que el promedio suba: " + Math.round(g.probSube * 100) + " %."));
+    c.append(el("div", "merc-clave-sub", g.suben + " con más chances de subir · " + g.bajan + " de bajar · " + (g.n - g.suben - g.bajan) + " parejas"));
+    const lis = (titulo, l) => { if (l.length) c.append(el("div", "merc-clave-sub", titulo + ": " + l.map(a => a.simbolo.replace(/\.BA$/i, "") + " " + a.proyeccion.probSube + " %").join(", "))); };
+    lis("Más probable que suban", g.mejores);
+    lis("Más probable que bajen", g.peores);
+    resumenes.append(c);
+  });
+  box.replaceChildren();
+  if (!filas.length) { box.append(el("p", "hint", "No hay pronósticos con esos filtros. Los análisis nuevos (y los preparados) traen la proyección; los muy viejos no.")); return; }
+  box.append(resumenes);
+  // Escala común de las barras: el rango más grande del listado.
+  const escala = Math.max(0.02, ...filas.map(a => Math.max(Math.abs(a.proyeccion.desde), Math.abs(a.proyeccion.hasta))));
+  const table = el("table", "merc-pano-tabla");
+  const thead = el("thead"), trh = el("tr");
+  ["Acción", "Plazo", "Prob. de subir", "Rango probable (2 de 3 veces)", "", "Esperado", "Le gana al índice", "Confianza", "Modelo", "Vence / resultado"].forEach(h => trh.append(el("th", null, h)));
+  thead.append(trh);
+  const tbody = el("tbody");
+  filas.forEach(a => {
+    const p = a.proyeccion;
+    const tr = el("tr", "merc-fila");
+    tr.title = "Tocá para ver el análisis completo";
+    const acc = el("td");
+    acc.append(el("b", null, a.simbolo), el("span", "merc-expl", a.nombre && a.nombre !== a.simbolo ? a.nombre : ""));
+    const prob = el("td");
+    prob.append(el("span", "merc-semaforo " + (p.probSube >= 55 ? "ok" : p.probSube <= 45 ? "mal" : "neutro"), (p.probSube >= 50 ? "▲ " : "▼ ") + p.probSube + " %"));
+    const rango = el("td", "num", mercPct(p.desde) + " a " + mercPct(p.hasta));
+    const barra = el("td");
+    barra.append(nodoMercRango(p, escala));
+    const res = el("td");
+    if (a.resultado === "Acertó" || a.resultado === "Falló") res.append(el("span", "badge " + (a.resultado === "Acertó" ? "badge-guardado" : "badge-error"), a.resultado + " " + mercPct(a.variacion)));
+    else if (a.seguimiento) res.append(el("span", "badge " + (a.seguimiento.va === "bien" ? "badge-guardado" : "badge-pendiente"), "Hoy " + mercPct(a.seguimiento.variacion) + " · " + a.seguimiento.faltan + " d"));
+    else res.append(el("span", "badge badge-pendiente", "Al " + isoADma(a.verificarEl)));
+    if (res.firstChild) res.firstChild.style.whiteSpace = "nowrap";
+    tr.append(acc, celda(a.horizonteNombre), prob, rango, barra, el("td", "num " + (p.centro >= 0 ? "merc-pos" : "merc-neg"), mercPct(p.centro)),
+      celda(p.probIndice + " %"), celda(a.confianza), celda(/^Claude/.test(a.modelo) ? "Claude" : "Gemini"), res);
+    tr.addEventListener("click", () => {
+      $("mercResultado").replaceChildren(nodoMercAnalisis(a));
+      $("mercResultado").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    });
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  box.append(envolverTabla(table));
+  box.append(el("p", "hint", "Cómo se calcula: el rango sale de cómo se movió cada acción en ventanas del mismo plazo en los últimos 3 años (2 de cada 3 veces quedó dentro). " +
+    "El centro parte de la mitad de su tendencia histórica y se corre según la probabilidad de ganarle al índice del pronóstico. Las .BA están en pesos (incluyen la inflación); el resto en dólares. " +
+    "El promedio del grupo supone una correlación de " + MERC_CORRELACION.toString().replace(".", ",") + " entre las acciones. No es un precio objetivo ni una recomendación: es un rango probable."));
+}
+
+function mercLeerFiltros() {
+  mercFiltro.plazo = $("mpPlazo").value; mercFiltro.mercado = $("mpMercado").value; mercFiltro.tendencia = $("mpTendencia").value;
+  mercFiltro.confianza = $("mpConfianza").value; mercFiltro.modelo = $("mpModelo").value; mercFiltro.estado = $("mpEstado").value;
+  mercFiltro.texto = $("mpTexto").value; mercFiltro.orden = $("mpOrden").value;
+  renderMercPanorama();
+}
+["mpPlazo", "mpMercado", "mpTendencia", "mpConfianza", "mpModelo", "mpEstado", "mpOrden"].forEach(id => $(id).addEventListener("change", mercLeerFiltros));
+$("mpTexto").addEventListener("input", mercLeerFiltros);
 
 async function analizarMercado() {
   const simbolo = $("mercSimbolo").value.trim();
