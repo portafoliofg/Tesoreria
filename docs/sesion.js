@@ -16,6 +16,8 @@
  *                              La credencial queda en sessionStorage ("bgp-gid") para pasársela
  *                              a la plataforma de Inversiones sin pedir otro ingreso.
  * BGPSesion.credencialGoogle(maxMs) credencial de Google guardada si tiene menos de maxMs, o "".
+ * BGPSesion.reemplazarToken(t) cambia el token guardado por uno nuevo (la app de Tesorería lo manda
+ *                              al cambiar la contraseña, que cierra las sesiones viejas).
  * BGPSesion.salir()            Promise → cierra la sesión
  * BGPSesion.pedir(accion, d)   Promise → respuesta del servidor para una acción con sesión
  *                              (por ejemplo los datos de Propiedades). Falla con el motivo;
@@ -185,6 +187,10 @@
           return descomprimir(r.gz).then(function (o) { alLlegar(o, false); return r; });
         }
       });
+    },
+    reemplazarToken: function (t) {
+      t = String(t || "");
+      if (t && leer(CLAVE) && /^[0-9a-f-]{40,100}$/i.test(t)) escribir(CLAVE, t);
     },
     salir: function () {
       var t = leer(CLAVE);
