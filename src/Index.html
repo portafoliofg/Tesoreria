@@ -2705,6 +2705,32 @@
         <p class="hint">Incluye el estado de conciliación, las partidas conciliadas y las pendientes de cada lado, con espacio para firmas.</p>
       </div>
       <div class="card">
+        <div class="card-title">Resumen general y flujo de saldos</div>
+        <div class="row">
+          <label>Desde<input type="date" id="repRgDesde"></label>
+          <label>Hasta<input type="date" id="repRgHasta"></label>
+        </div>
+        <div class="rep-cp-rapidos" role="group" aria-label="Período rápido">
+          <button type="button" class="secondary small" data-rg-meses="mes">Este mes</button>
+          <button type="button" class="secondary small" data-rg-meses="anterior">Mes anterior</button>
+          <button type="button" class="secondary small" data-rg-meses="3">3 meses</button>
+          <button type="button" class="secondary small" data-rg-meses="6">6 meses</button>
+          <button type="button" class="secondary small" data-rg-meses="12">12 meses</button>
+          <button type="button" class="secondary small" data-rg-meses="anio">Este año</button>
+        </div>
+        <div class="row">
+          <label>Saldos de las cuentas
+            <select id="repRgFuente">
+              <option value="propios">Registros propios (comprobantes, manuales y cheques)</option>
+              <option value="banco">Extracto bancario (resúmenes)</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions"><button id="repRgExcel" type="button">Excel</button></div>
+        <p class="hint" id="repRgInfo"></p>
+        <p class="hint">Un Excel con el resumen de todo (saldos de cada cuenta, ingresos y egresos, por mes), la distribución por rubro, proveedores, clientes y medio de pago, una hoja por cuenta con su flujo de saldo y el detalle de cada movimiento con su rubro.</p>
+      </div>
+      <div class="card">
         <div class="card-title">Reporte por contraparte</div>
         <div class="row"><label>Proveedor o cliente<input type="text" id="repCpTexto" list="repCpLista" placeholder="Escribí un nombre o un CUIT" autocomplete="off"></label></div>
         <datalist id="repCpLista"></datalist>
@@ -12022,10 +12048,374 @@ $("repCpTexto").addEventListener("focus", async () => {
 });
 $("repCpTexto").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); exportarContraparte(); } });
 
+// ---------------- Resumen general y flujo de saldos por cuenta ----------------
+// Un Excel con formato (ExcelJS, mismo estilo que el de contraparte):
+//  - Resumen: saldo inicial y final de cada cuenta, ingresos y egresos, por mes, y lo principal de rubros,
+//    proveedores y clientes.
+//  - Por rubro, Proveedores, Clientes y Por medio de pago: la distribución completa.
+//  - Una hoja por cuenta con su flujo de saldo (el mismo cálculo que el Libro banco).
+//  - Detalle: todos los movimientos del período con su rubro.
+// Qué cuenta como ingreso o egreso (sin contar dos veces): transferencias y efectivo (sin los movimientos entre
+// cuentas propias ni las líneas del extracto bancario), cheques propios (por la fecha de débito o de pago),
+// cheques de terceros recibidos (ingreso, de quien lo dio) y endosados (egreso, a quien se lo dimos). Depositar
+// un cheque de terceros no es un ingreso nuevo: ya se contó al recibirlo.
+// El rubro sale de la columna Clase de la planilla si la tiene; si no, de reglas por palabras del concepto y de
+// la contraparte (RG_RUBROS). Es una estimación: lo que no encaja queda en "Otros / sin clasificar".
+const RG_RUBROS = [
+  ["Impuestos y tasas", ["AFIP", "ARCA", "IIBB", "INGRESOS BRUTOS", "IMPUESTO", "SICORE", "GANANCIAS", "MONOTRIBUTO", "RENTAS", "MUNICIPAL", "TASA ", "SELLOS", "PERCEPCION", "RETENCION", "F931", "AUTONOMOS"]],
+  ["Sueldos y personal", ["SUELDO", "AGUINALDO", "CHANGARIN", "JORNAL", "CARGAS SOCIALES", "SINDICATO", "VACACIONES", "EMPLEAD", "LIQUIDACION FINAL", "PERSONAL"]],
+  ["Honorarios", ["HONORARIO", "TASACION", "ESTUDIO "]],
+  ["Campo: granos", ["SOJA", "MAIZ", "TRIGO", "GIRASOL", "SORGO", "GRANOS", "FIJACION", "CEREAL", "CAMPANA"]],
+  ["Campo: insumos", ["SEMILLA", "AGROQUIM", "FERTILIZ", "INSUMO", "HERBICIDA", "GLIFOSATO", "BIDON", "CORTEVA", "UNION AGRICOLA", "AGROFINA", "BOLSAS"]],
+  ["Campo: labores y contratistas", ["TRILLA", "SIEMBRA", "FUMIGAD", "PULVERIZ", "COSECHA", "CARPID", "LABOR", "CONTRATISTA", "PICADO", "ENROLLAD", "ARADA", "DESMALEZ", "CORTE DE PASTO"]],
+  ["Fletes", ["FLETE", "TRANSPORTE", "CARGA", "DESCARGA", "ACARREO"]],
+  ["Combustible", ["GASOIL", "COMBUSTIBLE", "NAFTA", "YPF RUTA", "SURTIDOR"]],
+  ["Vehículos", ["AMAROK", "TOYOTA", "CAMIONETA", "CUBIERTA", "NEUMATICO", "COCHERA", "VOLKSWAGEN", "PATENTE", "TRACTOR"]],
+  ["Alquileres y arrendamientos", ["ALQUILER", "ARRENDAMIENTO", "EXPENSAS"]],
+  ["Mantenimiento y reparaciones", ["ARREGLO", "REPUESTO", "SERVICE", "MANTENIMIENTO", "REPARACION", "MATERIALES", "LIMPIEZA", "GOMERIA", "TALLER"]],
+  ["Inmuebles e inversiones", ["COMPRA CASA", "VENTA CASA", "TERRENO", "GALPON", "INMUEBLE", "LOTE", "CONSTRUCCION", "ESCRITURA", "FIDEICOMISO", "OBRA"]],
+  ["Financiero: cheques, préstamos y FCI", ["CHEQUE", "ESPEJO", "BOLSA", "CAUCION", "PRESTAMO", "ROLEO", "ROLLEO", "DESCUENTO", "INTERES", "FCI", "PLAZO FIJO", "CAPITAL", "DIVISA", "DOLAR", "CAMBIO", "DEUDA", "CUOTA", "VALORES", " ALIC ", " ALYC", "VENTA USD", "COMPRA USD", " MEP "]],
+  ["Tarjetas, servicios y seguros", ["TARJETA", "VISA", "MASTERCARD", "SERVICIO", "LUZ", "EPEC", "AGUA", "INTERNET", "TELEFON", "CELULAR", "SEGURO", "GAS NATURAL"]],
+  ["Cámara", ["CAMARA"]],
+  ["Oficina y administración", ["OFICINA", "LIBRERIA", "PAPELERIA", "SISTEMA", "SOFTWARE", "CONTADOR", "ESCRIBAN", "GESTORIA", "GESTORA"]],
+  ["Viajes y alojamiento", ["ALOJAMIENTO", "HOTEL", "VIAJE", "PASAJE", "VIATICO"]],
+  ["Caja chica y gastos personales", ["CAJA CHICA", "PERSONALES", "GASTOS VARIOS", "RETIRO", "PEDIDOS YA"]],
+  ["Campo: otros", ["CAMPO", " HAS ", "HECTAREA", "ESTANCIA"]]
+];
+const RG_CLASES = { "CAMPO": "Campo (según la planilla)", "PERSONAL": "Sueldos y personal", "FINANCIERO": "Financiero: cheques, préstamos y FCI", "CAMARA": "Cámara", "MANTENIMIENTOS": "Mantenimiento y reparaciones" };
+
+function rgRubro(clase, concepto, contraparte, persona) {
+  const c = normalizar(clase || "").trim();
+  if (c) return { rubro: RG_CLASES[c] || (clase.charAt(0).toUpperCase() + clase.slice(1)), segun: "Clase" };
+  const buscar = texto => {
+    const t = " " + normalizar(texto).replace(/[^A-Z0-9| ]/g, " ") + " ";
+    for (let i = 0; i < RG_RUBROS.length; i++) if (RG_RUBROS[i][1].some(p => t.indexOf(p) >= 0)) return RG_RUBROS[i][0];
+    return "";
+  };
+  // "Espejo cheques Bancor 2746-2765 - Gastos de entrega Volkswagen": la primera parte es el medio de pago,
+  // no el rubro. Primero se busca sin las partes que solo dicen cómo se pagó; si no aparece nada, con todo.
+  const partes = String(concepto || "").split(" - ");
+  const propias = partes.filter(x => !/^(ESPEJO|CHEQUES? (ESPEJO|VIA BOLSA)|COMPRA (DE )?CHEQUES?|.*CHEQUES ESPEJOS?)/.test(normalizar(x).trim()));
+  const hallado = (propias.length && propias.length < partes.length ? buscar(propias.join(" | ") + " | " + (contraparte || "")) : "") ||
+    buscar((concepto || "") + " | " + (contraparte || ""));
+  if (hallado) return { rubro: hallado, segun: "Regla" };
+  if (persona && contraparte && cpCompacto(persona) === cpCompacto(contraparte)) return { rubro: "Movimientos con el titular", segun: "Regla" };
+  return { rubro: "Otros / sin clasificar", segun: "" };
+}
+
+/** Todos los ingresos y egresos del período, una vez cada uno. */
+function rgMovimientos(desde, hasta) {
+  const out = [];
+  const en = iso => !!iso && iso >= desde && iso <= hasta;
+  transferenciasDatos.forEach(f => {
+    if (esPropia(f) || f["Origen"] === "Resumen") return;
+    const iso = fechaAOrden(fechaMov(f));
+    if (!en(iso)) return;
+    const ing = f["Condición"] === "Ingreso";
+    const contra = ing ? (f["Ordenante"] || f["Contraparte"] || "") : (f["Destinatario"] || f["Contraparte"] || "");
+    const r = rgRubro(f["Clase"], f["Concepto"], contra, f["Persona"]);
+    const cta = cuentaDeFila(f);
+    out.push({ iso: iso, sentido: ing ? "Ingreso" : "Egreso", importe: Math.abs(parseImporte(f["Monto"])), moneda: cpMoneda(f),
+      medio: f["Instrumento"] === "Efectivo" ? "Efectivo" : "Transferencia", contraparte: contra.trim(), concepto: f["Concepto"] || "",
+      rubro: r.rubro, segun: r.segun, cuenta: cta ? cta["Banco"] + " · " + etiquetaCuenta(cta) : (f["Instrumento"] === "Efectivo" ? "Caja (efectivo)" : (f["Banco"] || "")),
+      ref: f["ID Planilla"] || f["N° Interno"] || "", estado: f["Estado"] || "" });
+  });
+  chequesDatos.forEach(c => {
+    const est = normalizar(c["Estado"] || "").trim();
+    const imp = Math.abs(parseImporte(c["Importe"]));
+    const cta = cuentaDeFila(c);
+    const base = { importe: imp, moneda: cpMoneda(c), concepto: c["Concepto"] || "", ref: c["ID Planilla"] || ("N° " + c["N° de Cheque"]), estado: c["Estado"] || "" };
+    if (c["Tipo"] === "Emitido") {
+      if (["ANULADO", "CADUCADO", "RECHAZADO"].indexOf(est) >= 0) return;
+      const deb = debitoDeCheque(c);
+      const iso = deb ? deb.iso : fechaAOrden(c["Fecha de Pago"] || c["Fecha de Emisión"]);
+      if (!en(iso)) return;
+      const contra = (c["Destino"] || c["Titular"] || "").trim();
+      const r = rgRubro("", c["Concepto"], contra, c["Persona"]);
+      out.push(Object.assign({ iso: iso, sentido: "Egreso", medio: c["Canal"] === "Bolsa" ? "Cheque propio (bolsa)" : "Cheque propio", contraparte: contra,
+        rubro: r.rubro, segun: r.segun, cuenta: cta ? cta["Banco"] + " · " + etiquetaCuenta(cta) : (c["Banco"] || "") }, base));
+      return;
+    }
+    if (["ANULADO"].indexOf(est) >= 0) return;
+    // Recibido: ingreso de quien lo dio.
+    const isoRec = fechaAOrden(c["Fecha de Ingreso"] || c["Fecha de Emisión"]);
+    if (en(isoRec) && est !== "DEVOLUCION") {
+      const contra = (c["Titular"] || "").trim();
+      const r = rgRubro("", c["Concepto"], contra, c["Persona"]);
+      out.push(Object.assign({ iso: isoRec, sentido: "Ingreso", medio: "Cheque de terceros recibido", contraparte: contra, rubro: r.rubro, segun: r.segun, cuenta: "Cartera de cheques" }, base));
+    }
+    // Endosado: egreso a quien se lo dimos.
+    if (est === "ENDOSADO" && c["Destino"]) {
+      const iso = fechaAOrden(c["Fecha de Débito"] || c["Fecha de Pago"]);
+      if (en(iso)) {
+        const contra = c["Destino"].trim();
+        const r = rgRubro("", c["Concepto"], contra, c["Persona"]);
+        out.push(Object.assign({ iso: iso, sentido: "Egreso", medio: "Cheque de terceros endosado", contraparte: contra, rubro: r.rubro, segun: r.segun, cuenta: "Cartera de cheques" }, base));
+      }
+    }
+  });
+  return out.sort((a, b) => a.iso.localeCompare(b.iso));
+}
+
+/** Flujo de saldo de cada cuenta (mismo cálculo que el Libro banco). */
+function rgCuentas(desde, hasta, fuente) {
+  return catalogo.cuentas.map(cuenta => {
+    const todas = partidasLibroBanco(cuenta, fuente);
+    const base = ultimoSaldo(cuenta, sumarDiasIso(desde, -1));
+    let saldoIni = null;
+    if (base) {
+      const bIso = fechaAOrden(base["Fecha"]);
+      saldoIni = parseImporte(base["Saldo"]) + todas.filter(m => m.iso > bIso && m.iso < desde).reduce((a, m) => a + m.importe, 0);
+    }
+    const periodo = todas.filter(m => m.iso >= desde && m.iso <= hasta);
+    let saldo = saldoIni === null ? 0 : saldoIni;
+    periodo.forEach(m => { saldo += m.importe; m.saldo = saldo; m.rubro = rgRubro("", m.concepto, m.contraparte, "").rubro; });
+    return { cuenta: cuenta, moneda: cuenta["Moneda"] === "USD" ? "USD" : "Pesos", saldoIni: saldoIni, saldoFin: saldo, filas: periodo,
+      creditos: periodo.filter(m => m.importe > 0).reduce((a, m) => a + m.importe, 0), debitos: periodo.filter(m => m.importe < 0).reduce((a, m) => a - m.importe, 0) };
+  }).filter(c => c.filas.length || c.saldoIni !== null);
+}
+
+/** Agrupa por una clave: {clave, nombre, n, Pesos, USD, primero, ultimo, porMedio, porRubro}. */
+function rgAgrupar(lista, clave, nombreDe) {
+  const g = {};
+  lista.forEach(m => {
+    const k = clave(m) || "(sin dato)";
+    const x = g[k] = g[k] || { nombre: nombreDe ? nombreDe(m) : k, nombres: {}, n: 0, Pesos: 0, USD: 0, primero: m.iso, ultimo: m.iso, porMedio: {}, porRubro: {} };
+    x.n++; x[m.moneda] += m.importe;
+    if (m.iso < x.primero) x.primero = m.iso;
+    if (m.iso > x.ultimo) x.ultimo = m.iso;
+    x.porMedio[m.medio] = (x.porMedio[m.medio] || 0) + 1;
+    x.porRubro[m.rubro] = (x.porRubro[m.rubro] || 0) + m.importe;
+    if (nombreDe) { const nm = nombreDe(m); x.nombres[nm] = (x.nombres[nm] || 0) + 1; }
+  });
+  return Object.keys(g).map(k => {
+    const x = g[k];
+    if (nombreDe) x.nombre = Object.keys(x.nombres).sort((a, b) => x.nombres[b] - x.nombres[a])[0];
+    x.medios = Object.keys(x.porMedio).sort((a, b) => x.porMedio[b] - x.porMedio[a]).join(", ");
+    x.rubroPrincipal = Object.keys(x.porRubro).sort((a, b) => x.porRubro[b] - x.porRubro[a])[0] || "";
+    return x;
+  }).sort((a, b) => b.Pesos - a.Pesos || b.USD - a.USD);
+}
+
+/** Tabla con el estilo de los reportes: encabezado en la fila r; formatos por columna ("n" importe, "p" %, "f" fecha). */
+function rgTabla(ws, r, titulos, filas, formatos, total) {
+  cpxEncabezado(ws, r, titulos);
+  filas.forEach((f, i) => {
+    r++;
+    f.forEach((v, j) => {
+      const c = ws.getCell(r, j + 1);
+      c.value = v === "" || v === undefined ? null : v;
+      const fmt = formatos[j];
+      if (fmt === "n") c.numFmt = CPX_NUM;
+      if (fmt === "p") c.numFmt = "0.0%";
+      if (fmt === "f" && v instanceof Date) c.numFmt = "dd/mm/yyyy";
+      c.border = { bottom: { style: "thin", color: { argb: CPX.borde } } };
+      if (i % 2) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CPX.zebra } };
+    });
+  });
+  if (total) {
+    r++;
+    total.forEach((v, j) => {
+      const c = ws.getCell(r, j + 1);
+      c.value = v === "" ? null : v;
+      if (formatos[j] === "n") c.numFmt = CPX_NUM;
+      if (formatos[j] === "p") c.numFmt = "0.0%";
+      c.font = { bold: true };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CPX.total } };
+    });
+  }
+  return r;
+}
+
+function rgSeccion(ws, r, texto) {
+  ws.getCell(r, 1).value = texto;
+  ws.getCell(r, 1).font = { bold: true, size: 12, color: { argb: CPX.azul } };
+}
+
+function rgNota(ws, r, texto, hasta) {
+  ws.getCell(r, 1).value = texto;
+  ws.getCell(r, 1).font = { italic: true, size: 9.5, color: { argb: CPX.gris } };
+  ws.getCell(r, 1).alignment = { wrapText: true, vertical: "top" };
+  ws.mergeCells(r, 1, r, hasta || 6);
+  ws.getRow(r).height = 32;
+}
+
+async function excelResumenGeneralFlujo(desde, hasta, fuente) {
+  if (!(await hayLibreria("exceljs"))) throw new Error("No se pudo cargar el generador de Excel. Revisá la conexión y probá de nuevo");
+  const movs = rgMovimientos(desde, hasta);
+  const ctas = rgCuentas(desde, hasta, fuente);
+  const per = isoADma(desde) + " al " + isoADma(hasta);
+  const r2 = n => Math.round(n * 100) / 100;
+  const fecha = iso => cpxFecha(iso);
+  const ing = movs.filter(m => m.sentido === "Ingreso"), egr = movs.filter(m => m.sentido === "Egreso");
+  const suma = (l, mon) => l.filter(m => m.moneda === mon).reduce((a, m) => a + m.importe, 0);
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Tesorería";
+  const empresa = (typeof config !== "undefined" && config && config.empresa) || "";
+
+  // ----- Resumen -----
+  const ws = wb.addWorksheet("Resumen");
+  cpxTitulo(ws, "Resumen general" + (empresa ? " · " + empresa : "") + " · " + per,
+    "Armado el " + hoyTexto() + ". Saldos por cuenta " + (fuente === "banco" ? "según el extracto bancario" : "según los registros propios") + " (mismo cálculo que el Libro banco). " +
+    "Ingresos y egresos: transferencias, efectivo, cheques propios y cheques de terceros recibidos y endosados, sin los movimientos entre cuentas propias. Pesos y dólares van siempre por separado.", 7);
+  [44, 14, 18, 18, 18, 18, 12].forEach((w, j) => { ws.getColumn(j + 1).width = w; });
+  let r = 4;
+  rgSeccion(ws, r, "Saldos por cuenta"); r++;
+  const filasCta = ctas.map(c => [c.cuenta["Banco"] + " · " + etiquetaCuenta(c.cuenta), c.moneda, c.saldoIni === null ? "Sin saldo informado" : r2(c.saldoIni), r2(c.creditos), r2(c.debitos), r2(c.saldoFin), c.filas.length]);
+  r = rgTabla(ws, r, ["Cuenta", "Moneda", "Saldo inicial", "Créditos", "Débitos", "Saldo final", "Movimientos"], filasCta, ["", "", "n", "n", "n", "n", ""]);
+  ["Pesos", "USD"].forEach(mon => {
+    const l = ctas.filter(c => c.moneda === mon);
+    if (!l.length) return;
+    r++;
+    const vals = ["Total cuentas en " + (mon === "Pesos" ? "pesos" : "dólares"), mon, r2(l.reduce((a, c) => a + (c.saldoIni || 0), 0)), r2(l.reduce((a, c) => a + c.creditos, 0)),
+      r2(l.reduce((a, c) => a + c.debitos, 0)), r2(l.reduce((a, c) => a + c.saldoFin, 0)), l.reduce((a, c) => a + c.filas.length, 0)];
+    vals.forEach((v, j) => { const c = ws.getCell(r, j + 1); c.value = v; if (j >= 2 && j <= 5) c.numFmt = CPX_NUM; c.font = { bold: true }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CPX.total } }; });
+  });
+  if (ctas.some(c => c.saldoIni === null)) { r++; rgNota(ws, r, "Las cuentas \"Sin saldo informado\" no tienen un saldo cargado antes del período: su saldo final parte de cero. Cargá un saldo en Saldos y flujo para que cierre.", 7); }
+
+  r += 2; rgSeccion(ws, r, "Ingresos y egresos del período"); r++;
+  const filasIE = ["Pesos", "USD"].filter(m => suma(movs, m)).map(m => [m === "Pesos" ? "Pesos" : "Dólares", r2(suma(ing, m)), r2(suma(egr, m)), r2(suma(ing, m) - suma(egr, m)), ing.filter(x => x.moneda === m).length + egr.filter(x => x.moneda === m).length]);
+  r = rgTabla(ws, r, ["Moneda", "Ingresos", "Egresos", "Neto", "Movimientos"], filasIE, ["", "n", "n", "n", ""]);
+
+  r += 2; rgSeccion(ws, r, "Por mes"); r++;
+  const meses = {};
+  movs.forEach(m => { const k = m.iso.substring(0, 7); const x = meses[k] = meses[k] || { iP: 0, eP: 0, iU: 0, eU: 0 }; x[(m.sentido === "Ingreso" ? "i" : "e") + (m.moneda === "Pesos" ? "P" : "U")] += m.importe; });
+  const NM = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  r = rgTabla(ws, r, ["Mes", "Ingresos $", "Egresos $", "Neto $", "Ingresos US$", "Egresos US$", "Neto US$"],
+    Object.keys(meses).sort().map(k => { const x = meses[k]; return [NM[+k.substring(5, 7) - 1] + " " + k.substring(0, 4), r2(x.iP), r2(x.eP), r2(x.iP - x.eP), r2(x.iU), r2(x.eU), r2(x.iU - x.eU)]; }),
+    ["", "n", "n", "n", "n", "n", "n"]);
+
+  const rubrosE = rgAgrupar(egr, m => m.rubro), rubrosI = rgAgrupar(ing, m => m.rubro);
+  const totE = suma(egr, "Pesos"), totI = suma(ing, "Pesos");
+  r += 2; rgSeccion(ws, r, "Egresos por rubro (los 10 mayores, pesos)"); r++;
+  r = rgTabla(ws, r, ["Rubro", "Movimientos", "Pesos", "% del total", "US$"], rubrosE.slice(0, 10).map(x => [x.nombre, x.n, r2(x.Pesos), totE ? x.Pesos / totE : 0, r2(x.USD)]), ["", "", "n", "p", "n"]);
+  const provs = rgAgrupar(egr, m => cpCompacto(m.contraparte), m => m.contraparte || "(sin dato)");
+  const clis = rgAgrupar(ing, m => cpCompacto(m.contraparte), m => m.contraparte || "(sin dato)");
+  r += 2; rgSeccion(ws, r, "Proveedores: a quién más se le pagó (los 15 mayores)"); r++;
+  r = rgTabla(ws, r, ["Proveedor", "Pagos", "Pesos", "% del total", "US$", "Rubro principal"], provs.slice(0, 15).map(x => [x.nombre, x.n, r2(x.Pesos), totE ? x.Pesos / totE : 0, r2(x.USD), x.rubroPrincipal]), ["", "", "n", "p", "n", ""]);
+  r += 2; rgSeccion(ws, r, "Clientes: de quién más se cobró (los 15 mayores)"); r++;
+  r = rgTabla(ws, r, ["Cliente / origen", "Cobros", "Pesos", "% del total", "US$", "Rubro principal"], clis.slice(0, 15).map(x => [x.nombre, x.n, r2(x.Pesos), totI ? x.Pesos / totI : 0, r2(x.USD), x.rubroPrincipal]), ["", "", "n", "p", "n", ""]);
+  r += 2; rgNota(ws, r, "Los rubros salen de la columna Clase de la planilla cuando la tiene y, si no, de palabras del concepto y de la contraparte (por ejemplo \"trilla\" → Campo: labores; \"AFIP\" → Impuestos). Es una estimación: revisá \"Otros / sin clasificar\" en la hoja Por rubro.", 7);
+
+  // ----- Por rubro -----
+  const wr = wb.addWorksheet("Por rubro", { views: [{ state: "frozen", ySplit: 4 }] });
+  cpxTitulo(wr, "Distribución por rubro · " + per, "Egresos e ingresos de cada rubro. El % es sobre el total en pesos de cada lado. \"Según\" dice cuántos movimientos se clasificaron por la columna Clase y cuántos por reglas.", 8);
+  [40, 12, 18, 12, 18, 12, 16, 16].forEach((w, j) => { wr.getColumn(j + 1).width = w; });
+  const nombresR = {};
+  rubrosE.concat(rubrosI).forEach(x => { nombresR[x.nombre] = 1; });
+  const filasR = Object.keys(nombresR).map(n => {
+    const e = rubrosE.find(x => x.nombre === n) || { n: 0, Pesos: 0, USD: 0 }, i = rubrosI.find(x => x.nombre === n) || { n: 0, Pesos: 0, USD: 0 };
+    const deClase = movs.filter(m => m.rubro === n && m.segun === "Clase").length;
+    return [n, e.n + i.n, r2(e.Pesos), totE ? e.Pesos / totE : 0, r2(i.Pesos), totI ? i.Pesos / totI : 0, r2(e.USD + i.USD), deClase ? deClase + " por Clase" : "reglas"];
+  }).sort((a, b) => b[2] - a[2]);
+  rgTabla(wr, 4, ["Rubro", "Movimientos", "Egresos $", "% egresos", "Ingresos $", "% ingresos", "US$ (ambos)", "Según"], filasR, ["", "", "n", "p", "n", "p", "n", ""],
+    ["Total", movs.length, r2(totE), totE ? 1 : 0, r2(totI), totI ? 1 : 0, r2(suma(movs, "USD")), ""]);
+  wr.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + filasR.length, column: 8 } };
+
+  // ----- Proveedores y clientes -----
+  const hojaContra = (nombre, titulo, nota, lista, total, col) => {
+    const w = wb.addWorksheet(nombre, { views: [{ state: "frozen", xSplit: 1, ySplit: 4 }] });
+    cpxTitulo(w, titulo, nota, 9);
+    [40, 10, 18, 11, 16, 13, 13, 34, 32].forEach((x, j) => { w.getColumn(j + 1).width = x; });
+    const fin = rgTabla(w, 4, [col, "Cantidad", "Pesos", "% del total", "US$", "Primera", "Última", "Rubro principal", "Medios"],
+      lista.map(x => [x.nombre, x.n, r2(x.Pesos), total ? x.Pesos / total : 0, r2(x.USD), fecha(x.primero), fecha(x.ultimo), x.rubroPrincipal, x.medios]),
+      ["", "", "n", "p", "n", "f", "f", "", ""], ["Total (" + lista.length + ")", lista.reduce((a, x) => a + x.n, 0), r2(lista.reduce((a, x) => a + x.Pesos, 0)), total ? 1 : 0, r2(lista.reduce((a, x) => a + x.USD, 0)), "", "", "", ""]);
+    w.autoFilter = { from: { row: 4, column: 1 }, to: { row: fin - 1, column: 9 } };
+  };
+  hojaContra("Proveedores", "Proveedores · " + per, "A quién se le pagó en el período: transferencias, efectivo, cheques propios y cheques de terceros endosados. Los nombres escritos distinto (mayúsculas, espacios, tildes) se juntan.", provs, totE, "Proveedor");
+  hojaContra("Clientes", "Clientes y orígenes de fondos · " + per, "De quién se cobró en el período: transferencias, efectivo y cheques de terceros recibidos.", clis, totI, "Cliente / origen");
+
+  // ----- Por medio de pago -----
+  const wm = wb.addWorksheet("Por medio de pago");
+  cpxTitulo(wm, "Por medio de pago · " + per, "Cuánto entró y salió por cada medio.", 6);
+  [34, 12, 18, 18, 16, 16].forEach((x, j) => { wm.getColumn(j + 1).width = x; });
+  const medios = {};
+  movs.forEach(m => { const x = medios[m.medio] = medios[m.medio] || { n: 0, iP: 0, eP: 0, iU: 0, eU: 0 }; x.n++; x[(m.sentido === "Ingreso" ? "i" : "e") + (m.moneda === "Pesos" ? "P" : "U")] += m.importe; });
+  rgTabla(wm, 4, ["Medio", "Movimientos", "Ingresos $", "Egresos $", "Ingresos US$", "Egresos US$"],
+    Object.keys(medios).sort((a, b) => (medios[b].iP + medios[b].eP) - (medios[a].iP + medios[a].eP)).map(k => { const x = medios[k]; return [k, x.n, r2(x.iP), r2(x.eP), r2(x.iU), r2(x.eU)]; }),
+    ["", "", "n", "n", "n", "n"]);
+
+  // ----- Una hoja por cuenta -----
+  const usados = {};
+  ctas.forEach(c => {
+    // Nombre de la hoja: banco, CC o CA y los últimos dígitos de la cuenta (Excel admite 31 caracteres).
+    const tipoC = /corriente/i.test(c.cuenta["Tipo de Cuenta"] || "") ? "CC" : /ahorro/i.test(c.cuenta["Tipo de Cuenta"] || "") ? "CA" : "";
+    const numC = String(c.cuenta["N° de Cuenta"] || "").replace(/\D/g, "").slice(-6);
+    let nom = [c.cuenta["Banco"], tipoC, numC, c.moneda === "USD" ? "USD" : ""].filter(Boolean).join(" ").replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim().substring(0, 28);
+    while (usados[nom]) nom = nom.substring(0, 26) + " " + (usados[nom]++ + 1);
+    usados[nom] = 1;
+    const w = wb.addWorksheet(nom, { views: [{ state: "frozen", xSplit: 1, ySplit: 4 }] });
+    cpxTitulo(w, "Flujo de saldo · " + c.cuenta["Banco"] + " · " + etiquetaCuenta(c.cuenta), "Del " + per + ", " + (fuente === "banco" ? "según el extracto bancario" : "según los registros propios (comprobantes, cargas manuales y cheques)") +
+      ". Parte del último saldo informado antes del período." + (c.saldoIni === null ? " ATENCIÓN: no hay saldo informado antes del período, los saldos parten de cero." : ""), 11);
+    [12, 10, 44, 30, 26, 18, 16, 16, 18, 14, 12].forEach((x, j) => { w.getColumn(j + 1).width = x; });
+    const filas = [[null, null, "Saldo inicial", null, null, null, null, null, c.saldoIni === null ? 0 : r2(c.saldoIni), null, null]];
+    c.filas.forEach(m => filas.push([fecha(m.iso), m.interno || null, m.concepto, m.contraparte, m.rubro, m.referencia || null, m.importe < 0 ? r2(-m.importe) : null, m.importe > 0 ? r2(m.importe) : null, r2(m.saldo), m.conciliado || null,
+      m.comprobante ? { text: "Ver", hyperlink: linkDrive(m.comprobante) } : null]));
+    const fin = rgTabla(w, 4, ["Fecha", "N° interno", "Concepto", "Contraparte", "Rubro", "Referencia", "Débito", "Crédito", "Saldo", "Conciliación", "Comprobante"], filas,
+      ["f", "", "", "", "", "", "n", "n", "n", "", ""], [null, null, "Totales del período · " + c.filas.length + " movimiento(s)", null, null, null, r2(c.debitos), r2(c.creditos), r2(c.saldoFin), null, null]);
+    w.getRow(5).font = { bold: true };
+    w.autoFilter = { from: { row: 4, column: 1 }, to: { row: fin - 1, column: 11 } };
+  });
+
+  // ----- Detalle -----
+  const wd = wb.addWorksheet("Detalle", { views: [{ state: "frozen", xSplit: 1, ySplit: 4 }] });
+  cpxTitulo(wd, "Detalle de ingresos y egresos · " + per, "Cada movimiento que entra en el resumen, con su rubro. Filtrá por rubro, medio o contraparte.", 11);
+  [12, 10, 28, 16, 12, 34, 44, 32, 10, 30, 16].forEach((x, j) => { wd.getColumn(j + 1).width = x; });
+  const finD = rgTabla(wd, 4, ["Fecha", "Sentido", "Medio", "Importe", "Moneda", "Contraparte", "Concepto", "Rubro", "Según", "Cuenta", "Referencia"],
+    movs.map(m => [fecha(m.iso), m.sentido, m.medio, r2(m.importe), m.moneda, m.contraparte || null, m.concepto || null, m.rubro, m.segun || null, m.cuenta || null, m.ref || null]),
+    ["f", "", "", "n", "", "", "", "", "", "", ""]);
+  if (movs.length) wd.autoFilter = { from: { row: 4, column: 1 }, to: { row: finD, column: 11 } };
+
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  a.download = nombreSeguroArchivo("Resumen general y flujo - " + isoADma(desde).split("/").join("-") + " al " + isoADma(hasta).split("/").join("-")) + ".xlsx";
+  document.body.append(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  return { movs: movs.length, cuentas: ctas.length, proveedores: provs.length, clientes: clis.length, archivo: a.download,
+    sinRubro: movs.filter(m => m.rubro === "Otros / sin clasificar").length };
+}
+
+async function exportarResumenFlujo() {
+  const btn = $("repRgExcel");
+  try {
+    const desde = $("repRgDesde").value, hasta = $("repRgHasta").value;
+    if (!desde || !hasta || desde > hasta) throw new Error("Revisá el período.");
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    await Promise.all([asegurarTransferencias(), asegurarCheques(), runJson("obtenerSaldos", {}).then(r => { saldosGuardados = r.saldos || []; })]);
+    const r = await excelResumenGeneralFlujo(desde, hasta, $("repRgFuente").value);
+    $("repRgInfo").textContent = r.movs + " movimiento(s), " + r.cuentas + " cuenta(s), " + r.proveedores + " proveedor(es) y " + r.clientes + " cliente(s)." +
+      (r.sinRubro ? " " + r.sinRubro + " movimiento(s) quedaron en \"Otros / sin clasificar\"." : "");
+    toast("Excel generado: " + r.archivo, "ok");
+  } catch (err) {
+    toast("No se pudo generar el resumen: " + msgErr(err), "error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
+}
+
+$("repRgExcel").addEventListener("click", exportarResumenFlujo);
+document.querySelectorAll("[data-rg-meses]").forEach(b => b.addEventListener("click", () => {
+  const v = b.dataset.rgMeses, hoy = new Date();
+  let desde, hasta = hoy;
+  if (v === "mes") desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  else if (v === "anterior") { desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1); hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0); }
+  else if (v === "anio") desde = new Date(hoy.getFullYear(), 0, 1);
+  else desde = new Date(hoy.getFullYear(), hoy.getMonth() - Number(v), hoy.getDate());
+  $("repRgDesde").value = cpIso(desde);
+  $("repRgHasta").value = cpIso(hasta);
+}));
+
 function prepararVistaReportes() {
   cargarReporteConfig();
   if (!$("repGenDesde").value) $("repGenDesde").value = isoHoyMas(0, 1);
   if (!$("repGenHasta").value) $("repGenHasta").value = hoyIso();
+  // Resumen general y flujo: por defecto, desde el 1 del mes anterior hasta hoy.
+  if (!$("repRgDesde").value) $("repRgDesde").value = isoHoyMas(-1, 1);
+  if (!$("repRgHasta").value) $("repRgHasta").value = hoyIso();
   // Reporte por contraparte: por defecto, los últimos 4 meses hasta hoy.
   if (!$("repCpDesde").value) { const d = new Date(); const f = new Date(d.getFullYear(), d.getMonth() - 4, d.getDate()); $("repCpDesde").value = f.getFullYear() + "-" + dosDigitos(f.getMonth() + 1) + "-" + dosDigitos(f.getDate()); }
   if (!$("repCpHasta").value) $("repCpHasta").value = hoyIso();
