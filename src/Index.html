@@ -23903,6 +23903,11 @@ async function cargarMercados(forzar) {
     mercCargado = true;
     mercItems = res.items || [];
     renderMercHistorial(res.resumen || {});
+    // Si quedan análisis cargados a mano por sumar (MercadosCarga.gs), se pide otra tanda.
+    if (res.resumen && res.resumen.manualesFaltan > 0) {
+      $("mercHistorial").prepend(el("p", "hint", "Cargando los análisis preparados: faltan " + res.resumen.manualesFaltan + "…"));
+      setTimeout(() => cargarMercados(true), 500);
+    }
   } catch (err) {
     $("mercHistorial").replaceChildren(nodoError("No se pudo traer el historial: " + msgErr(err)));
   }

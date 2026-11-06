@@ -1173,6 +1173,11 @@ function mercSeguimiento_(f, col, hoy) {
 }
 
 function mercHistorial_() {
+  // Análisis cargados a mano (MercadosCarga.gs), si el archivo existe: se suman de a tandas.
+  let manualesFaltan = 0;
+  if (typeof mercCargarManuales_ === 'function') {
+    try { manualesFaltan = mercCargarManuales_(); } catch (e) { console.log('Mercados · carga manual: ' + e.message); }
+  }
   const hoja = obtenerHoja_(MERC_HOJA, MERC_HEADERS);
   const ultima = hoja.getLastRow();
   if (ultima < 2) return { ok: true, items: [], resumen: mercResumen_([]) };
@@ -1227,7 +1232,9 @@ function mercHistorial_() {
     try { it.seguimiento = mercSeguimiento_(it._fila, col, hoy); seguidos++; } catch (e) {}
   });
   items.forEach(it => { delete it._fila; });
-  return { ok: true, items: items.slice(0, 200), resumen: mercResumen_(items) };
+  const resumen = mercResumen_(items);
+  resumen.manualesFaltan = manualesFaltan;
+  return { ok: true, items: items.slice(0, 200), resumen: resumen };
 }
 
 // ======================= Estadística de aciertos =======================
