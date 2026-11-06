@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <!-- Seguridad: solo se ejecutan scripts de este sitio y de las bibliotecas nombradas acá (con versión fija).
+       Si se agrega una biblioteca de otro lado, sumarla a script-src o no va a cargar. -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'">
   <!-- Si se abre por http:// (un enlace o favorito viejo), pasa a https:// al instante. -->
   <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -306,7 +309,7 @@
       </div>
     </section>
   </div>
-  <script src="sesion.js?v=9"></script>
+  <script src="sesion.js?v=10"></script>
   <script>
     // Pantalla de inicio: la presentación animada del logo y, al terminar, el ingreso (si
     // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
@@ -345,19 +348,45 @@
       if (!BGPSesion.token()) cargarGoogle();
 
       // ----- Sesión hacia la app de Tesorería -----
-      // La app está en un iframe de Google con otros iframes adentro: se manda a todos.
+      // El token solo se le da a la app de Tesorería que está en el iframe de esta página. No
+      // alcanza con mirar que el mensaje venga de un dominio de Google: cualquiera puede publicar
+      // una página ahí (un Apps Script o un Google Sites propio), abrir bgpsammar.com y pedir el token.
+      // Por eso se exige además que quien pide sea el iframe de la app o uno de sus iframes internos.
+      var ORIGEN_APP = /^https:\/\/(script\.google\.com|([a-z0-9-]+[.-])?script\.googleusercontent\.com)$/;
+      var destinoApp = null;   // {w: ventana, o: origen} de la app, cuando se presentó (bgp-pide-sesion)
+      function esDeLaApp(fuente) {
+        var raiz = app && app.contentWindow;
+        if (!raiz || !fuente) return false;
+        function buscar(win, prof) {
+          if (win === fuente) return true;
+          if (prof >= 4) return false;
+          try { for (var i = 0; i < win.frames.length; i++) if (buscar(win.frames[i], prof + 1)) return true; } catch (e) {}
+          return false;
+        }
+        return buscar(raiz, 0);
+      }
+      // La app está en un iframe de Google con otros iframes adentro: mientras no se presentó,
+      // se manda a todos (solo pueden estar los de la app, que viven dentro de nuestro iframe).
       function difundir(win, msg) {
         try { win.postMessage(msg, "*"); } catch (e) {}
         try { for (var i = 0; i < win.frames.length; i++) difundir(win.frames[i], msg); } catch (e) {}
       }
       function enviarSesion() {
         var t = BGPSesion.token();
-        if (t && app.contentWindow) difundir(app.contentWindow, { tipo: "bgp-sesion", token: t });
+        if (!t || !app.contentWindow) return;
+        var msg = { tipo: "bgp-sesion", token: t };
+        if (destinoApp && esDeLaApp(destinoApp.w)) {
+          try { destinoApp.w.postMessage(msg, destinoApp.o); } catch (e) {}
+        } else difundir(app.contentWindow, msg);
       }
       window.addEventListener("message", function (e) {
-        if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|google)\.com$/.test(e.origin) || !e.data) return;
-        if (e.data.tipo === "bgp-pide-sesion" && BGPSesion.token()) {
-          try { e.source.postMessage({ tipo: "bgp-sesion", token: BGPSesion.token() }, "*"); } catch (err) {}
+        if (!ORIGEN_APP.test(e.origin) || !e.data || !esDeLaApp(e.source)) return;
+        if (e.data.tipo === "bgp-pide-sesion") {
+          destinoApp = { w: e.source, o: e.origin };
+          if (BGPSesion.token()) try { e.source.postMessage({ tipo: "bgp-sesion", token: BGPSesion.token() }, e.origin); } catch (err) {}
+        } else if (e.data.tipo === "bgp-token" && typeof e.data.token === "string") {
+          // La app cambió la contraseña: el servidor cerró las sesiones viejas y le dio un token nuevo.
+          BGPSesion.reemplazarToken(e.data.token);
         } else if (e.data.tipo === "bgp-inicio") {
           // "Volver al inicio" desde la app: el selector de secciones, sin cerrar la sesión.
           history.replaceState(null, "", "#elegir");

@@ -1895,7 +1895,7 @@
       <p class="sub">Todavía no hay usuarios. Creá el primero: queda como dueño de las alertas y del WhatsApp que ya estaban configurados.</p>
       <label>Nombre y apellido<input type="text" id="inicialNombre" autocomplete="name"></label>
       <label>Usuario<input type="text" id="inicialUsuario" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="ej.: fgomez"></label>
-      <label>Contraseña (mínimo 8 caracteres)<input type="password" id="inicialClave" autocomplete="new-password"></label>
+      <label>Contraseña (mínimo 10 caracteres)<input type="password" id="inicialClave" autocomplete="new-password"></label>
       <label>Repetí la contraseña<input type="password" id="inicialClave2" autocomplete="new-password"></label>
       <button type="submit" id="btnInicial">Crear usuario e ingresar</button>
       <p class="hint" id="inicialStatus"></p>
@@ -3211,7 +3211,7 @@
         <label>Contraseña inicial<input type="password" id="nuevaClave" autocomplete="new-password"></label>
         <label>Repetila<input type="password" id="nuevaClave2" autocomplete="new-password"></label>
       </div>
-      <p class="hint">Mínimo 8 caracteres. La persona la puede cambiar después desde Usuarios → Mi cuenta.</p>
+      <p class="hint">Mínimo 10 caracteres. La persona la puede cambiar después desde Usuarios → Mi cuenta.</p>
       <p id="usuarioStatus" class="hint"></p>
     </div>
     <div class="modal__foot">
@@ -9207,8 +9207,10 @@ $("btnSalir").addEventListener("click", () => {
 // así no se pide el usuario dos veces. Solo se acepta desde el dominio propio.
 const ORIGENES_SITIO = ["https://bgpsammar.com", "https://www.bgpsammar.com"];
 
+// Solo se le habla al dominio propio: si la app quedó dentro de otra página, el mensaje no llega.
 function avisarSitio(msg) {
-  try { if (window.top !== window) window.top.postMessage(msg, "*"); } catch (e) {}
+  if (window.top === window) return;
+  ORIGENES_SITIO.forEach(o => { try { window.top.postMessage(msg, o); } catch (e) {} });
 }
 
 window.addEventListener("message", e => {
@@ -9431,16 +9433,18 @@ function claseAccion(a) {
 // ---------------- Vista: Usuarios ----------------
 let usuarios = [];
 let usuarioClave = null;
+let soyAdminUsuarios = false;
 
 function cargarUsuarios() {
   const box = $("usuariosBox");
   box.replaceChildren(nodoCargando());
   runJson("obtenerUsuarios", {})
-    .then(res => { usuarios = res.usuarios || []; renderUsuarios(res.yo); })
+    .then(res => { usuarios = res.usuarios || []; soyAdminUsuarios = !!res.soyAdmin; renderUsuarios(res.yo); })
     .catch(err => box.replaceChildren(nodoError("No se pudieron traer los usuarios: " + msgErr(err))));
 }
 
 function renderUsuarios(yo) {
+  $("btnNuevoUsuario").hidden = !soyAdminUsuarios;
   const box = $("usuariosBox");
   box.replaceChildren();
   const table = el("table");
@@ -9456,12 +9460,31 @@ function renderUsuarios(yo) {
     usuarioTd.className = "mono";
     const estado = el("td");
     estado.append(el("span", "pill " + (u.activo ? "pill-ing" : "pill-none"), u.activo ? "Activo" : "Inactivo"));
+    if (u.admin) estado.append(" ", el("span", "pill pill-propia", "Administrador"));
     const acc = el("td", "acciones-celda");
-    const clave = el("button", "secondary small", "Restablecer contraseña");
-    clave.type = "button";
-    clave.addEventListener("click", () => abrirModalClave(u));
-    acc.append(clave);
-    if (u.id !== yo) {
+    if (!soyAdminUsuarios) acc.append(el("span", "sub-dato", "—"));
+    if (soyAdminUsuarios) {
+      const clave = el("button", "secondary small", "Restablecer contraseña");
+      clave.type = "button";
+      clave.addEventListener("click", () => abrirModalClave(u));
+      acc.append(clave);
+      const ba = el("button", "secondary small", u.admin ? "Quitar administrador" : "Hacer administrador");
+      ba.type = "button";
+      ba.addEventListener("click", async () => {
+        if (!u.admin && !(await confirmar("Hacer administrador", u.nombre + " va a poder crear usuarios, activarlos o desactivarlos, restablecer contraseñas y nombrar otros administradores.", "Hacer administrador"))) return;
+        ba.classList.add("is-loading");
+        try {
+          await runJson("guardarAdministrador", { id: u.id, admin: !u.admin });
+          toast(u.admin ? "Ya no es administrador." : "Ahora es administrador.", "ok");
+          cargarUsuarios();
+        } catch (err) {
+          toast(msgErr(err), "error");
+          ba.classList.remove("is-loading");
+        }
+      });
+      acc.append(ba);
+    }
+    if (soyAdminUsuarios && u.id !== yo) {
       const bt = el("button", u.activo ? "danger small" : "secondary small", u.activo ? "Desactivar" : "Activar");
       bt.type = "button";
       bt.addEventListener("click", async () => {
@@ -9483,7 +9506,9 @@ function renderUsuarios(yo) {
   });
   const card = el("div", "card");
   card.append(el("div", "card-title", "Usuarios de la aplicación"), envolverTabla(table));
-  card.append(el("p", "hint", "Todos los usuarios tienen los mismos permisos. Cada uno ve y configura solo sus propias alertas."));
+  card.append(el("p", "hint", soyAdminUsuarios
+    ? "Los administradores crean usuarios, los activan o desactivan, restablecen contraseñas y nombran otros administradores. Al restablecer una contraseña se cierran las sesiones abiertas de ese usuario. Cada uno ve y configura solo sus propias alertas."
+    : "Solo un administrador puede crear usuarios, activarlos o desactivarlos y restablecer contraseñas. Tu contraseña la cambiás desde Mi cuenta."));
   box.append(card);
 }
 
@@ -9546,7 +9571,9 @@ $("btnCambiarClave").addEventListener("click", async () => {
   btn.disabled = true;
   btn.classList.add("is-loading");
   try {
-    await runJson("cambiarMiClave", { actual: $("miClaveActual").value, nueva: $("miClaveNueva").value });
+    const res = await runJson("cambiarMiClave", { actual: $("miClaveActual").value, nueva: $("miClaveNueva").value });
+    // Cambiar la contraseña cierra las sesiones abiertas: el servidor manda una nueva para esta.
+    if (res && res.token) { guardarToken(res.token); avisarSitio({ tipo: "bgp-token", token: res.token }); }
     ["miClaveActual", "miClaveNueva", "miClaveNueva2"].forEach(id => { $(id).value = ""; });
     setStatus(st, "Contraseña actualizada.", "hint msg-ok");
   } catch (err) {

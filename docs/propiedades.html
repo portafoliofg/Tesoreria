@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <!-- Seguridad: solo se ejecutan scripts de este sitio y de las bibliotecas nombradas acá (con versión fija).
+       Si se agrega una biblioteca de otro lado, sumarla a script-src o no va a cargar. -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://unpkg.com/xlsx@0.18.5/; object-src 'none'; base-uri 'self'">
   <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#173d27">
@@ -422,10 +425,10 @@
     <div id="contenido"><p class="cargando">Cargando liquidaciones…</p></div>
   </div>
 
-  <script src="sesion.js?v=9"></script>
+  <script src="sesion.js?v=10"></script>
   <script src="propiedades-lector.js?v=7"></script>
   <script src="propiedades-contratos.js?v=8"></script>
   <script src="propiedades-valores.js?v=13"></script>
-  <script src="propiedades-vista.js?v=31"></script>
+  <script src="propiedades-vista.js?v=32"></script>
 </body>
 </html>

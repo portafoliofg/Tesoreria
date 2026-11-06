@@ -135,6 +135,16 @@ const FUNCION_AVISOS = 'revisarAlertas';
 const DURACION_SESION = 21600; // 6 horas (máximo de CacheService)
 const INTENTOS_MAXIMOS = 5;
 const BLOQUEO_SEGUNDOS = 600;
+// Límite general (entre todos los usuarios) de contraseñas equivocadas en BLOQUEO_SEGUNDOS: frena a
+// quien prueba contraseñas comunes contra muchos usuarios. Al llegar, se pausa solo el ingreso con
+// contraseña; el ingreso con Google sigue andando.
+const FALLOS_GLOBALES_MAX = 30;
+// Credenciales de Google rechazadas en BLOQUEO_SEGUNDOS antes de pausar ese ingreso (cuida la cuota
+// de UrlFetch y la hoja de Auditoría). No se cuenta por mail: el mail de una credencial falsa no prueba
+// nada y contarlo dejaría a cualquiera bloquear a otra persona.
+const GOOGLE_FALLOS_GLOBALES_MAX = 300;
+const LARGO_MIN_CLAVE = 10;
+const LARGO_MAX_CLAVE = 200;
 
 /**
  * Muestra la página al abrir el link /exec.
@@ -227,6 +237,7 @@ const ACCIONES = {
   obtenerUsuarios: obtenerUsuarios_,
   guardarUsuario: guardarUsuario_,
   cambiarEstadoUsuario: cambiarEstadoUsuario_,
+  guardarAdministrador: guardarAdministrador_,
   restablecerClave: restablecerClave_,
   cambiarCuenta: cambiarCuenta_,
   historialRegistro: historialRegistro_,
@@ -444,7 +455,7 @@ function cambioUsuarios_() {
 
 function usuarioPublico_(u) {
   return {
-    id: u['ID'], usuario: u['Usuario'], nombre: u['Nombre'], activo: u['Activo'] === 'Sí',
+    id: u['ID'], usuario: u['Usuario'], nombre: u['Nombre'], activo: u['Activo'] === 'Sí', admin: esAdmin_(u),
     telefono: u['Teléfono WhatsApp'], creado: u['Creado'], ultimoIngreso: u['Último Ingreso'],
     facturas: tieneAccesoFacturas_(u),
     mercados: typeof tieneAccesoMercados_ === 'function' && tieneAccesoMercados_(u) // MERCADOS
@@ -467,9 +478,13 @@ function usuarioValido_(s) {
 }
 
 function claveValida_(c) {
-  return String(c || '').length >= 8;
+  const n = String(c == null ? '' : c).length;
+  return n >= LARGO_MIN_CLAVE && n <= LARGO_MAX_CLAVE;
 }
 
+const ERROR_CLAVE_CORTA = 'La contraseña tiene que tener entre ' + LARGO_MIN_CLAVE + ' y ' + LARGO_MAX_CLAVE + ' caracteres.';
+
+/** Hash viejo (v1): 300 vueltas de SHA-256 con la sal. Se sigue usando por dentro de hashClaveV2_. */
 function hashClave_(clave, sal) {
   let texto = sal + '|' + clave;
   let bytes = null;
@@ -480,6 +495,96 @@ function hashClave_(clave, sal) {
   return Utilities.base64Encode(bytes);
 }
 
+// ----- Contraseñas v2: el hash v1 pasado por HMAC con una "pimienta" secreta -----
+// La pimienta vive en las Propiedades del script, no en la planilla: si alguien consigue la hoja
+// Usuarios (por ejemplo porque se compartió de más), no puede probar contraseñas contra esos hashes.
+// Las contraseñas v1 se pasan solas a v2 la próxima vez que la persona ingresa.
+// IMPORTANTE: si se borra la propiedad PIMIENTA_CLAVES, ninguna contraseña v2 vuelve a andar (se
+// entra con Google y un administrador restablece las contraseñas).
+const PROP_PIMIENTA = 'PIMIENTA_CLAVES';
+
+function pimienta_() {
+  const props = PropertiesService.getScriptProperties();
+  let v = props.getProperty(PROP_PIMIENTA);
+  if (v) return v;
+  const lock = LockService.getScriptLock();
+  const tenia = lock.hasLock();
+  if (!tenia) lock.waitLock(20000);
+  try {
+    v = props.getProperty(PROP_PIMIENTA);
+    if (!v) {
+      v = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+        Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid() + Date.now(), Utilities.Charset.UTF_8));
+      props.setProperty(PROP_PIMIENTA, v);
+    }
+    return v;
+  } finally {
+    if (!tenia) lock.releaseLock();
+  }
+}
+
+function hashClaveV2_(clave, sal) {
+  return 'v2$' + Utilities.base64Encode(Utilities.computeHmacSha256Signature(hashClave_(clave, sal), pimienta_()));
+}
+
+/** Compara sin cortar en la primera diferencia (no deja medir cuánto acertó). */
+function textosIguales_(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  let dif = 0;
+  for (let i = 0; i < a.length; i++) dif |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return dif === 0;
+}
+
+function verificarClave_(clave, u) {
+  clave = String(clave == null ? '' : clave);
+  if (!u || !clave || clave.length > LARGO_MAX_CLAVE) return false;
+  const guardada = String(u['Clave'] || '');
+  if (!guardada) return false;
+  return textosIguales_(guardada.indexOf('v2$') === 0 ? hashClaveV2_(clave, u['Sal']) : hashClave_(clave, u['Sal']), guardada);
+}
+
+// ----- Administradores -----
+// Solo un administrador puede crear usuarios, activarlos o desactivarlos, restablecer contraseñas
+// ajenas y nombrar otros administradores. La lista (IDs o nombres de usuario, separados por coma)
+// está en la propiedad ADMINISTRADORES; si está vacía, el administrador es el primer usuario.
+const PROP_ADMINS = 'ADMINISTRADORES';
+
+function listaAdmins_() {
+  const v = String(propiedades_().getProperty(PROP_ADMINS) || '').trim();
+  if (v) return v.split(',').map(x => x.trim()).filter(Boolean);
+  const primero = leerUsuarios_()[0];
+  return primero ? [primero['ID']] : [];
+}
+
+function esAdmin_(u) {
+  if (!u) return false;
+  const lista = listaAdmins_().map(claveTexto);
+  return lista.indexOf(claveTexto(u['ID'])) >= 0 || lista.indexOf(claveTexto(u['Usuario'])) >= 0;
+}
+
+function soloAdmin_() {
+  return { ok: false, error: 'Solo un administrador puede hacer esto.' };
+}
+
+/** d: {id, admin: true|false}. Nombra o saca un administrador. */
+function guardarAdministrador_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
+  return conLock_(() => {
+    const otro = leerUsuarios_().find(x => x['ID'] === String(d.id || ''));
+    if (!otro) return { ok: false, error: 'No se encontró el usuario.' };
+    const ids = leerUsuarios_().filter(esAdmin_).map(x => x['ID']).filter(id => id !== otro['ID']);
+    if (d.admin) ids.push(otro['ID']);
+    if (!ids.some(id => leerUsuarios_().some(x => x['ID'] === id && x['Activo'] === 'Sí'))) {
+      return { ok: false, error: 'Tiene que quedar al menos un administrador activo.' };
+    }
+    const antes = esAdmin_(otro);
+    propiedades_().setProperty(PROP_ADMINS, ids.join(','));
+    registrar_(u, d.admin ? 'Alta de administrador' : 'Baja de administrador', 'Usuario ' + otro['Usuario'], otro['ID'], antes ? 'Sí' : 'No', d.admin ? 'Sí' : 'No');
+    return { ok: true };
+  });
+}
+
 function ahoraTexto_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
 }
@@ -488,9 +593,16 @@ function ahoraTexto_() {
 // escritura más: se renueva solo si pasó más de RENOVAR_SESION_MS desde la última vez.
 const RENOVAR_SESION_MS = 20 * 60 * 1000;
 
+// La sesión también guarda un pedazo de la sal de la contraseña: cuando la contraseña cambia (la sal
+// se renueva), todas las sesiones abiertas de ese usuario dejan de valer. Así, restablecer la
+// contraseña echa a quien haya conseguido un token.
+function marcaSal_(u) {
+  return String(u['Sal'] || '').replace(/-/g, '').slice(0, 12);
+}
+
 function crearSesion_(u) {
   const token = Utilities.getUuid() + Utilities.getUuid();
-  CacheService.getScriptCache().put('ses_' + token, u['ID'] + '|' + Date.now(), DURACION_SESION);
+  CacheService.getScriptCache().put('ses_' + token, u['ID'] + '|' + Date.now() + '|' + marcaSal_(u), DURACION_SESION);
   return token;
 }
 
@@ -503,9 +615,9 @@ function usuarioDeSesion_(token) {
   const partes = String(valor).split('|');
   const id = partes[0];
   const u = leerUsuarios_().find(x => x['ID'] === id && x['Activo'] === 'Sí');
-  if (!u) { cache.remove('ses_' + token); return null; }
+  if (!u || partes[2] !== marcaSal_(u)) { cache.remove('ses_' + token); return null; }
   const renovada = Number(partes[1]) || 0;
-  if (Date.now() - renovada > RENOVAR_SESION_MS) cache.put('ses_' + token, id + '|' + Date.now(), DURACION_SESION);
+  if (Date.now() - renovada > RENOVAR_SESION_MS) cache.put('ses_' + token, id + '|' + Date.now() + '|' + partes[2], DURACION_SESION);
   return u;
 }
 
@@ -530,18 +642,27 @@ function login_(d) {
   const nombreUsuario = String(d.usuario || '').trim().toLowerCase();
   const clave = String(d.clave || '');
   const cache = CacheService.getScriptCache();
-  const claveIntentos = 'int_' + nombreUsuario;
+  const claveIntentos = 'int_' + nombreUsuario.slice(0, 60);
   const intentos = parseInt(cache.get(claveIntentos) || '0', 10);
   if (intentos >= INTENTOS_MAXIMOS) {
-    return { ok: false, error: 'Demasiados intentos fallidos. Esperá 10 minutos y volvé a probar.' };
+    return { ok: false, error: 'Demasiados intentos fallidos. Esperá 10 minutos y volvé a probar, o ingresá con Google.' };
+  }
+  const fallosGlobales = parseInt(cache.get('int_global') || '0', 10);
+  if (fallosGlobales >= FALLOS_GLOBALES_MAX) {
+    return { ok: false, error: 'Hubo demasiados intentos fallidos en poco tiempo. El ingreso con contraseña está pausado unos minutos; podés ingresar con Google.' };
   }
   const u = leerUsuarios_().find(x => x['Usuario'] === nombreUsuario);
-  if (!u || u['Activo'] !== 'Sí' || hashClave_(clave, u['Sal']) !== u['Clave']) {
+  if (!u || u['Activo'] !== 'Sí' || !verificarClave_(clave, u)) {
     cache.put(claveIntentos, String(intentos + 1), BLOQUEO_SEGUNDOS);
+    cache.put('int_global', String(fallosGlobales + 1), BLOQUEO_SEGUNDOS);
     registrar_(null, 'Ingreso fallido', 'Usuario: ' + (nombreUsuario || '(vacío)') + (u && u['Activo'] !== 'Sí' ? ' · usuario desactivado' : ''), '', '', '');
     return { ok: false, error: 'Usuario o contraseña incorrectos.' };
   }
   cache.remove(claveIntentos);
+  // Contraseña con el hash viejo: se pasa a v2 ahora que se conoce.
+  if (String(u['Clave']).indexOf('v2$') !== 0) {
+    try { actualizarCampoUsuario_(u['ID'], 'Clave', hashClaveV2_(clave, u['Sal'])); } catch (e) {}
+  }
   actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
   registrar_(u, 'Ingreso', 'Inició sesión', '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
@@ -569,13 +690,14 @@ function loginGoogle_(d) {
   const credencial = String(d.credential || '');
   const cache = CacheService.getScriptCache();
   const error = { ok: false, error: 'No se pudo ingresar con Google. Usá una cuenta autorizada de ' + GOOGLE_DOMINIO + '.' };
-  // Para limitar intentos se usa el mail que dice traer el token (todavía sin validar),
-  // igual que login_ con el nombre de usuario.
+  // La firma la valida Google, así que probar credenciales no sirve de nada: no se bloquea por mail
+  // (el mail de una credencial sin validar lo puede inventar cualquiera y bloquearía a otra persona).
+  // Solo hay un tope general de rechazos para cuidar la cuota y la Auditoría.
   const mailDicho = mailDeCredencialSinValidar_(credencial);
-  const claveIntentos = 'int_' + (mailDicho || 'google').slice(0, 200);
+  const claveIntentos = 'int_google_global';
   const intentos = parseInt(cache.get(claveIntentos) || '0', 10);
-  if (intentos >= INTENTOS_MAXIMOS) {
-    return { ok: false, error: 'Demasiados intentos fallidos. Esperá 10 minutos y volvé a probar.' };
+  if (intentos >= GOOGLE_FALLOS_GLOBALES_MAX) {
+    return { ok: false, error: 'Hubo demasiados intentos fallidos en poco tiempo. Esperá unos minutos y volvé a probar.' };
   }
   const fallo = motivo => {
     cache.put(claveIntentos, String(intentos + 1), BLOQUEO_SEGUNDOS);
@@ -618,7 +740,6 @@ function loginGoogle_(d) {
   }
   if (u['Activo'] !== 'Sí') return fallo('usuario desactivado');
 
-  cache.remove(claveIntentos);
   actualizarCampoUsuario_(u['ID'], 'Último Ingreso', ahoraTexto_());
   registrar_(u, 'Ingreso con Google', 'Inició sesión con ' + mail, '', '', '');
   return { ok: true, token: crearSesion_(u), usuario: usuarioPublico_(u) };
@@ -673,11 +794,11 @@ function altaUsuario_(d, autor) {
   const clave = String(d.clave || '');
   if (!nombre) throw new Error('Falta el nombre.');
   if (!usuarioValido_(nombreUsuario)) throw new Error('El usuario va de 3 a 30 caracteres: letras minúsculas, números, punto o guion, sin espacios.');
-  if (!claveValida_(clave)) throw new Error('La contraseña tiene que tener al menos 8 caracteres.');
+  if (!claveValida_(clave)) throw new Error(ERROR_CLAVE_CORTA);
   if (leerUsuarios_().some(x => x['Usuario'] === nombreUsuario)) throw new Error('Ya existe el usuario ' + nombreUsuario + '.');
   const sal = Utilities.getUuid();
   const fila = {
-    'ID': Utilities.getUuid(), 'Usuario': nombreUsuario, 'Nombre': nombre, 'Clave': hashClave_(clave, sal), 'Sal': sal,
+    'ID': Utilities.getUuid(), 'Usuario': nombreUsuario, 'Nombre': nombre, 'Clave': hashClaveV2_(clave, sal), 'Sal': sal,
     'Activo': 'Sí', 'Teléfono WhatsApp': '', 'Cheques Días': '0', 'Cheques Hora': '9', 'Creado': ahoraTexto_(), 'Último Ingreso': ''
   };
   const hoja = obtenerHoja_(SHEET_USUARIOS, HEADERS_USUARIOS);
@@ -701,10 +822,11 @@ function actualizarCampoUsuario_(id, campo, valor) {
 }
 
 function obtenerUsuarios_(d, u) {
-  return { ok: true, usuarios: leerUsuarios_().map(usuarioPublico_), yo: u['ID'] };
+  return { ok: true, usuarios: leerUsuarios_().map(usuarioPublico_), yo: u['ID'], soyAdmin: esAdmin_(u) };
 }
 
 function guardarUsuario_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const nuevo = altaUsuario_(d, u);
     return { ok: true, id: nuevo['ID'] };
@@ -712,6 +834,7 @@ function guardarUsuario_(d, u) {
 }
 
 function cambiarEstadoUsuario_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const id = String(d.id || '');
     if (id === u['ID']) return { ok: false, error: 'No podés desactivar tu propio usuario.' };
@@ -721,6 +844,9 @@ function cambiarEstadoUsuario_(d, u) {
     if (activo === 'No' && leerUsuarios_().filter(x => x['Activo'] === 'Sí').length <= 1) {
       return { ok: false, error: 'Tiene que quedar al menos un usuario activo.' };
     }
+    if (activo === 'No' && esAdmin_(otro) && !leerUsuarios_().some(x => x['ID'] !== id && x['Activo'] === 'Sí' && esAdmin_(x))) {
+      return { ok: false, error: 'Tiene que quedar al menos un administrador activo.' };
+    }
     actualizarCampoUsuario_(id, 'Activo', activo);
     registrar_(u, activo === 'Sí' ? 'Activación de usuario' : 'Desactivación de usuario', 'Usuario ' + otro['Usuario'], id, otro['Activo'], activo);
     return { ok: true };
@@ -728,13 +854,14 @@ function cambiarEstadoUsuario_(d, u) {
 }
 
 function restablecerClave_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const otro = leerUsuarios_().find(x => x['ID'] === String(d.id || ''));
     if (!otro) return { ok: false, error: 'No se encontró el usuario.' };
-    if (!claveValida_(d.clave)) return { ok: false, error: 'La contraseña tiene que tener al menos 8 caracteres.' };
+    if (!claveValida_(d.clave)) return { ok: false, error: ERROR_CLAVE_CORTA };
     const sal = Utilities.getUuid();
     actualizarCampoUsuario_(otro['ID'], 'Sal', sal);
-    actualizarCampoUsuario_(otro['ID'], 'Clave', hashClave_(String(d.clave), sal));
+    actualizarCampoUsuario_(otro['ID'], 'Clave', hashClaveV2_(String(d.clave), sal));
     registrar_(u, 'Restablecimiento de contraseña', 'Usuario ' + otro['Usuario'], otro['ID'], '', '');
     return { ok: true };
   });
@@ -742,13 +869,15 @@ function restablecerClave_(d, u) {
 
 function cambiarMiClave_(d, u) {
   return conLock_(() => {
-    if (hashClave_(String(d.actual || ''), u['Sal']) !== u['Clave']) return { ok: false, error: 'La contraseña actual no es correcta.' };
-    if (!claveValida_(d.nueva)) return { ok: false, error: 'La contraseña nueva tiene que tener al menos 8 caracteres.' };
+    if (!verificarClave_(d.actual, u)) return { ok: false, error: 'La contraseña actual no es correcta.' };
+    if (!claveValida_(d.nueva)) return { ok: false, error: ERROR_CLAVE_CORTA };
     const sal = Utilities.getUuid();
     actualizarCampoUsuario_(u['ID'], 'Sal', sal);
-    actualizarCampoUsuario_(u['ID'], 'Clave', hashClave_(String(d.nueva), sal));
+    actualizarCampoUsuario_(u['ID'], 'Clave', hashClaveV2_(String(d.nueva), sal));
     registrar_(u, 'Cambio de contraseña', 'Cambió su propia contraseña', u['ID'], '', '');
-    return { ok: true };
+    // La sal cambió: las sesiones abiertas (incluida esta) dejaron de valer. Se entrega una nueva.
+    const actual = leerUsuarios_().find(x => x['ID'] === u['ID']) || u;
+    return { ok: true, token: crearSesion_(actual) };
   });
 }
 

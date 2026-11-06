@@ -17,7 +17,9 @@
  */
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  // Versión fija y verificada (integrity): si el archivo del CDN cambiara, el navegador no lo ejecuta.
+  var XLSX_URL = "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js";
+  var XLSX_SRI = "sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw";
   var ADM = 0.06;
   var PESTANAS = [["tablero", "Tablero"], ["resumen", "Resumen"], ["unidades", "Unidades"], ["rentabilidad", "Rentabilidad"], ["contratos", "Contratos"], ["expensas", "Expensas"], ["cocheras", "Cocheras y novedades"], ["transferencias", "Transferencias"], ["historial", "Historial"]];
   // Ícono de cada sección en el menú lateral (trazos de un SVG de 24 × 24).
@@ -1414,7 +1416,7 @@
     if (window.XLSX) return Promise.resolve(window.XLSX);
     if (!promesaXlsx) promesaXlsx = new Promise(function (ok, mal) {
       var s = document.createElement("script");
-      s.src = XLSX_URL; s.async = true;
+      s.src = XLSX_URL; s.async = true; s.integrity = XLSX_SRI; s.crossOrigin = "anonymous";
       s.onload = function () { window.XLSX ? ok(window.XLSX) : mal(new Error("No se pudo cargar el lector de planillas.")); };
       s.onerror = function () { promesaXlsx = null; mal(new Error("No se pudo cargar el lector de planillas. Revisá la conexión y probá de nuevo.")); };
       document.head.appendChild(s);

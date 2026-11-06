@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <!-- Seguridad: solo se ejecutan scripts de este sitio y de las bibliotecas nombradas acá (con versión fija).
+       Si se agrega una biblioteca de otro lado, sumarla a script-src o no va a cargar. -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
   <script>if (location.protocol === "http:" && location.hostname !== "localhost") location.replace("https://" + location.host + location.pathname + location.search + location.hash);</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#1c4a2c">
@@ -84,7 +87,7 @@
     </form>
   </template>
 
-  <script src="../sesion.js?v=9"></script>
+  <script src="../sesion.js?v=10"></script>
   <script src="asistente.js?v=7"></script>
   <script>
     // Página del asistente: si hay sesión de bgpsammar.com abre el chat; si no, pide el ingreso.
