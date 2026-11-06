@@ -11764,6 +11764,12 @@ function datosContraparte(texto, desde, hasta) {
 const CPX = { azul: "FF0B1F3A", gris: "FF5A6577", enc: "FF1F4E79", total: "FFDDEBF7", zebra: "FFF7F9FC", borde: "FFD0D7E2" };
 const CPX_NUM = "#,##0.00;[Red]-#,##0.00";
 
+// Cheques anulados, devueltos, caducados o rechazados: se listan pero no suman en ningún total.
+function cpxSuma(f) {
+  const e = normalizar(f["Estado"] || "").trim();
+  return !/^(ANUL|DEVOL|CADUC|RECHAZ)/.test(e);
+}
+
 function cpxFecha(iso) {
   if (!iso) return null;
   const p = iso.split("-").map(Number);
@@ -11815,8 +11821,9 @@ function cpxHoja(wb, nombre, titulo, nota, cols, lista) {
       if (c[3] === "l" && v) { celda.value = { text: "Ver", hyperlink: v }; celda.font = { color: { argb: "FF1F4E79" }, underline: true }; }
       if (i % 2) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: CPX.zebra } };
     });
-    tot[cpMoneda(x.f)] += Math.abs(parseImporte(x.f[x.f["Monto"] !== undefined ? "Monto" : "Importe"]));
+    if (cpxSuma(x.f)) tot[cpMoneda(x.f)] += Math.abs(parseImporte(x.f[x.f["Monto"] !== undefined ? "Monto" : "Importe"]));
   });
+  const noSuman = lista.filter(x => !cpxSuma(x.f)).length;
   const ultima = 4 + lista.length;
   if (lista.length) {
     ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: ultima, column: cols.length } };
@@ -11830,7 +11837,7 @@ function cpxHoja(wb, nombre, titulo, nota, cols, lista) {
       for (let j = 1; j <= cols.length; j++) { ws.getCell(r, j).font = { bold: true }; ws.getCell(r, j).fill = { type: "pattern", pattern: "solid", fgColor: { argb: CPX.total } }; }
       r++;
     });
-    ws.getCell(r, 1).value = lista.length + " registro(s)";
+    ws.getCell(r, 1).value = lista.length + " registro(s)" + (noSuman ? " · " + noSuman + " anulado(s), devuelto(s), caducado(s) o rechazado(s) que no suman en el total" : "");
     ws.getCell(r, 1).font = { italic: true, size: 9.5, color: { argb: CPX.gris } };
   } else {
     ws.getCell(5, 1).value = "No hay registros en el período.";
@@ -11841,7 +11848,7 @@ function cpxHoja(wb, nombre, titulo, nota, cols, lista) {
 
 function cpxSumar(lista, cond) {
   const t = { Pesos: 0, USD: 0 };
-  lista.forEach(x => { if (!cond || cond(x.f)) t[cpMoneda(x.f)] += Math.abs(parseImporte(x.f["Monto"] !== undefined ? x.f["Monto"] : x.f["Importe"])); });
+  lista.forEach(x => { if ((!cond || cond(x.f)) && cpxSuma(x.f)) t[cpMoneda(x.f)] += Math.abs(parseImporte(x.f["Monto"] !== undefined ? x.f["Monto"] : x.f["Importe"])); });
   return t;
 }
 
@@ -11932,8 +11939,9 @@ async function excelContraparte(d) {
   };
   bloque("Lo que salió hacia " + nom, pagado, "Total salido hacia " + nom);
   bloque("Lo que vino de " + nom, recibido, "Total recibido de " + nom);
-  const tDev = cpxSumar(s.devueltos);
-  r++; fila(["Aparte: cheques devueltos a " + nom, "", r2(tDev.Pesos), r2(tDev.USD)]);
+  const tDev = { Pesos: 0, USD: 0 };
+  s.devueltos.forEach(x => { tDev[cpMoneda(x.f)] += Math.abs(parseImporte(x.f["Importe"])); });
+  r++; fila(["Aparte: cheques devueltos a " + nom + " (no suman en ningún total)", "", r2(tDev.Pesos), r2(tDev.USD)]);
   r++; nota("Ojo: si hubo compras de cheques o préstamos con " + nom + ", las transferencias y cheques que salieron y los cheques que llegaron pueden ser las dos puntas de la misma operación. La diferencia entre lo que salió y lo que vino no es un saldo de cuenta corriente: para eso hay que cruzar cada operación.");
 
   // Por mes (pesos)
@@ -11955,7 +11963,8 @@ async function excelContraparte(d) {
   r += 2; seccion("Por concepto (todo lo del período)"); r++;
   cpxEncabezado(ws, r, ["Concepto", "Registros", "Pesos", "USD"]);
   const pc = {};
-  ["tf", "eft", "emitidos", "endosados", "recibidos", "devueltos"].forEach(k => s[k].forEach(x => {
+  ["tf", "eft", "emitidos", "endosados", "recibidos"].forEach(k => s[k].forEach(x => {
+    if (!cpxSuma(x.f)) return;
     const c = String(x.f["Concepto"] || "").trim() || "(sin concepto)";
     const e = pc[c] = pc[c] || [0, 0, 0];
     e[0]++;
