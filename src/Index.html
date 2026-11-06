@@ -1809,6 +1809,40 @@
   .merc-probable { color: var(--primary); background: var(--primary-soft); }
   .merc-eventos li span { color: var(--muted); }
   @media (max-width: 760px) { .merc-cols.grid-2 { grid-template-columns: minmax(0, 1fr); } }
+  .merc-final { font-size: 13.5px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--surface-2); margin: 0 0 14px; }
+  .merc-final.bien { border-left: 3px solid var(--ok); } .merc-final.mal { border-left: 3px solid var(--bad); }
+  .merc-claves { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 0 0 12px; }
+  .merc-clave { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); }
+  .merc-clave-tit { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .merc-clave-val { font-size: 22px; font-weight: 700; margin: 2px 0; font-variant-numeric: tabular-nums; }
+  .merc-clave.ok .merc-clave-val { color: var(--ok); } .merc-clave.mal .merc-clave-val { color: var(--bad); } .merc-clave.aviso .merc-clave-val { color: var(--warn); }
+  .merc-clave-sub { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .merc-rango, .merc-sobre { font-size: 13.5px; line-height: 1.55; margin: 0 0 10px; }
+  .merc-sobre { color: var(--muted); }
+  .merc-graf { margin: 6px 0 14px; }
+  .merc-svg { width: 100%; height: auto; display: block; touch-action: pan-y; }
+  .merc-svg-grilla { stroke: var(--border); stroke-width: 1; }
+  .merc-svg-eje { fill: var(--muted); font-size: 11px; }
+  .merc-svg-precio { fill: none; stroke: var(--vz-1); stroke-width: 2; }
+  .merc-svg-mm50 { fill: none; stroke: var(--vz-2); stroke-width: 1.5; }
+  .merc-svg-mm200 { fill: none; stroke: var(--vz-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .merc-svg-marca { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  .merc-svg-marca.vence { stroke: var(--primary); } .merc-svg-marca.bal { stroke: var(--warn); }
+  .merc-svg-guia { stroke: var(--border-strong); stroke-width: 1; }
+  .merc-svg-punto { fill: var(--vz-1); stroke: var(--surface); stroke-width: 2; }
+  .merc-graf-info { min-height: 18px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .merc-graf-ley { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin: 4px 0; }
+  .merc-graf-ley i { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .merc-ley-precio { border-color: var(--vz-1) !important; } .merc-ley-mm50 { border-color: var(--vz-2) !important; }
+  .merc-ley-mm200 { border-color: var(--vz-3) !important; border-top-style: dashed !important; }
+  table.merc-senales td b { display: block; font-size: 13px; }
+  .merc-expl { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .merc-semaforo { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+  .merc-semaforo.ok { color: var(--ok); background: rgba(var(--ok-rgb), .12); }
+  .merc-semaforo.mal { color: var(--bad); background: rgba(var(--bad-rgb), .12); }
+  .merc-semaforo.neutro { color: var(--muted); background: var(--surface-3); }
+  .merc-explica { margin: 0 0 6px; }
+  .merc-estad { margin-bottom: 14px; }
 </style>
 <script>
 // Aplica tema y modo guardados antes de dibujar la página (evita el parpadeo).
@@ -2305,7 +2339,7 @@
     <div class="page-head">
       <div>
         <h1>Mercados</h1>
-        <p class="sub">Pronóstico de subas y bajas de una acción, con los motivos de cada lado. Junta el comportamiento del precio y las noticias recientes, y Gemini arma el análisis. Solo lo ves vos.</p>
+        <p class="sub">Pronóstico de si a una acción le va a ir mejor o peor que a su índice (Merval o S&amp;P 500), con los motivos de cada lado. Junta el precio de tres años, indicadores calculados con datos, la tasa base y las noticias recientes; Gemini responde tres veces y se toma lo que dice la mayoría. Solo lo ves vos.</p>
       </div>
     </div>
     <div class="card">
@@ -2322,7 +2356,7 @@
         </label>
         <div class="merc-btn"><button id="mercAnalizar" type="button">Analizar</button></div>
       </div>
-      <p class="hint">Para acciones argentinas en pesos usá el símbolo con <strong>.BA</strong> (YPFD.BA, GGAL.BA); sin eso toma el ADR en dólares. El análisis tarda entre 20 segundos y un minuto.</p>
+      <p class="hint">Para acciones argentinas en pesos usá el símbolo con <strong>.BA</strong> (YPFD.BA, GGAL.BA); sin eso toma el ADR en dólares. Se compara contra el Merval (las .BA) o el S&amp;P 500 (el resto). El análisis tarda entre 30 segundos y un minuto y medio.</p>
       <p class="hint merc-aviso">Es una opinión armada con información pública, no una recomendación de inversión. Una explicación convincente puede fallar igual: fijate cuánto viene acertando abajo.</p>
     </div>
     <div id="mercResultado"></div>
@@ -23825,18 +23859,40 @@ document.addEventListener("keydown", e => {
 (() => { let fijo = false; try { fijo = localStorage.getItem("lc-panel-fijo") === "1"; } catch (e) {} aplicarPanel(!fijo); })();
 
 // ---------------- Mercados (MERCADOS) ----------------
-// Pronóstico de subas y bajas de una acción con los motivos de cada lado (Mercados.gs).
+// Pronóstico de una acción contra su índice, con los motivos de cada lado (Mercados.gs).
 // Solo lo ve el dueño: el servidor lo controla en cada pedido.
 let mercCargado = false;
 let mercItems = [];
-const MERC_INCL = { alcista: "Inclinación alcista", bajista: "Inclinación bajista", neutral: "Sin inclinación clara" };
 const MERC_DESC = { si: "Ya descontado", parcial: "Descontado en parte", no: "Todavía no descontado" };
 const MERC_ESC = { favorable: "Favorable", base: "Base", desfavorable: "Desfavorable" };
+const MERC_LECTURA = { "a favor": "ok", "en contra": "mal", neutral: "neutro" };
 const fmtMercPrecio = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const mercGraficos = {};
 
 function mercPct(v) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   return (v >= 0 ? "+" : "") + (v * 100).toFixed(1).split(".").join(",") + " %";
+}
+
+function mercRefNombre(a) {
+  return (a.referencia && a.referencia.nombre) || (/\.BA$/i.test(a.simbolo || "") ? "el Merval" : "el S&P 500");
+}
+
+/** "Mejor que el S&P 500", "Peor que el Merval"… (los pronósticos viejos eran de suba o baja). */
+function mercInclTexto(a, corto) {
+  const ref = mercRefNombre(a);
+  if (mercViejo(a)) return { alcista: "Alcista", bajista: "Bajista", neutral: "Neutral" }[a.inclinacion] || a.inclinacion;
+  const t = { alcista: "Mejor que ", bajista: "Peor que ", neutral: "Parecido a " }[a.inclinacion] || "";
+  return corto ? ({ alcista: "Mejor", bajista: "Peor", neutral: "Parecido" }[a.inclinacion] || a.inclinacion) : t + ref;
+}
+
+/** Pronóstico hecho antes de medir contra el índice (decía si subía o bajaba). */
+function mercViejo(a) {
+  return !a.cuant && (a.probabilidad === null || a.probabilidad === undefined);
+}
+
+function mercPctEntero(v) {
+  return v === null || v === undefined || isNaN(v) ? "—" : Math.round(v * 100) + " %";
 }
 
 async function cargarMercados(forzar) {
@@ -23852,15 +23908,78 @@ async function cargarMercados(forzar) {
   }
 }
 
+function nodoMercClave(titulo, valor, sub, tono) {
+  const d = el("div", "merc-clave" + (tono ? " " + tono : ""));
+  d.append(el("div", "merc-clave-tit", titulo), el("div", "merc-clave-val", valor), el("div", "merc-clave-sub", sub || ""));
+  return d;
+}
+
 function nodoMercAnalisis(a) {
   const card = el("div", "card merc-card");
   const cab = el("div", "merc-cab");
-  const tit = el("h2", null, a.nombre || a.simbolo);
-  cab.append(tit, el("span", "merc-sim", a.simbolo), el("span", "merc-incl " + a.inclinacion, MERC_INCL[a.inclinacion] || a.inclinacion),
+  cab.append(el("h2", null, a.nombre || a.simbolo), el("span", "merc-sim", a.simbolo), el("span", "merc-incl " + a.inclinacion, mercInclTexto(a)),
     el("span", "pill", "Confianza " + a.confianza), el("span", "pill", a.horizonteNombre));
-  if (a.resultado === "Acertó") cab.append(el("span", "badge badge-guardado", "Acertó · " + mercPct(a.variacion)));
-  if (a.resultado === "Falló") cab.append(el("span", "badge badge-error", "Falló · " + mercPct(a.variacion)));
+  if (a.resultado === "Acertó" || a.resultado === "Falló") cab.append(el("span", "badge " + (a.resultado === "Acertó" ? "badge-guardado" : "badge-error"),
+    a.resultado + " · " + (!mercViejo(a) && a.exceso !== null && a.exceso !== undefined ? mercPct(a.exceso) + " contra el índice" : mercPct(a.variacion))));
+  if (mercViejo(a)) card.append(el("p", "hint", "Pronóstico hecho con el método anterior: decía si la acción subía o bajaba, no si le ganaba al índice. Se muestra igual cómo le fue contra el índice, pero no entra en la estadística nueva."));
   card.append(cab, el("p", "merc-resumen", a.resumen || ""));
+
+  // Cómo terminó (o cómo viene).
+  if (a.exceso !== null && a.exceso !== undefined) {
+    card.append(el("p", "merc-final", "Resultado: la acción " + mercPct(a.variacion) + ", " + mercRefNombre(a) + " " + mercPct(a.variacionReferencia) +
+      ": diferencia " + mercPct(a.exceso) + (a.variacionUsd !== null && a.variacionUsd !== undefined ? " · en dólares (CCL) la acción " + mercPct(a.variacionUsd) : "") +
+      (a.inclinacion === "neutral" && a.banda ? " · \"parecido\" era hasta ±" + mercPct(a.banda).substring(1) : "") + "."));
+  } else if (a.seguimiento) {
+    const s = a.seguimiento;
+    card.append(el("p", "merc-final " + (s.va === "bien" ? "bien" : "mal"), "Hasta ahora " + (s.va === "bien" ? "va bien" : "va mal") + ": la acción " + mercPct(s.variacion) +
+      ", " + mercRefNombre(a) + " " + mercPct(s.variacionReferencia) + " (diferencia " + mercPct(s.exceso) + "). Faltan " + s.faltan + " día(s)."));
+  }
+
+  // Números clave: probabilidad, indicadores propios, coincidencia y tasa base.
+  const claves = el("div", "merc-claves");
+  if (a.probabilidad !== null && a.probabilidad !== undefined) {
+    const c = a.coincidencia;
+    claves.append(nodoMercClave("Probabilidad de ganarle a " + mercRefNombre(a), a.probabilidad + " %",
+      c && c.total > 1 ? "Promedio de " + c.total + " respuestas de Gemini" : "Según Gemini", a.probabilidad >= 55 ? "ok" : a.probabilidad <= 45 ? "mal" : ""));
+  }
+  if (a.cuant) {
+    const d = a.cuant.direccion;
+    claves.append(nodoMercClave("Indicadores propios", { alcista: "Mejor", bajista: "Peor", neutral: "Parecido" }[d] || d,
+      "Puntaje " + (a.cuant.puntaje >= 0 ? "+" : "") + String(a.cuant.puntaje.toFixed(2)).replace(".", ",") + " (de −1 a +1) · " + a.cuant.probabilidad + " %",
+      d === "alcista" ? "ok" : d === "bajista" ? "mal" : ""));
+  }
+  if (a.coincidencia && a.coincidencia.total > 1) {
+    const c = a.coincidencia;
+    claves.append(nodoMercClave("Coincidencia", c.votos + " de " + c.total, "Respuestas: " + c.respuestas.map(x => ({ alcista: "mejor", bajista: "peor", neutral: "parecido" }[x] || x)).join(", "),
+      c.votos === c.total ? "ok" : "aviso"));
+  }
+  if (a.tasaBase) {
+    claves.append(nodoMercClave("Tasa base", mercPctEntero(a.tasaBase.tasa),
+      "Veces que le ganó al índice en " + a.horizonteNombre.toLowerCase() + " (últimos " + a.tasaBase.anios + " años)"));
+  }
+  if (claves.childNodes.length) card.append(claves);
+
+  if (a.tasaBase && a.tasaBase.rango) {
+    const t = a.tasaBase;
+    card.append(el("p", "merc-rango", "Rango normal en " + a.horizonteNombre.toLowerCase() + ": 2 de cada 3 veces la acción se movió entre " + mercPct(t.rango.p16) + " y " + mercPct(t.rango.p84) +
+      " (la mitad de las veces, más de " + mercPct(t.rango.p50) + "). Contra " + mercRefNombre(a) + ", entre " + mercPct(t.rangoExceso.p16) + " y " + mercPct(t.rangoExceso.p84) +
+      (t.banda ? "; una diferencia de hasta ±" + mercPct(t.banda).substring(1) + " cuenta como \"parecido\"" : "") + ". No es un pronóstico de precio: es lo que hizo esta acción en los últimos años."));
+  }
+  if (a.sobreIndicadores) card.append(el("p", "merc-sobre", "Sobre los indicadores: " + a.sobreIndicadores));
+
+  // Gráfico del precio (si no vino con el análisis, se pide aparte).
+  const caja = el("div", "merc-graf viz");
+  card.append(caja);
+  if (a.grafico) dibujarMercGrafico(caja, a.grafico, a);
+  else if (a.simbolo) {
+    if (mercGraficos[a.simbolo]) dibujarMercGrafico(caja, mercGraficos[a.simbolo], a);
+    else {
+      caja.append(el("p", "hint", "Cargando el gráfico…"));
+      runJson("mercados", { op: "grafico", simbolo: a.simbolo })
+        .then(r => { mercGraficos[a.simbolo] = r.grafico; dibujarMercGrafico(caja, r.grafico, a); })
+        .catch(() => caja.replaceChildren(el("p", "hint", "No se pudo traer el gráfico de " + a.simbolo + ".")));
+    }
+  }
 
   const cols = el("div", "grid-2 merc-cols");
   const col = (cls, titulo, lista) => {
@@ -23869,8 +23988,7 @@ function nodoMercAnalisis(a) {
     if (!lista || !lista.length) c.append(el("p", "hint", "No encontró motivos de peso de este lado."));
     (lista || []).forEach(m => {
       const d = el("div", "merc-motivo" + (m.descontado === "si" ? " descontado" : ""));
-      const t = el("b", null, m.titulo);
-      d.append(t);
+      d.append(el("b", null, m.titulo));
       const chips = el("div", "merc-chips");
       if (m.peso) chips.append(el("span", "pill merc-peso " + m.peso, "Peso " + m.peso));
       if (m.descontado) chips.append(el("span", "pill merc-desc " + m.descontado, MERC_DESC[m.descontado] || m.descontado));
@@ -23881,8 +23999,30 @@ function nodoMercAnalisis(a) {
     });
     return c;
   };
-  cols.append(col("suba", "Motivos para que suba", a.motivosSuba), col("baja", "Motivos para que baje", a.motivosBaja));
+  const nuevo = !mercViejo(a);
+  cols.append(col("suba", nuevo ? "Motivos para que le gane al índice" : "Motivos para que suba", a.motivosSuba),
+    col("baja", nuevo ? "Motivos para que pierda contra el índice" : "Motivos para que baje", a.motivosBaja));
   card.append(cols);
+
+  // Semáforo de indicadores.
+  if (a.cuant && a.cuant.senales && a.cuant.senales.length) {
+    card.append(el("div", "merc-sec", "Indicadores calculados con datos"));
+    const table = el("table", "merc-senales");
+    const trh = el("tr");
+    ["Indicador", "Valor", "Lectura", "Peso en este plazo"].forEach(h => trh.append(el("th", null, h)));
+    table.append(trh);
+    a.cuant.senales.forEach(s => {
+      const tr = el("tr");
+      const nom = el("td");
+      nom.append(el("b", null, s.nombre), el("span", "merc-expl", s.explicacion));
+      const lect = el("td");
+      lect.append(el("span", "merc-semaforo " + (MERC_LECTURA[s.lectura] || "neutro"), s.lectura === "a favor" ? "▲ A favor" : s.lectura === "en contra" ? "▼ En contra" : "● Neutral"));
+      tr.append(nom, celda(s.valor), lect, celda(s.peso >= 1.2 ? "Alto" : s.peso >= 0.7 ? "Medio" : s.peso > 0 ? "Bajo" : "Solo informativo"));
+      table.append(tr);
+    });
+    card.append(envolverTabla(table));
+    card.append(el("p", "hint", "Cada indicador se lee a favor o en contra de que la acción le gane al índice. Tienen respaldo en estudios de mercado pero su poder es modesto: por eso la probabilidad de los indicadores nunca pasa de 62 % ni baja de 38 %."));
+  }
 
   const lista = (titulo, items) => {
     if (!items || !items.length) return;
@@ -23896,10 +24036,10 @@ function nodoMercAnalisis(a) {
     const g = el("div", "merc-esc");
     a.escenarios.forEach(e => {
       const x = el("div", "merc-esc-item " + e.tipo + (a.masProbable === e.tipo ? " probable" : ""));
-      const cab = el("div", "merc-esc-cab");
-      cab.append(el("b", null, MERC_ESC[e.tipo] || e.tipo), el("span", "pill", "Probabilidad " + e.probabilidad));
-      if (a.masProbable === e.tipo) cab.append(el("span", "pill merc-probable", "El más probable"));
-      x.append(cab, el("p", null, e.que));
+      const c2 = el("div", "merc-esc-cab");
+      c2.append(el("b", null, MERC_ESC[e.tipo] || e.tipo), el("span", "pill", "Probabilidad " + e.probabilidad));
+      if (a.masProbable === e.tipo) c2.append(el("span", "pill merc-probable", "El más probable"));
+      x.append(c2, el("p", null, e.que));
       if (e.efecto) x.append(el("p", "merc-efecto", e.efecto));
       g.append(x);
     });
@@ -23936,7 +24076,7 @@ function nodoMercAnalisis(a) {
     a.fuentes.forEach(f => {
       const li = el("li");
       const link = el("a", null, f.titulo || f.url);
-      link.href = f.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+      if (/^https?:\/\//i.test(f.url || "")) { link.href = f.url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
       li.append(link);
       ul.append(li);
     });
@@ -23948,24 +24088,120 @@ function nodoMercAnalisis(a) {
   return card;
 }
 
+/** Precio del último año con las medias de 50 y 200 ruedas, el día del pronóstico, el de verificación y el próximo balance. */
+function dibujarMercGrafico(caja, g, a) {
+  // Se dibuja al ancho real (así el texto queda legible en el celular) y se redibuja si cambia.
+  if (!caja.isConnected || !caja.clientWidth) { requestAnimationFrame(() => { if (caja.isConnected) dibujarMercGrafico(caja, g, a); }); return; }
+  caja._dibujar = () => dibujarMercGrafico(caja, g, a);
+  caja._ancho = caja.clientWidth;
+  if (vizObservador && !caja._observado) { vizObservador.observe(caja); caja._observado = true; }
+  caja.replaceChildren();
+  if (!g || !g.cierres || g.cierres.length < 5) { caja.append(el("p", "hint", "Sin datos de precio para el gráfico.")); return; }
+  const W = Math.max(280, caja.clientWidth), H = W < 520 ? 200 : 240, M = { l: 54, r: 10, t: 14, b: 24 };
+  const n = g.cierres.length;
+  const todos = g.cierres.concat(g.mm50.filter(x => x !== null), g.mm200.filter(x => x !== null));
+  let min = Math.min.apply(null, todos), max = Math.max.apply(null, todos);
+  const pad = (max - min) * 0.06 || 1;
+  min -= pad; max += pad;
+  const x = i => M.l + i * (W - M.l - M.r) / (n - 1);
+  const y = v => M.t + (max - v) * (H - M.t - M.b) / (max - min);
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, class: "merc-svg", role: "img", "aria-label": "Precio de " + (a.simbolo || "") + " en el último año, con sus medias de 50 y 200 ruedas" });
+  for (let k = 0; k <= 4; k++) {
+    const v = min + (max - min) * k / 4;
+    svgEl("line", { x1: M.l, x2: W - M.r, y1: y(v), y2: y(v), class: "merc-svg-grilla" }, svg);
+    const t = svgEl("text", { x: M.l - 6, y: y(v) + 4, class: "merc-svg-eje", "text-anchor": "end" }, svg);
+    t.textContent = fmtMercPrecio.format(v);
+  }
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  let mesAnterior = "";
+  g.fechas.forEach((f, i) => {
+    const m = f.substring(0, 7);
+    if (m !== mesAnterior && i > 0 && Number(f.substring(5, 7)) % 2 === 1) {
+      const t = svgEl("text", { x: x(i), y: H - 6, class: "merc-svg-eje", "text-anchor": "middle" }, svg);
+      t.textContent = meses[Number(f.substring(5, 7)) - 1] + (f.substring(5, 7) === "01" ? " " + f.substring(2, 4) : "");
+    }
+    mesAnterior = m;
+  });
+  const linea = (serie, cls) => {
+    let d = "";
+    serie.forEach((v, i) => { if (v === null) return; d += (d ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1); });
+    if (d) svgEl("path", { d: d, class: cls }, svg);
+  };
+  linea(g.mm200, "merc-svg-mm200");
+  linea(g.mm50, "merc-svg-mm50");
+  linea(g.cierres, "merc-svg-precio");
+  let marcas = 0;
+  const marca = (iso, texto, cls) => {
+    if (!iso || iso < g.fechas[0] || iso > g.fechas[n - 1]) return false;
+    let i = g.fechas.findIndex(f => f >= iso);
+    if (i < 0) i = n - 1;
+    svgEl("line", { x1: x(i), x2: x(i), y1: M.t, y2: H - M.b, class: "merc-svg-marca " + (cls || "") }, svg);
+    // Cada etiqueta en su renglón, para que no se pisen si las fechas están cerca.
+    const t = svgEl("text", { x: x(i) + (i > n * 0.8 ? -4 : 4), y: M.t + 10 + 13 * (marcas++), class: "merc-svg-eje", "text-anchor": i > n * 0.8 ? "end" : "start" }, svg);
+    t.textContent = texto;
+    return true;
+  };
+  if (a.fechaIso) marca(a.fechaIso, "Pronóstico", "pron");
+  if (a.verificarEl) marca(a.verificarEl, "Vence", "vence");
+  // Lectura al pasar el mouse.
+  const guia = svgEl("line", { x1: 0, x2: 0, y1: M.t, y2: H - M.b, class: "merc-svg-guia", visibility: "hidden" }, svg);
+  const punto = svgEl("circle", { r: 3.5, class: "merc-svg-punto", visibility: "hidden" }, svg);
+  const info = el("div", "merc-graf-info", "");
+  svg.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(n - 1, Math.round((px - M.l) * (n - 1) / (W - M.l - M.r))));
+    guia.setAttribute("x1", x(i)); guia.setAttribute("x2", x(i)); guia.setAttribute("visibility", "visible");
+    punto.setAttribute("cx", x(i)); punto.setAttribute("cy", y(g.cierres[i])); punto.setAttribute("visibility", "visible");
+    info.textContent = isoADma(g.fechas[i]) + " · " + (g.moneda ? g.moneda + " " : "") + fmtMercPrecio.format(g.cierres[i]) +
+      (g.mm50[i] !== null ? " · media 50: " + fmtMercPrecio.format(g.mm50[i]) : "") + (g.mm200[i] !== null ? " · media 200: " + fmtMercPrecio.format(g.mm200[i]) : "");
+  });
+  svg.addEventListener("pointerleave", () => { guia.setAttribute("visibility", "hidden"); punto.setAttribute("visibility", "hidden"); info.textContent = ""; });
+  const ley = el("div", "merc-graf-ley");
+  [["precio", "Precio"], ["mm50", "Media 50 ruedas"], ["mm200", "Media 200 ruedas"]].forEach(p => {
+    const s = el("span");
+    s.append(el("i", "merc-ley-" + p[0]), p[1]);
+    ley.append(s);
+  });
+  caja.append(el("div", "merc-sec", "Precio en el último año"), ley, svg, info);
+  const ult = g.fechas[n - 1];
+  if (g.proximoBalance && g.proximoBalance > ult) caja.append(el("p", "hint", "Próximo balance: " + isoADma(g.proximoBalance) + (a.verificarEl && g.proximoBalance <= a.verificarEl ? " (antes de que venza el pronóstico: puede mover fuerte el precio)." : ".")));
+  else if (g.proximoBalance) marca(g.proximoBalance, "Balance", "bal");
+}
+
 function renderMercHistorial(r) {
-  const tasa = (ac, tot) => tot ? Math.round(ac * 100 / tot) : 0;
-  const pc = r.porConfianza || {};
-  const alta = pc.alta || { total: 0, aciertos: 0 };
-  const media = pc.media || { total: 0, aciertos: 0 };
-  renderKpis($("mercAciertos"), r.total ? [
-    { label: "Aciertos", valor: tasa(r.aciertos, r.verificados), formato: n => Math.round(n) + " %", sub: r.verificados ? r.aciertos + " de " + r.verificados + " verificados" : "Todavía no venció ninguno", tono: "var(--ok)" },
-    { label: "Con confianza alta", valor: tasa(alta.aciertos, alta.total), formato: n => Math.round(n) + " %", sub: alta.total + " verificado(s)", tono: "var(--accent)" },
-    { label: "Con confianza media", valor: tasa(media.aciertos, media.total), formato: n => Math.round(n) + " %", sub: media.total + " verificado(s)", tono: "var(--warn)" },
-    { label: "Esperando el plazo", valor: r.pendientes || 0, formato: formatEntero, sub: "Se verifican solos al vencer" }
-  ] : []);
+  const tasa = t => t && t.n ? t.tasa * 100 : 0;
+  const subTasa = (t, texto) => t && t.n ? t.aciertos + " de " + t.n + (t.intervalo ? " · margen " + Math.round(t.intervalo.desde * 100) + " a " + Math.round(t.intervalo.hasta * 100) + " %" : "") : texto;
+  const pct = n => Math.round(n) + " %";
+  const kpis = [];
+  if (r.total) {
+    kpis.push({ label: "Aciertos de Gemini", valor: tasa(r.gemini), formato: pct, sub: subTasa(r.gemini, r.verificados ? "Sin verificados con el método nuevo" : "Todavía no venció ninguno"), tono: "var(--ok)" });
+    kpis.push({ label: "Si dijera siempre \"mejor\"", valor: tasa(r.siempreAlcista), formato: pct, sub: subTasa(r.siempreAlcista, "Para comparar"), tono: "var(--muted)" });
+    kpis.push({ label: "Regla de tendencia", valor: tasa(r.reglaTendencia), formato: pct, sub: subTasa(r.reglaTendencia, "Sigue lo que pasó en 6 meses"), tono: "var(--warn)" });
+    kpis.push({ label: "Indicadores propios", valor: tasa(r.indicadores), formato: pct, sub: subTasa(r.indicadores, "Desde los análisis nuevos"), tono: "var(--accent)" });
+    kpis.push({ label: "Esperando el plazo", valor: r.pendientes || 0, formato: formatEntero, sub: "Se verifican solos al vencer" });
+  }
+  renderKpis($("mercAciertos"), kpis);
 
   const box = $("mercHistorial");
   if (!mercItems.length) { box.replaceChildren(el("p", "hint", "Todavía no hiciste ningún análisis.")); return; }
+  box.replaceChildren();
+  if (r.unicos !== undefined && r.total) {
+    const g = r.gemini || {};
+    const lider = [["Gemini", r.gemini], ["Combinado (Gemini + indicadores)", r.combinado], ["Indicadores propios", r.indicadores], ["Regla de tendencia", r.reglaTendencia], ["Siempre \"mejor\"", r.siempreAlcista]]
+      .filter(x => x[1] && x[1].n).sort((a, b) => b[1].tasa - a[1].tasa);
+    let texto = "Se cuenta si a la acción le fue mejor o peor que a su índice (el Merval para las .BA, el S&P 500 para el resto). " +
+      "Una misma acción analizada otra vez antes de que venza el pronóstico anterior cuenta una sola vez (" + r.unicos + " de " + r.verificados + " verificados).";
+    if (g.n && g.n < 30) texto += " Con menos de 30 casos el porcentaje todavía puede ser suerte: mirá el margen.";
+    if (lider.length > 1) texto += " Hoy acierta más: " + lider[0][0] + " (" + Math.round(lider[0][1].tasa * 100) + " %).";
+    if (r.viejos) texto += " Los " + r.viejos + " pronóstico(s) del método anterior (decían si subía o bajaba) no entran en estos números.";
+    box.append(el("p", "hint merc-explica", texto));
+    box.append(nodoMercEstadistica(r));
+  }
   const table = el("table");
   const thead = el("thead");
   const trh = el("tr");
-  ["Fecha", "Acción", "Horizonte", "Pronóstico", "Confianza", "Precio", "Resultado"].forEach(h => trh.append(el("th", null, h)));
+  ["Fecha", "Acción", "Horizonte", "Pronóstico", "Prob.", "Confianza", "Precio", "Resultado"].forEach(h => trh.append(el("th", null, h)));
   thead.append(trh);
   const tbody = el("tbody");
   mercItems.forEach(a => {
@@ -23973,13 +24209,17 @@ function renderMercHistorial(r) {
     tr.title = "Tocá para ver el análisis completo";
     const precio = el("td", "num", a.precio === null ? "—" : (a.moneda ? a.moneda + " " : "") + fmtMercPrecio.format(a.precio));
     const res = el("td");
-    if (a.resultado === "Acertó") res.append(el("span", "badge badge-guardado", "Acertó " + mercPct(a.variacion)));
-    else if (a.resultado === "Falló") res.append(el("span", "badge badge-error", "Falló " + mercPct(a.variacion)));
+    const dif = !mercViejo(a) && a.exceso !== null && a.exceso !== undefined ? mercPct(a.exceso) + " vs índice" : mercPct(a.variacion);
+    if (a.resultado === "Acertó") res.append(el("span", "badge badge-guardado", "Acertó " + dif));
+    else if (a.resultado === "Falló") res.append(el("span", "badge badge-error", "Falló " + dif));
     else if (a.resultado) res.append(el("span", "badge badge-texto", a.resultado));
+    else if (a.seguimiento) res.append(el("span", "badge " + (a.seguimiento.va === "bien" ? "badge-guardado" : "badge-pendiente"),
+      (a.seguimiento.va === "bien" ? "Va bien " : "Va mal ") + mercPct(a.seguimiento.exceso) + " · faltan " + a.seguimiento.faltan + " d"));
     else res.append(el("span", "badge badge-pendiente", "Al " + isoADma(a.verificarEl)));
     const inc = el("td");
-    inc.append(el("span", "merc-incl " + a.inclinacion, a.inclinacion.charAt(0).toUpperCase() + a.inclinacion.substring(1)));
-    tr.append(celda(a.fecha), celda(a.simbolo + (a.nombre && a.nombre !== a.simbolo ? " · " + a.nombre : "")), celda(a.horizonteNombre), inc, celda(a.confianza), precio, res);
+    inc.append(el("span", "merc-incl " + a.inclinacion, mercInclTexto(a, true)));
+    tr.append(celda(a.fecha), celda(a.simbolo + (a.nombre && a.nombre !== a.simbolo ? " · " + a.nombre : "")), celda(a.horizonteNombre), inc,
+      celda(a.probabilidad !== null && a.probabilidad !== undefined ? a.probabilidad + " %" : "—"), celda(a.confianza), precio, res);
     tr.addEventListener("click", () => {
       $("mercResultado").replaceChildren(nodoMercAnalisis(a));
       $("mercResultado").scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
@@ -23987,7 +24227,43 @@ function renderMercHistorial(r) {
     tbody.append(tr);
   });
   table.append(thead, tbody);
-  box.replaceChildren(envolverTabla(table));
+  box.append(envolverTabla(table));
+}
+
+/** Calibración, puntaje de Brier y aciertos por plazo, confianza, mercado, sector y modelo. */
+function nodoMercEstadistica(r) {
+  const det = el("details", "merc-det merc-estad");
+  det.append(el("summary", null, "Ver el detalle de los aciertos"));
+  const tabla = (titulos, filas) => {
+    const t = el("table");
+    const trh = el("tr");
+    titulos.forEach(h => trh.append(el("th", null, h)));
+    t.append(trh);
+    filas.forEach(f => { const tr = el("tr"); f.forEach(c => tr.append(celda(c))); t.append(tr); });
+    return envolverTabla(t);
+  };
+  const margen = t => t.intervalo ? Math.round(t.intervalo.desde * 100) + " a " + Math.round(t.intervalo.hasta * 100) + " %" : "—";
+  det.append(el("div", "merc-sec", "Comparación"));
+  det.append(tabla(["Quién", "Casos", "Aciertos", "Margen (95 %)"],
+    [["Gemini", r.gemini], ["Combinado (Gemini + indicadores)", r.combinado], ["Indicadores propios", r.indicadores], ["Regla de tendencia (6 meses)", r.reglaTendencia], ["Siempre \"mejor\"", r.siempreAlcista]]
+      .filter(x => x[1]).map(x => [x[0], String(x[1].n), x[1].n ? mercPctEntero(x[1].tasa) : "—", margen(x[1])])));
+  if (r.excesoPromedio !== null && r.excesoPromedio !== undefined) det.append(el("p", "hint", "Siguiendo los pronósticos de Gemini (comprar lo \"mejor\", vender lo \"peor\"), la diferencia promedio contra el índice fue " + mercPct(r.excesoPromedio) + " por pronóstico."));
+
+  det.append(el("div", "merc-sec", "¿Está bien calibrado?"));
+  if (r.calibracion && r.calibracion.length) {
+    det.append(tabla(["Probabilidad que dio", "Casos", "Dijo en promedio", "Le ganó al índice de verdad"],
+      r.calibracion.map(c => [c.tramo, String(c.n), mercPctEntero(c.dijo), mercPctEntero(c.paso)])));
+    det.append(el("p", "hint", "Bien calibrado es cuando las dos últimas columnas se parecen: si dice 70 %, que pase 7 de cada 10 veces. " +
+      (r.brier !== null ? "Puntaje de Brier: " + String(r.brier.toFixed(3)).replace(".", ",") + " (" + r.brierN + " casos; 0 es perfecto y 0,250 es lo que da decir siempre 50 %: " + (r.brier < 0.25 ? "mejor que eso" : "todavía no mejora eso") + ")." : "")));
+  } else det.append(el("p", "hint", "Todavía no hay pronósticos verificados con probabilidad (empiezan a contar con los análisis nuevos)."));
+
+  Object.keys(r.grupos || {}).forEach(k => {
+    const filas = r.grupos[k];
+    if (!filas.length) return;
+    det.append(el("div", "merc-sec", "Por " + k.toLowerCase()));
+    det.append(tabla([k, "Casos", "Aciertos de Gemini", "Margen (95 %)"], filas.map(f => [f.grupo, String(f.n), mercPctEntero(f.tasa), margen(f)])));
+  });
+  return det;
 }
 
 async function analizarMercado() {
@@ -23998,13 +24274,16 @@ async function analizarMercado() {
   btn.disabled = true;
   const box = $("mercResultado");
   const espera = el("div", "card");
-  espera.append(el("div", "card-title", "Analizando " + simbolo.toUpperCase() + "…"), el("p", "hint", "Buscando precios y noticias recientes. Puede tardar hasta un minuto."), nodoCargando());
+  espera.append(el("div", "card-title", "Analizando " + simbolo.toUpperCase() + "…"), el("p", "hint", "Buscando precios, calculando indicadores y pidiéndole a Gemini tres respuestas. Puede tardar hasta un minuto y medio."), nodoCargando());
   box.replaceChildren(espera);
   // Si tarda, se avisa que sigue (está probando otro modelo de Gemini).
-  const aviso = setTimeout(() => { const h = espera.querySelector(".hint"); if (h) h.textContent = "Sigue buscando: Gemini está lento o saturado y está probando con otro modelo. Puede tardar hasta tres minutos."; }, 45000);
+  const aviso = setTimeout(() => { const h = espera.querySelector(".hint"); if (h) h.textContent = "Sigue buscando: Gemini está lento o saturado y está probando con otro modelo. Puede tardar hasta tres minutos."; }, 60000);
   try {
     const res = await runJson("mercados", { op: "analizar", simbolo: simbolo, horizonte: $("mercHorizonte").value });
-    box.replaceChildren(nodoMercAnalisis(res.analisis));
+    const a = res.analisis;
+    a.metodo = "v2";
+    a.fechaIso = hoyIso();
+    box.replaceChildren(nodoMercAnalisis(a));
     mercCargado = false;
     cargarMercados(true);
   } catch (err) {

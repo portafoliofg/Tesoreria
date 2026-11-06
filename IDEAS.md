@@ -26,9 +26,12 @@ ni su enlace en `docs/index.html`.
   listado, saldo desde la entrada manual y fondos sugeridos en la carga masiva.
 - **Cheques**: filtros rápidos por solapa, concepto en pagados, conceptos históricos, imagen al
   portapapeles; el listado de e-cheqs actualiza los ya cargados.
-- **Mercados** (solo para el dueño, `src/Mercados.gs`): pronóstico de subas y bajas de una acción con los motivos
-  de cada lado, qué lo cambiaría y la confianza, con precios de Yahoo Finance y noticias vía Gemini. Cada
-  pronóstico se guarda en "Mercados · Pronósticos" y se verifica solo al vencer el plazo (porcentaje de aciertos).
+- **Mercados** (solo para el dueño, `src/Mercados.gs`): pronóstico de si una acción le gana o pierde contra su
+  índice (Merval para las .BA, S&P 500 para el resto), con los motivos de cada lado. Suma indicadores calculados con
+  datos (tendencia 12-1, máximo de 52 semanas, rebote, medias, RSI, volumen, balance, analistas, riesgo país, brecha
+  con el ADR) en un puntaje propio, la tasa base y el rango normal de movimiento, el historial propio, tres respuestas
+  de Gemini (mayoría) y una probabilidad para medir la calibración. Se verifica solo al vencer el plazo contra el
+  índice, y se compara con "siempre mejor", una regla de tendencia y el puntaje propio (con margen de error).
 - **Filtros por columna** como Excel en todas las tablas, **Posición al** (31/12) y **Parte del día**
   para WhatsApp (4 imágenes).
 
