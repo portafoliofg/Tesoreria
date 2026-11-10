@@ -2,9 +2,14 @@
  * Sesión de bgpsammar.com · Andrés Sammartino
  *
  * El ingreso usa los mismos usuarios de la app de Tesorería: se valida en Apps
- * Script (doPost de src/Código.gs) y el token queda guardado en este navegador,
- * junto con el usuario, para mostrar las páginas al instante sin esperar al servidor.
+ * Script (doPost de src/Código.gs) y el token queda guardado solo en esta pestaña
+ * (sessionStorage), junto con el usuario: al cerrarla no queda nada, y cada vez que se
+ * abre bgpsammar.com hay que ingresar antes de ver las secciones.
  * La página de inicio se lo pasa a la app de Tesorería para no pedirlo dos veces.
+ *
+ * Una sección abierta en otra pestaña (el Modo F1 desde Tesorería, o Propiedades con
+ * "abrir en pestaña nueva") no tiene la sesión: se la pide a las pestañas del sitio que
+ * siguen abiertas con BGPSesion.recuperar(). La página de inicio no la pide nunca.
  *
  * BGPSesion.token()            token guardado ("" si no hay)
  * BGPSesion.usuario()          usuario guardado {usuario, nombre} o null
@@ -18,8 +23,10 @@
  * BGPSesion.credencialGoogle(maxMs) credencial de Google guardada si tiene menos de maxMs, o "".
  * BGPSesion.reemplazarToken(t) cambia el token guardado por uno nuevo (la app de Tesorería lo manda
  *                              al cambiar la contraseña, que cierra las sesiones viejas).
- * BGPSesion.salir()            Promise → cierra la sesión
- * BGPSesion.pedir(accion, d)   Promise → respuesta del servidor para una acción con sesión
+ * BGPSesion.salir()            Promise → cierra la sesión (también en las otras pestañas del sitio)
+ * BGPSesion.recuperar()        Promise → true si otra pestaña del sitio con la sesión abierta se la
+ *                              pasó a esta; false si no hay ninguna (o el navegador no lo permite).
+ * BGPSesion.pedir(accion, d)  Promise → respuesta del servidor para una acción con sesión
  *                              (por ejemplo los datos de Propiedades). Falla con el motivo;
  *                              si la sesión venció, el error trae .sesion = false.
  * BGPSesion.pedirConMemoria(accion, d, alLlegar, soloServidor)
@@ -37,9 +44,19 @@
   var CLAVE_USUARIO = "bgp-usuario";
   var CLAVE_GOOGLE = "bgp-gid";
   var ESPERA_MS = 15000;
+  // Cuánto se espera a que otra pestaña del sitio pase la sesión (recuperar).
+  var ESPERA_PESTANAS_MS = 400;
 
-  function leer(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
-  function escribir(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
+  function leer(k) { try { return sessionStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function escribir(k, v) { try { if (v) sessionStorage.setItem(k, v); else sessionStorage.removeItem(k); } catch (e) {} }
+  // Antes la sesión quedaba guardada en el navegador (localStorage) y se entraba sin ingresar:
+  // si quedó una de esas, se borra y se cierra en el servidor.
+  try {
+    var vieja = localStorage.getItem(CLAVE);
+    localStorage.removeItem(CLAVE);
+    localStorage.removeItem(CLAVE_USUARIO);
+    if (vieja && vieja !== leer(CLAVE)) pedir("logout", { token: vieja }, vieja).then(function () {}, function () {});
+  } catch (e) {}
   // La credencial de Google vive solo en esta pestaña (sessionStorage), con la hora en que llegó.
   function guardarGoogle(credencial) {
     try {
@@ -111,8 +128,42 @@
     return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text().then(JSON.parse);
   }
 
+  // ----- Entre pestañas del sitio -----
+  // Canal del mismo dominio: una pestaña sin sesión la pide ("pide") y las que la tienen
+  // responden ("sesion"); al salir o cambiar el token se avisa a las demás.
+  var canal = null;
+  var esperando = null;   // {id, listo} mientras esta pestaña espera que otra le pase la sesión
+  try { canal = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("bgp-sesion") : null; } catch (e) {}
+  function avisar(msg) { try { if (canal) canal.postMessage(msg); } catch (e) {} }
+  if (canal) canal.onmessage = function (e) {
+    var m = e.data;
+    if (!m || typeof m !== "object") return;
+    if (m.tipo === "pide" && leer(CLAVE)) {
+      avisar({ tipo: "sesion", id: m.id, token: leer(CLAVE), usuario: leer(CLAVE_USUARIO) });
+    } else if (m.tipo === "sesion" && esperando && m.id === esperando.id && /^[0-9a-f-]{40,100}$/i.test(String(m.token || ""))) {
+      escribir(CLAVE, String(m.token));
+      escribir(CLAVE_USUARIO, typeof m.usuario === "string" ? m.usuario : "");
+      esperando.listo(true);
+    } else if (m.tipo === "salir" && m.token && m.token === leer(CLAVE)) {
+      guardar("", null);
+      guardarGoogle("");
+    } else if (m.tipo === "token" && m.antes && m.antes === leer(CLAVE) && /^[0-9a-f-]{40,100}$/i.test(String(m.token || ""))) {
+      escribir(CLAVE, String(m.token));
+    }
+  };
+
   window.BGPSesion = {
     token: function () { return leer(CLAVE); },
+    recuperar: function () {
+      if (leer(CLAVE)) return Promise.resolve(true);
+      if (!canal) return Promise.resolve(false);
+      return new Promise(function (resolve) {
+        var id = String(Date.now()) + Math.random().toString(16).slice(2);
+        var reloj = setTimeout(function () { esperando = null; resolve(false); }, ESPERA_PESTANAS_MS);
+        esperando = { id: id, listo: function (ok) { clearTimeout(reloj); esperando = null; resolve(ok); } };
+        avisar({ tipo: "pide", id: id });
+      });
+    },
     usuario: function () {
       if (!leer(CLAVE)) return null;
       try { return JSON.parse(leer(CLAVE_USUARIO)) || { usuario: "", nombre: "" }; } catch (e) { return { usuario: "", nombre: "" }; }
@@ -190,10 +241,12 @@
     },
     reemplazarToken: function (t) {
       t = String(t || "");
-      if (t && leer(CLAVE) && /^[0-9a-f-]{40,100}$/i.test(t)) escribir(CLAVE, t);
+      var antes = leer(CLAVE);
+      if (t && antes && /^[0-9a-f-]{40,100}$/i.test(t)) { escribir(CLAVE, t); avisar({ tipo: "token", antes: antes, token: t }); }
     },
     salir: function () {
       var t = leer(CLAVE);
+      if (t) avisar({ tipo: "salir", token: t });
       guardar("", null);
       guardarGoogle("");
       memoria.borrar();

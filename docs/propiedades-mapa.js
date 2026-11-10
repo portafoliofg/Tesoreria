@@ -26,7 +26,8 @@
   // ----- Sesión -----
   function irAlIngreso() { location.replace("index.html?v=7#elegir"); }
   var guardado = BGPSesion.usuario();
-  if (!guardado) { irAlIngreso(); return; }
+  // Abierta en otra pestaña: la sesión se pide a la pestaña del sitio que sigue abierta.
+  if (!guardado) { BGPSesion.recuperar().then(function (ok) { if (ok) location.reload(); else irAlIngreso(); }); return; }
   $("quien").textContent = guardado.nombre || guardado.usuario || "";
   document.body.classList.remove("verificando");
   // La sesión no se consulta aparte: ubicacionesPropiedades la valida (si venció, vuelve al ingreso).

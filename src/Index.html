@@ -5214,7 +5214,10 @@ function mostrarVista(nombre) {
 // ---------------- Comunicación con el servidor ----------------
 // Todo pasa por api(): manda la sesión, la acción y los datos como JSON.
 let sesionToken = "";
-try { sesionToken = localStorage.getItem("lc-sesion") || ""; } catch (e) {}
+// La sesión vive solo en esta pestaña (sessionStorage): al cerrarla hay que volver a ingresar.
+// Antes quedaba guardada en el navegador (localStorage): si quedó una de esas, se borra.
+try { sesionToken = sessionStorage.getItem("lc-sesion") || ""; } catch (e) {}
+try { localStorage.removeItem("lc-sesion"); } catch (e) {}
 
 function runJson(accion, datos) {
   return new Promise((resolve, reject) => {
@@ -9079,8 +9082,8 @@ let usuarioActual = null;
 function guardarToken(t) {
   sesionToken = t || "";
   try {
-    if (t) localStorage.setItem("lc-sesion", t);
-    else localStorage.removeItem("lc-sesion");
+    if (t) sessionStorage.setItem("lc-sesion", t);
+    else sessionStorage.removeItem("lc-sesion");
   } catch (e) {}
 }
 
@@ -9155,7 +9158,7 @@ function limpiarDatosEnPantalla() {
 }
 
 function arrancar() {
-  try { sesionToken = localStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
+  try { sesionToken = sessionStorage.getItem("lc-sesion") || sesionToken; } catch (e) {}
   runJson("estado", { completo: true })
     .then(res => {
       revisarVersion(res.version);

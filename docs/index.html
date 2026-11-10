@@ -291,7 +291,7 @@
             <span class="cartel-ir" id="tesIr">Entrar</span>
           </button>
           <!-- ?v=: subirlo al cambiar propiedades.html, así el navegador no usa una copia vieja. -->
-          <a class="cartel" id="irPropiedades" href="propiedades.html?v=16">
+          <a class="cartel" id="irPropiedades" href="propiedades.html?v=17">
             <span class="cartel-cabeza">
               <span class="cartel-icono" aria-hidden="true">
                 <svg viewBox="0 0 28 28" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -309,7 +309,7 @@
       </div>
     </section>
   </div>
-  <script src="sesion.js?v=10"></script>
+  <script src="sesion.js?v=11"></script>
   <script>
     // Pantalla de inicio: la presentación animada del logo y, al terminar, el ingreso (si
     // no hay sesión) o el selector; el logo de la presentación viaja hasta su lugar en esa
@@ -339,9 +339,9 @@
       var cajaGoogle = document.getElementById("accesoGoogle");
       var googleListo = false, googleCargando = false, botonGoogle = false;
 
-      // La sesión se confirma con el servidor durante la presentación. No se espera esa
-      // respuesta para mostrar nada: con una sesión guardada aparece el selector al
-      // instante, y solo si el servidor dice que venció se vuelve al ingreso.
+      // La sesión vive solo en esta pestaña (sesion.js): al abrir el sitio hay que ingresar antes
+      // de ver las secciones. Al volver al inicio dentro de la misma pestaña sí hay sesión: el
+      // selector aparece al instante y se confirma con el servidor; si venció, vuelve al ingreso.
       var consulta = BGPSesion.consultar();
       consulta.catch(function () {});
       // Sin sesión guardada se va a pedir el ingreso: la biblioteca de Google se carga durante la presentación.

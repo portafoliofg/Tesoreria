@@ -15,7 +15,8 @@
   var MESES = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
   function irAlIngreso() { location.replace("index.html?v=8#elegir"); }
-  if (!BGPSesion.usuario()) { irAlIngreso(); return; }
+  // Abierto en otra pestaña (desde Tesorería): la sesión se pide a la pestaña del sitio que sigue abierta.
+  if (!BGPSesion.usuario()) { BGPSesion.recuperar().then(function (ok) { if (ok) location.reload(); else irAlIngreso(); }); return; }
   document.body.classList.remove("verificando");
 
   function el(tag, cls, txt) { var n = document.createElement(tag); if (cls) n.className = cls; if (txt !== undefined && txt !== null) n.textContent = txt; return n; }
