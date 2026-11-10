@@ -6608,6 +6608,7 @@ $("btnGuardar").addEventListener("click", async () => {
     if (results.length) msg += " Quedan " + results.length + " pestaña(s) sin guardar para revisar.";
     setStatus(st, msg, "msg-ok");
     toast(msg, "ok");
+    recordarConceptos(pendientesTransferencias.map(r => (r.datos || {})["Concepto"]).concat(pendientesCheques.map(r => (r.manualCheque || {})["Concepto"])));
     transferenciasCargadas = false;
     chequesCargados = false;
   } catch (err) {
@@ -6962,6 +6963,7 @@ $("modalManualGuardar").addEventListener("click", async () => {
       const numero = !esCheque && res.numeros && res.numeros[0] ? " N° interno " + res.numeros[0] + "." : "";
       setStatus(st, "Guardado." + numero, "hint msg-ok");
       toast("Comprobante cargado a mano." + numero, "ok");
+      recordarConceptos([lookup["Concepto"]]);
       limpiarCamposManual();
       if (esCheque) {
         chequesCargados = false;
@@ -7273,9 +7275,15 @@ function poblarFiltroValores(id, datos, campo, textoTodos, vacio) {
 // Todo campo Concepto sugiere los conceptos ya usados en cheques y movimientos (los más usados y
 // recientes primero). Se arma al entrar al campo, solo si cambiaron los datos.
 let memoConceptos = {};
+// Los conceptos guardados en esta sesión entran enseguida en las sugerencias, sin esperar a
+// que se vuelvan a traer los cheques y los movimientos.
+const conceptosSesion = [];
+function recordarConceptos(lista) {
+  lista.forEach(c => { const t = String(c || "").trim(); if (t.length >= 2) conceptosSesion.push(t); });
+}
 function actualizarListaConceptos() {
   const lista = $("listaConceptos");
-  if (!lista || (memoConceptos.ch === chequesDatos && memoConceptos.tr === transferenciasDatos)) return;
+  if (!lista || (memoConceptos.ch === chequesDatos && memoConceptos.tr === transferenciasDatos && memoConceptos.n === conceptosSesion.length)) return;
   const por = {};
   const sumar = (txt, fecha) => {
     const t = String(txt || "").trim();
@@ -7288,9 +7296,11 @@ function actualizarListaConceptos() {
   };
   chequesDatos.forEach(c => sumar(c["Concepto"], c["Fecha de Emisión"]));
   transferenciasDatos.forEach(f => sumar(f["Concepto"], fechaMov(f)));
+  const hoy = hoyIso();
+  conceptosSesion.forEach(t => { sumar(t, ""); const x = por[normalizar(t)]; x.iso = hoy; x.t = t; });
   const orden = Object.keys(por).map(k => por[k]).sort((a, b) => b.n - a.n || b.iso.localeCompare(a.iso)).slice(0, 500);
   lista.replaceChildren(...orden.map(x => new Option(x.t, x.t)));
-  memoConceptos = { ch: chequesDatos, tr: transferenciasDatos };
+  memoConceptos = { ch: chequesDatos, tr: transferenciasDatos, n: conceptosSesion.length };
 }
 
 /** El último concepto usado con ese titular o destinatario (para proponerlo si el campo está vacío). */
