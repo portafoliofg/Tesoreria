@@ -24935,26 +24935,29 @@ function renderEstadisticas() {
 // las salidas suman y las entradas restan. Movimientos: todos (también entre cuentas propias,
 // porque la caja chica se repone así), menos los renglones de resúmenes ya conciliados.
 // Cheques: por fecha de débito (o de pago si no tiene), sin anulados, rechazados ni endosados.
-const CONCEPTOS_EST = ["Caja Chica", "Combustible Bandera"];
+// Varios textos unidos con "+" se suman en una sola serie.
+const CONCEPTOS_EST = ["Caja Chica", "Combustible Bandera + Combustible Movilidad"];
 
+// El combustible de Bandera guardado solo (la lista de antes) pasa a sumar el de Movilidad.
 function conceptosEst() {
   const c = (preferencias.estadisticas || {}).conceptos;
-  return Array.isArray(c) && c.length ? c : CONCEPTOS_EST;
+  if (!Array.isArray(c) || !c.length) return CONCEPTOS_EST;
+  return c.map(x => normalizar(x).trim() === "COMBUSTIBLE BANDERA" ? CONCEPTOS_EST[1] : x);
 }
 
 function datosConceptosEst(ini, conceptos) {
-  const claves = conceptos.map(c => normalizar(c).trim());
+  const claves = conceptos.map(c => c.split("+").map(x => normalizar(x).trim()).filter(Boolean));
   const items = [];
   transferenciasDatos.forEach(f => {
     if (f["Origen"] === "Resumen" && f["Conciliación"]) return;
-    const k = claves.findIndex(c => normalizar(f["Concepto"] || "").indexOf(c) >= 0);
+    const k = claves.findIndex(c => c.some(x => normalizar(f["Concepto"] || "").indexOf(x) >= 0));
     if (k < 0) return;
     items.push({ k: k, iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
       fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"] });
   });
   chequesDatos.forEach(c => {
     if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
-    const k = claves.findIndex(x => normalizar(c["Concepto"] || "").indexOf(x) >= 0);
+    const k = claves.findIndex(x => x.some(y => normalizar(c["Concepto"] || "").indexOf(y) >= 0));
     if (k < 0) return;
     const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
     items.push({ k: k, iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
@@ -24988,7 +24991,7 @@ function tarjetaConceptosEst(ini) {
   inp.type = "text";
   inp.value = conceptos.join(", ");
   inp.placeholder = CONCEPTOS_EST.join(", ");
-  inp.title = "Separados por coma. Se busca el texto dentro del concepto, sin importar mayúsculas ni acentos.";
+  inp.title = "Separados por coma. Se busca el texto dentro del concepto, sin importar mayúsculas ni acentos. Para sumar varios en uno, unilos con +.";
   const aplicar = el("button", "secondary small", "Aplicar");
   aplicar.type = "button";
   aplicar.addEventListener("click", () => {
