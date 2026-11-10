@@ -8,10 +8,14 @@ ni su enlace en `docs/index.html`.
 
 ## Hechas
 
-- **Calendario de vencimientos** (menú Calendario): mes a mes, lo que vence cada día (cheques emitidos y
-  de terceros, bolsa, compromisos y recordatorios con importe), con el detalle del día y un enlace por
-  vencimiento para agregarlo a Google Calendar. Suscripción a Google Calendar con un enlace secreto
-  (iCal, `Calendario.gs`): no le pide permisos nuevos al script; se puede regenerar.
+- **Análisis** (menú Análisis, donde estaba Calendario): tres grupos de pestañas. Gastos: rubros y
+  subrubros, centros de costo, fijo y variable, reglas de clasificación y sin clasificar. Estadísticas:
+  mes contra mes, gasto en dólares, proveedores, estacionalidad y costo financiero. Mediciones:
+  presupuesto, días de caja, plazos de pago y cobro, acierto del flujo, cheques rechazados y plata ociosa.
+  No cambia los movimientos; la configuración (reglas, presupuesto…) es compartida (`Analisis.gs`).
+- **Suscripción a Google Calendar** (botón Google Calendar en Saldos y flujo): enlace secreto iCal
+  (`Calendario.gs`) con lo que vence cada día; no le pide permisos nuevos al script y se puede regenerar.
+  La vista Calendario (mes a mes) se quitó al sumar Análisis.
 - **¿Rescatar o negociar?** (tablero de Bolsa; el de FCI se quitó): TNA real del FCI contra la TNA reciente de
   bolsa, cuánto se ahorra por cada $ 1 M a 30 días, lo que pasó en 90 días y si el FCI cubre lo que
   vence en 30 días.

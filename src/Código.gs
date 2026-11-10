@@ -298,6 +298,10 @@ const ACCIONES = {
   obtenerCalendario: (d, u) => obtenerCalendario_(d, u),
   suscripcionCalendario: (d, u) => suscripcionCalendario_(d, u),
   cotizacionesDolar: cotizacionesDolar_,
+  // Vista Análisis: configuración compartida y dólar histórico (Analisis.gs).
+  obtenerAnalisis: (d, u) => obtenerAnalisis_(d, u),
+  guardarAnalisis: (d, u) => guardarAnalisis_(d, u),
+  dolarHistorico: (d, u) => dolarHistorico_(d, u),
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' },
   // MERCADOS: pronóstico de acciones, solo para el dueño (Mercados.gs). Si se borra ese archivo, borrar también esta línea.
