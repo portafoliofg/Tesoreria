@@ -19122,6 +19122,7 @@ const AN_SIN = "Sin clasificar";
 let anGrupo = "gastos";
 let anTab = "rubros";
 let anPeriodo = "6m";
+let anMes = ""; // "aaaa-mm" cuando se filtra un solo mes
 let anCfg = { reglas: [], fijos: {}, presu: {}, proy: [], umbral: 0, dolar: "blue" };
 let anCfgCargada = false;
 let anCfgFallo = false;
@@ -19129,6 +19130,7 @@ let anCfgTimer = null;
 let anVer = 0; // sube con cada cambio de reglas: la clasificación recordada deja de valer
 let anVez = 0;
 let anMemo = { datos: null, ver: -1, lista: null };
+let anRubroDet = ""; // rubro elegido en el detalle de conceptos
 let anMesComp = "";
 let anMesPresu = "";
 let anAnioEst = "";
@@ -19226,6 +19228,8 @@ function anOperativos() {
 }
 
 function anRango() {
+  // Un mes elegido en el filtro le gana al período.
+  if (anMes) return { meses: [anMes], nombre: mesLargo(anMes + "-01") };
   const hoy = hoyIso(), mesHoy = hoy.substring(0, 7) + "-01", anio = parseInt(hoy.substring(0, 4), 10);
   let ini = sumarMesesIso(mesHoy, -5), n = 6;
   if (anPeriodo === "12m") { ini = sumarMesesIso(mesHoy, -11); n = 12; }
@@ -19310,9 +19314,20 @@ function anCtrl(etiqueta, control) {
 
 function anBarraPeriodo(box) {
   const ctrl = el("div", "an-ctrl");
-  ctrl.append(anCtrl("Período", anSelect(AN_PERIODOS, anPeriodo, v => { anPeriodo = v; renderAnalisis(); })));
+  ctrl.append(anCtrl("Período", anSelect(AN_PERIODOS, anPeriodo, v => { anPeriodo = v; anMes = ""; renderAnalisis(); })));
+  ctrl.append(anCtrl("Mes", anSelect([["", "Todos los meses"]].concat(anMesesConDatos()), anMes, v => { anMes = v; renderAnalisis(); })));
   box.append(ctrl);
   return ctrl;
+}
+
+// Meses para el filtro: del actual hacia atrás, hasta el primero con gastos.
+function anMesesConDatos() {
+  const mesHoy = hoyIso().substring(0, 7);
+  const primero = anGastos().reduce((a, x) => x.mes < a ? x.mes : a, mesHoy);
+  const lista = [];
+  for (let m = mesHoy; m >= primero && lista.length < 120; m = sumarMesesIso(m + "-01", -1).substring(0, 7)) lista.push([m, mesLargo(m + "-01")]);
+  if (anMes && !lista.some(o => o[0] === anMes)) lista.push([anMes, mesLargo(anMes + "-01")]);
+  return lista;
 }
 
 function anOpcionesMeses(n) {
@@ -19471,6 +19486,37 @@ function anRubros(box) {
   });
   card.append(anBarras(rubros.slice(0, 8).map(k => [k, por[k].total, anPct(por[k].total, total)])),
     anTabla(["Rubro", "Movimientos", "Total", "Por mes", "Parte"], filas, [1, 2, 3, 4], clases));
+  box.append(card);
+  anDetalleConceptos(box, gastos, rubros);
+}
+
+// Los conceptos que forman el gasto del período, de un rubro o de todos.
+function anDetalleConceptos(box, gastos, rubros) {
+  if (anRubroDet && rubros.indexOf(anRubroDet) < 0) anRubroDet = "";
+  const mios = anRubroDet ? gastos.filter(x => x.rubro === anRubroDet) : gastos;
+  const total = anTotal(mios);
+  const grupos = {};
+  mios.forEach(x => {
+    const concepto = String(x.f["Concepto"] || "").trim();
+    const k = normalizar(concepto).trim() + "|" + x.rubro;
+    const g = grupos[k] || (grupos[k] = { nombre: concepto, rubro: x.rubro, n: 0, total: 0, ult: "", quienes: {} });
+    g.n++;
+    g.total += x.m;
+    if (x.iso > g.ult) g.ult = x.iso;
+    if (x.quien) anSumar(g.quienes, x.quien, x.m);
+  });
+  const lista = Object.keys(grupos).map(k => grupos[k]).sort((a, b) => b.total - a.total);
+  const card = anTarjeta("Detalle de conceptos", "Los conceptos de los egresos del período, juntando los que están escritos igual, con a quién se le pagó más por cada uno.");
+  const ctrl = el("div", "an-ctrl");
+  ctrl.append(anCtrl("Rubro", anSelect([["", "Todos los rubros"]].concat(rubros.map(k => [k, k])), anRubroDet, v => { anRubroDet = v; renderAnalisis(); })));
+  card.append(ctrl, anTabla(["Concepto", "Rubro", "Movimientos", "Total", "Parte", "Último"], lista.slice(0, 150).map(g => {
+    const nombre = el("div");
+    nombre.append(el("div", "dt-principal", g.nombre || "Sin concepto"));
+    const quienes = Object.keys(g.quienes).sort((a, b) => g.quienes[b] - g.quienes[a]);
+    if (quienes.length) nombre.append(el("div", "dt-sub", quienes[0] + (quienes.length > 1 ? " y " + (quienes.length - 1) + " más" : "")));
+    return [nombre, g.rubro, String(g.n), fmtImp(g.total), anPct(g.total, total), isoADma(g.ult)];
+  }), [2, 3, 4]));
+  if (lista.length > 150) card.append(el("p", "hint", "Se muestran los 150 conceptos de mayor importe, de " + lista.length + "."));
   box.append(card);
 }
 
