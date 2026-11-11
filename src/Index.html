@@ -1435,6 +1435,7 @@
   .estr-tc-grid input { width: 100%; height: 32px; margin: 4px 0 0; text-align: right; font-variant-numeric: tabular-nums; }
   .estr-faltante-acc { display: flex; gap: 8px; justify-content: flex-end; align-items: center; white-space: nowrap; }
   select.estr-sumar { height: 30px; margin: 0; padding: 0 24px 0 8px; font-size: 12px; max-width: 240px; }
+  .estr-det-acc { text-align: right; width: 1%; white-space: nowrap; }
   /* Estructura para imprimir: A4 apaisada */
   @page horizontal { size: A4 landscape; margin: 10mm 8mm; }
   .rep-horizontal { page: horizontal; }
@@ -25516,7 +25517,8 @@ function estrInicial() {
     filas: ESTR_INICIAL_FILAS.map(f => ({ nombre: f[0], tipo: f[1], buscar: "" })),
     tc: [1382, 1408.50, 1435.50, 1462.50, 1490, 1515.50, 1540, 1580, 1580, 1650, 1680, 1695],
     tcBna: 1349,
-    tcBnaFecha: "2026-04-17"
+    tcBnaFecha: "2026-04-17",
+    excluidos: {}
   };
   estrUnirPersonas(r);
   return r;
@@ -25538,7 +25540,9 @@ function estrNormalizar(e) {
     filas: e.filas.map(f => ({ nombre: String(f.nombre || ""), tipo: ESTR_TIPOS.indexOf(f.tipo) >= 0 ? f.tipo : "Otros", buscar: String(f.buscar || "") })),
     tc: Array.from({ length: n }, (_, i) => num(Array.isArray(e.tc) ? e.tc[i] : 0)),
     tcBna: num(e.tcBna) || base.tcBna,
-    tcBnaFecha: String(e.tcBnaFecha || "")
+    tcBnaFecha: String(e.tcBnaFecha || ""),
+    // Pagos quitados a mano porque no corresponden: { "mov:123": "Concepto del que se quitó" }.
+    excluidos: e.excluidos && typeof e.excluidos === "object" && !Array.isArray(e.excluidos) ? Object.assign({}, e.excluidos) : {}
   };
   // Versión 1 → 2: Candela ya no está (la reemplaza Julieta) y se suma Francisco.
   if (!(Number(e.version) >= 2)) {
@@ -25638,14 +25642,14 @@ function estrPagos() {
     const monto = -parseImporte(f["Monto"]);
     if (!(monto > 0)) return;
     const quien = f["Destinatario"] || f["Contraparte"] || "";
-    out.push({ iso: fechaAOrden(fechaMov(f)), monto: monto, concepto: f["Concepto"] || "", quien: quien, ref: "Movimiento N° " + f["N° Interno"],
+    out.push({ clave: "mov:" + f["N° Interno"], iso: fechaAOrden(fechaMov(f)), monto: monto, concepto: f["Concepto"] || "", quien: quien, ref: "Movimiento N° " + f["N° Interno"],
       texto: [f["Concepto"], quien, f["Clase"]].join(" ") });
   });
   chequesDatos.forEach(c => {
     if (c["Tipo"] !== "Emitido" || monedaCheque(c) !== "Pesos" || ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
     const monto = Math.abs(importeCheque(c));
     if (!monto) return;
-    out.push({ iso: fechaAOrden(c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"]), monto: monto, concepto: c["Concepto"] || "", quien: c["Titular"] || "",
+    out.push({ clave: "cheque:" + c["N° de Cheque"], iso: fechaAOrden(c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"]), monto: monto, concepto: c["Concepto"] || "", quien: c["Titular"] || "",
       ref: "Cheque N° " + c["N° de Cheque"], texto: [c["Concepto"], c["Titular"]].join(" ") });
   });
   out.forEach(p => { p.palabras = normalizar(p.texto).split(/[^A-Z0-9]+/).filter(Boolean); p.mes = String(p.iso || "").substring(0, 7); });
@@ -25657,10 +25661,11 @@ function estrPagos() {
 function estrCalcular(e) {
   const grupos = e.filas.map(estrGrupos);
   const filas = e.filas.map(() => ({ v: e.meses.map(() => 0), pagos: [] }));
-  const sueltos = [];
+  const sueltos = [], excluidos = [];
   const desde = e.meses[0], hasta = e.meses[e.meses.length - 1];
   estrPagos().forEach(p => {
     if (p.mes < desde || p.mes > hasta) return;
+    if (e.excluidos && e.excluidos[p.clave]) { excluidos.push(Object.assign({ deFila: e.excluidos[p.clave] }, p)); return; }
     let k = -1, mejor = 0;
     grupos.forEach((g, i) => { const s = estrPuntaje(g, p.palabras); if (s > mejor) { mejor = s; k = i; } });
     if (k < 0) {
@@ -25674,7 +25679,7 @@ function estrCalcular(e) {
   const rofex = sub.map((s, i) => (e.tc[i] ? s / e.tc[i] : 0));
   const pesos = sub.reduce((a, x) => a + x, 0);
   return { filas: filas, sub: sub, rofex: rofex, pesos: pesos, usdBna: e.tcBna ? pesos / e.tcBna : 0,
-    usdRofex: rofex.reduce((a, x) => a + x, 0), sueltos: sueltos };
+    usdRofex: rofex.reduce((a, x) => a + x, 0), sueltos: sueltos, excluidos: excluidos };
 }
 
 function fmtEntero(n) {
@@ -25780,11 +25785,25 @@ function renderEstructura() {
         } else {
           const t = el("table", "est-tabla estr-det-tabla");
           const ch = el("tr");
-          [["Fecha", ""], ["Concepto", ""], ["Destinatario", ""], ["Comprobante", ""], ["Importe", "num"]].forEach(h => ch.append(el("th", h[1], h[0])));
+          [["Fecha", ""], ["Concepto", ""], ["Destinatario", ""], ["Comprobante", ""], ["Importe", "num"], ["", ""]].forEach(h => ch.append(el("th", h[1], h[0])));
           t.append(ch);
           cf.pagos.slice().sort((a, b) => a.iso.localeCompare(b.iso)).forEach(p => {
             const r = el("tr");
             r.append(el("td", "estr-det-fecha", isoADma(p.iso)), el("td", null, p.concepto || "—"), el("td", null, p.quien || "—"), el("td", "estr-det-ref", p.ref), el("td", "num", fmtImp(p.monto)));
+            // Quitar un pago que no corresponde: deja de contar en la estructura (no se borra de
+            // Movimientos ni de Cheques) y queda en "Pagos quitados", donde se puede volver a poner.
+            const tdq = el("td", "estr-det-acc");
+            const q = el("button", "secondary small", "Quitar");
+            q.type = "button";
+            q.title = "No corresponde a " + f.nombre + ": sacarlo de la estructura (no lo borra de Movimientos)";
+            q.addEventListener("click", () => {
+              const copia = JSON.parse(JSON.stringify(estr));
+              copia.excluidos = Object.assign({}, copia.excluidos || {});
+              copia.excluidos[p.clave] = f.nombre;
+              guardarEstructura(copia, p.ref + " quitado de “" + f.nombre + "”.");
+            });
+            tdq.append(q);
+            r.append(tdq);
             t.append(r);
           });
           td.append(t);
@@ -25822,7 +25841,43 @@ function renderEstructura() {
 
   if (estrEditando) box.append(tarjetaEditarEstructura());
   box.append(tarjetaFaltantesEstructura(c.sueltos));
+  if (c.excluidos.length) box.append(tarjetaQuitadosEstructura(c.excluidos));
   if (estrEditando) { const c2 = box.querySelector(".estr-editar"); if (c2 && c2.scrollIntoView) c2.scrollIntoView({ block: "start", behavior: "smooth" }); }
+}
+
+// ----- Pagos quitados a mano -----
+// Los que se sacaron de un concepto porque no correspondían. "Volver a poner" los devuelve: cuentan
+// de nuevo en el concepto que les toque según las palabras de búsqueda.
+function tarjetaQuitadosEstructura(lista) {
+  const card = el("div", "card estr-card");
+  const head = el("div", "estr-head");
+  const tit = el("div");
+  tit.append(el("h3", null, "Pagos quitados de la estructura"),
+    el("p", "estr-sub", lista.length + " pago(s) que se quitaron a mano porque no correspondían. No cuentan en la tabla; siguen en Movimientos y Cheques."));
+  head.append(tit);
+  card.append(head);
+  const t = el("table", "est-tabla");
+  const ch = el("tr");
+  [["Fecha", ""], ["Concepto", ""], ["Destinatario", ""], ["Comprobante", ""], ["Quitado de", ""], ["Importe", "num"], ["", ""]].forEach(h => ch.append(el("th", h[1], h[0])));
+  t.append(ch);
+  lista.slice().sort((a, b) => a.iso.localeCompare(b.iso)).forEach(p => {
+    const r = el("tr");
+    r.append(el("td", "estr-det-fecha", isoADma(p.iso)), el("td", null, p.concepto || "—"), el("td", null, p.quien || "—"), el("td", "estr-det-ref", p.ref),
+      el("td", null, typeof p.deFila === "string" ? p.deFila : "—"), el("td", "num", fmtImp(p.monto)));
+    const td = el("td", "estr-det-acc");
+    const b = el("button", "secondary small", "Volver a poner");
+    b.type = "button";
+    b.addEventListener("click", () => {
+      const copia = JSON.parse(JSON.stringify(estr));
+      delete copia.excluidos[p.clave];
+      guardarEstructura(copia, p.ref + " vuelve a contar en la estructura.");
+    });
+    td.append(b);
+    r.append(td);
+    t.append(r);
+  });
+  card.append(envolverTabla(t));
+  return card;
 }
 
 // ----- Versión para imprimir -----
