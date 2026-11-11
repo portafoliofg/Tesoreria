@@ -25106,6 +25106,7 @@ function renderEstadisticas() {
   t.btnTabla.hidden = true;
   box.replaceChildren(t.card, abajo);
   try { box.append(tarjetaConceptosEst(ini)); } catch (err) { console.error(err); box.append(nodoError("No se pudo armar el gráfico por concepto: " + msgErr(err))); }
+  try { box.append(tarjetaCajasChicasEst(ini)); } catch (err) { console.error(err); box.append(nodoError("No se pudo armar el gráfico de cajas chicas: " + msgErr(err))); }
 }
 
 // ----- Estadísticas: acumulado por concepto (Caja Chica, Combustible Bandera…) -----
@@ -25124,7 +25125,7 @@ function conceptosEst() {
   return c.map(x => normalizar(x).trim() === "COMBUSTIBLE BANDERA" ? CONCEPTOS_EST[1] : x);
 }
 
-function datosConceptosEst(ini, conceptos) {
+function itemsConceptosEst(conceptos) {
   const claves = conceptos.map(c => c.split("+").map(x => normalizar(x).trim()).filter(Boolean));
   const items = [];
   transferenciasDatos.forEach(f => {
@@ -25132,7 +25133,8 @@ function datosConceptosEst(ini, conceptos) {
     const k = claves.findIndex(c => c.some(x => normalizar(f["Concepto"] || "").indexOf(x) >= 0));
     if (k < 0) return;
     items.push({ k: k, iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
-      fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"] });
+      fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"],
+      nombres: [f["Destinatario"], f["Contraparte"], f["Ordenante"], f["Persona"], f["Concepto"]].join(" ") });
   });
   chequesDatos.forEach(c => {
     if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
@@ -25140,19 +25142,30 @@ function datosConceptosEst(ini, conceptos) {
     if (k < 0) return;
     const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
     items.push({ k: k, iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
-      fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"] });
+      fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"],
+      nombres: [c["Titular"], c["Destino"], c["Concepto"]].join(" ") });
   });
+  return items;
+}
+
+// Los 12 meses del período con lo de cada serie (item.k: 0 a n − 1): lo del mes y el acumulado. Solo pesos.
+function mesesSeriesEst(ini, items, n) {
   const hoy = hoyIso().substring(0, 7);
-  const acum = conceptos.map(() => 0);
+  const idx = Array.from({ length: n }, (_, k) => k);
+  const acum = idx.map(() => 0);
   return Array.from({ length: 12 }, (_, i) => {
     const m = sumarMesesIso(ini, i), futuro = m.substring(0, 7) > hoy;
     const del = items.filter(x => x.iso && x.iso.substring(0, 7) === m.substring(0, 7) && x.moneda === "Pesos");
-    const mes = conceptos.map((_, k) => del.filter(x => x.k === k).reduce((a, x) => a + x.gasto, 0));
+    const mes = idx.map(k => del.filter(x => x.k === k).reduce((a, x) => a + x.gasto, 0));
     mes.forEach((v, k) => { if (!futuro) acum[k] += v; });
     const linea = {}, datos = {};
-    conceptos.forEach((_, k) => { linea["c" + k] = futuro ? null : acum[k]; datos["c" + k] = futuro ? [0, 0] : [Math.max(0, mes[k]), Math.min(0, mes[k])]; });
+    idx.forEach(k => { linea["c" + k] = futuro ? null : acum[k]; datos["c" + k] = futuro ? [0, 0] : [Math.max(0, mes[k]), Math.min(0, mes[k])]; });
     return { mes: m, corto: mesCorto(m, i === 0 || m.substring(5, 7) === "01"), futuro: futuro, items: del, porMes: mes, acum: acum.slice(), linea: linea, datos: datos };
   });
+}
+
+function datosConceptosEst(ini, conceptos) {
+  return mesesSeriesEst(ini, itemsConceptosEst(conceptos), conceptos.length);
 }
 
 function tarjetaConceptosEst(ini) {
@@ -25163,20 +25176,34 @@ function tarjetaConceptosEst(ini) {
   t.resumen.hidden = true;
   t.card.classList.add("est-conceptos");
   // Conceptos a seguir (se buscan dentro del Concepto de cada movimiento o cheque).
+  t.modos.replaceChildren(listaEditableEst("Conceptos ", conceptos, CONCEPTOS_EST, "conceptos", 8,
+    "Separados por coma. Se busca el texto dentro del concepto, sin importar mayúsculas ni acentos. Para sumar varios en uno, unilos con +."));
+  pintarSeriesEst(t, conceptos, datosConceptosEst(ini, conceptos), {
+    aria: "Acumulado por concepto",
+    sinDatos: "No hay movimientos ni cheques con " + conceptos.map(c => "“" + c + "”").join(" o ") + " en este período.",
+    sinDatosAyuda: "Revisá que el concepto esté escrito igual en los movimientos y cheques.",
+    sinMes: "Sin movimientos ni cheques con estos conceptos este mes.",
+    ayuda: "Gasto = salidas − entradas con ese concepto. Las líneas suman mes a mes desde el inicio del período; las barras son lo de cada mes."
+  });
+  return t.card;
+}
+
+// Campo de texto con una lista separada por comas que se guarda en las preferencias de Estadísticas.
+function listaEditableEst(etiqueta, actual, porDefecto, clave, maximo, ayuda) {
   const form = el("div", "est-barra");
   const lab = el("label", "est-inicio est-conc");
-  lab.append(document.createTextNode("Conceptos "));
+  lab.append(document.createTextNode(etiqueta));
   const inp = el("input");
   inp.type = "text";
-  inp.value = conceptos.join(", ");
-  inp.placeholder = CONCEPTOS_EST.join(", ");
-  inp.title = "Separados por coma. Se busca el texto dentro del concepto, sin importar mayúsculas ni acentos. Para sumar varios en uno, unilos con +.";
+  inp.value = actual.join(", ");
+  inp.placeholder = porDefecto.join(", ");
+  inp.title = ayuda;
   const aplicar = el("button", "secondary small", "Aplicar");
   aplicar.type = "button";
   aplicar.addEventListener("click", () => {
-    const lista = inp.value.split(",").map(x => x.trim()).filter(Boolean).slice(0, 8);
+    const lista = inp.value.split(",").map(x => x.trim()).filter(Boolean).slice(0, maximo);
     const pe = Object.assign({}, preferencias.estadisticas || {});
-    pe.conceptos = lista.length ? lista : CONCEPTOS_EST;
+    pe[clave] = lista.length ? lista : porDefecto;
     preferencias.estadisticas = pe;
     guardarPreferencias();
     renderEstadisticas();
@@ -25184,19 +25211,22 @@ function tarjetaConceptosEst(ini) {
   inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); aplicar.click(); } });
   lab.append(inp);
   form.append(lab, aplicar);
-  t.modos.replaceChildren(form);
+  return form;
+}
 
-  const cats = datosConceptosEst(ini, conceptos);
-  const series = conceptos.map((c, k) => ({ k: "c" + k, label: c, color: "var(--vz-" + Math.min(8, k + 1) + ")" }));
+// Gráfico (líneas acumuladas y barras del mes), detalle del mes elegido y tabla mes por mes de
+// varias series. nombres: el de cada serie; cats: lo que devuelve mesesSeriesEst.
+function pintarSeriesEst(t, nombres, cats, tx) {
+  const series = nombres.map((c, k) => ({ k: "c" + k, label: c, color: "var(--vz-" + Math.min(8, k + 1) + ")" }));
   const pasados = cats.filter(c => !c.futuro);
   const ult = pasados[pasados.length - 1];
   const nItems = pasados.reduce((a, c) => a + c.items.length, 0);
   if (!nItems) {
-    datoViz(t, ["No hay movimientos ni cheques con " + conceptos.map(c => "“" + c + "”").join(" o ") + " en este período."]);
-    vacioViz(t, "Revisá que el concepto esté escrito igual en los movimientos y cheques.");
-    return t.card;
+    datoViz(t, [tx.sinDatos]);
+    vacioViz(t, tx.sinDatosAyuda);
+    return;
   }
-  datoViz(t, conceptos.map((c, k) => [c + ": ", el("b", null, fmtImp(ult.acum[k])), k < conceptos.length - 1 ? " · " : ""]).reduce((a, x) => a.concat(x), ["Acumulado del período · "]));
+  datoViz(t, nombres.map((c, k) => [c + ": ", el("b", null, fmtImp(ult.acum[k])), k < nombres.length - 1 ? " · " : ""]).reduce((a, x) => a.concat(x), ["Acumulado del período · "]));
   leyendaViz(t.leyenda, series.map(s => ({ label: s.label + " (acumulado)", color: s.color, linea: true })).concat([{ label: "Barras: lo de cada mes", color: "var(--vz-n1)" }]));
   // El detalle arranca en el último mes que tiene algo.
   let sel = pasados.length - 1;
@@ -25205,15 +25235,15 @@ function tarjetaConceptosEst(ini) {
     const c = cats[i];
     t.detalle.replaceChildren();
     const h = el("div", "viz-det-head");
-    h.append(el("b", null, mesLargo(c.mes)), el("span", null, conceptos.map((x, k) => x + " " + fmtImp(c.porMes[k])).join(" · ")));
+    h.append(el("b", null, mesLargo(c.mes)), el("span", null, nombres.map((x, k) => x + " " + fmtImp(c.porMes[k])).join(" · ")));
     t.detalle.append(h);
-    if (!c.items.length) { t.detalle.append(el("p", "hint", "Sin movimientos ni cheques con estos conceptos este mes.")); return; }
+    if (!c.items.length) { t.detalle.append(el("p", "hint", tx.sinMes)); return; }
     c.items.slice().sort((a, b) => (a.iso || "").localeCompare(b.iso || "")).slice(0, 30).forEach(x =>
-      t.detalle.append(filaDetalle(String(x.fecha).substring(0, 5), conceptos[x.k] + " · " + (x.quien || x.tipo), x.tipo + (x.concepto ? " · " + x.concepto : ""), -x.gasto)));
+      t.detalle.append(filaDetalle(String(x.fecha).substring(0, 5), nombres[x.k] + " · " + (x.quien || x.tipo), x.tipo + (x.concepto ? " · " + x.concepto : ""), -x.gasto)));
     if (c.items.length > 30) t.detalle.append(el("p", "viz-mas", "… y " + (c.items.length - 30) + " más."));
   };
   const cfg = {
-    aria: "Acumulado por concepto", tituloLinea: "Acumulado desde el inicio del período", tituloBarras: "Lo de cada mes",
+    aria: tx.aria, tituloLinea: "Acumulado desde el inicio del período", tituloBarras: "Lo de cada mes",
     cats: cats, lineas: series, barras: series, altoLinea: 180, altoBarras: 100, seleccion: sel,
     alClic: i => { if (!cats[i].futuro) verMes(i); },
     tooltip: i => {
@@ -25225,27 +25255,84 @@ function tarjetaConceptosEst(ini) {
   };
   dibujarCombo(t, cfg);
   verMes(sel);
-  t.ayuda.textContent = "Gasto = salidas − entradas con ese concepto. Las líneas suman mes a mes desde el inicio del período; las barras son lo de cada mes.";
-  // Tabla mes por mes: lo del mes y el acumulado de cada concepto.
+  t.ayuda.textContent = tx.ayuda;
+  // Tabla mes por mes. Con conTotal: lo del mes de cada serie y el total del mes; si no, lo del
+  // mes y el acumulado de cada serie.
   const tabla = el("table", "est-tabla");
   const trh = el("tr");
-  ["Mes"].concat(conceptos.map(c => c + " (mes)"), conceptos.map(c => c + " (acumulado)")).forEach((x, i) => trh.append(el("th", i ? "num" : "", x)));
+  const conTotal = !!tx.conTotal;
+  const cab = conTotal ? nombres.concat(["Total"]) : nombres.map(c => c + " (mes)").concat(nombres.map(c => c + " (acumulado)"));
+  ["Mes"].concat(cab).forEach((x, i) => trh.append(el("th", i ? "num" : "", x)));
   tabla.append(trh);
+  const suma = a => a.reduce((x, y) => x + y, 0);
   cats.forEach(c => {
     const tr = el("tr", c.futuro ? "est-futuro" : "");
     tr.append(el("td", null, mesLargo(c.mes)));
     c.porMes.forEach(v => tr.append(el("td", "num", c.futuro ? "—" : fmtImp(v))));
-    c.acum.forEach(v => tr.append(el("td", "num", c.futuro ? "—" : fmtImp(v))));
+    if (conTotal) tr.append(el("td", "num", c.futuro ? "—" : fmtImp(suma(c.porMes))));
+    else c.acum.forEach(v => tr.append(el("td", "num", c.futuro ? "—" : fmtImp(v))));
     tabla.append(tr);
   });
   const trt = el("tr", "est-total");
   trt.append(el("td", null, "Total"));
-  conceptos.forEach((_, k) => trt.append(el("td", "num", fmtImp(pasados.reduce((a, c) => a + c.porMes[k], 0)))));
-  conceptos.forEach(() => trt.append(el("td", "num", "")));
+  const totales = nombres.map((_, k) => pasados.reduce((a, c) => a + c.porMes[k], 0));
+  totales.forEach(v => trt.append(el("td", "num", fmtImp(v))));
+  if (conTotal) trt.append(el("td", "num", fmtImp(suma(totales))));
+  else nombres.forEach(() => trt.append(el("td", "num", "")));
   tabla.append(trt);
   t.tabla.replaceChildren(envolverTabla(tabla));
   t.tabla.hidden = false;
   t.btnTabla.hidden = true;
+}
+
+// ----- Estadísticas: cajas chicas por ingeniero -----
+// Los movimientos y cheques con "Caja Chica" en el concepto (los mismos de la tarjeta de arriba),
+// separados según a quién se le transfirió. El ingeniero se reconoce por su nombre en el
+// destinatario, la contraparte, el ordenante, la persona o el concepto, en cualquier orden
+// ("RIOS ESTEBAN" o "Esteban Ríos"); si no está el nombre completo, alcanza con el apellido cuando
+// es de uno solo de la lista. Lo que no es de ninguno va a "Sin identificar".
+const INGENIEROS_CAJA_CHICA = ["Esteban Rios", "Fabricio Fonseca", "Juan Dotti", "Lucas Quevedo", "Marcos Gonzalez", "Joaquin Rodriguez"];
+
+function ingenierosEst() {
+  const c = (preferencias.estadisticas || {}).ingenieros;
+  return Array.isArray(c) && c.length ? c : INGENIEROS_CAJA_CHICA;
+}
+
+/** Posición en la lista del ingeniero nombrado en el texto, o −1. */
+function ingenieroDeTexto(texto, ingenieros) {
+  const pal = {};
+  normalizar(texto).split(/[^A-Z0-9]+/).forEach(p => { if (p) pal[p] = true; });
+  const partes = ingenieros.map(n => normalizar(n).split(/[^A-Z0-9]+/).filter(Boolean));
+  const completo = partes.findIndex(p => p.length && p.every(x => pal[x]));
+  if (completo >= 0) return completo;
+  const porApellido = partes.map((p, i) => p.length && pal[p[p.length - 1]] ? i : -1).filter(i => i >= 0);
+  return porApellido.length === 1 ? porApellido[0] : -1;
+}
+
+function tarjetaCajasChicasEst(ini) {
+  const ingenieros = ingenierosEst();
+  const t = tarjetaViz("Cajas chicas por ingeniero", "Lo transferido a cada ingeniero para su caja chica, mes a mes y sumado desde el inicio del período, en pesos.", null);
+  t.cuerpo.hidden = false;
+  t.btnDetalle.hidden = true;
+  t.resumen.hidden = true;
+  t.card.classList.add("est-conceptos");
+  t.modos.replaceChildren(listaEditableEst("Ingenieros ", ingenieros, INGENIEROS_CAJA_CHICA, "ingenieros", 7,
+    "Nombre y apellido, separados por coma. Se buscan en el destinatario y en el concepto de cada caja chica, sin importar el orden, las mayúsculas ni los acentos."));
+  const items = itemsConceptosEst(["Caja Chica"]);
+  items.forEach(x => { x.k = ingenieroDeTexto(x.nombres, ingenieros); });
+  // "Sin identificar" aparece solo si hay cajas chicas que no son de ninguno de la lista.
+  const nombres = ingenieros.slice();
+  if (items.some(x => x.k < 0 && x.moneda === "Pesos")) {
+    items.forEach(x => { if (x.k < 0) x.k = ingenieros.length; });
+    nombres.push("Sin identificar");
+  }
+  pintarSeriesEst(t, nombres, mesesSeriesEst(ini, items.filter(x => x.k >= 0), nombres.length), {
+    aria: "Cajas chicas por ingeniero", conTotal: true,
+    sinDatos: "No hay movimientos ni cheques con “Caja Chica” en el concepto en este período.",
+    sinDatosAyuda: "Revisá que el concepto de las transferencias diga Caja Chica.",
+    sinMes: "Sin cajas chicas este mes.",
+    ayuda: "Movimientos y cheques con “Caja Chica” en el concepto, separados por el nombre del ingeniero en el destinatario o en el concepto. Lo que el ingeniero devuelve resta."
+  });
   return t.card;
 }
 
