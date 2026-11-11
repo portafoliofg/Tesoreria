@@ -1433,6 +1433,8 @@
   .estr-tc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
   .estr-tc-grid label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
   .estr-tc-grid input { width: 100%; height: 32px; margin: 4px 0 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .estr-faltante-acc { display: flex; gap: 8px; justify-content: flex-end; align-items: center; white-space: nowrap; }
+  select.estr-sumar { height: 30px; margin: 0; padding: 0 24px 0 8px; font-size: 12px; max-width: 240px; }
   /* Estadísticas: cuadros por ingeniero y Combustible Bandera */
   .ing-meses { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 12px; }
   .ing-meses-et { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
@@ -25494,7 +25496,7 @@ const ESTR_TITULO_TIPO = { Alquiler: "Alquileres", Honorarios: "Honorarios", Otr
 const ESTR_VERSION = 2;
 
 function estrInicial() {
-  return {
+  const r = {
     version: ESTR_VERSION,
     meses: Array.from({ length: 12 }, (_, i) => sumarMesesIso("2026-05-01", i).substring(0, 7)),
     filas: ESTR_INICIAL_FILAS.map(f => ({ nombre: f[0], tipo: f[1], buscar: "" })),
@@ -25502,6 +25504,8 @@ function estrInicial() {
     tcBna: 1349,
     tcBnaFecha: "2026-04-17"
   };
+  estrUnirPersonas(r);
+  return r;
 }
 
 let estr = null;          // la estructura guardada (o la inicial)
@@ -25531,7 +25535,36 @@ function estrNormalizar(e) {
       r.filas.splice(j >= 0 ? j + 1 : r.filas.length, 0, { nombre: "Honorarios Francisco", tipo: "Honorarios", buscar: "" });
     }
   }
+  estrUnirPersonas(r);
   return r;
+}
+
+// Profesionales con nombre y apellido: cada uno en un solo concepto, que se busca por el apellido
+// (y el comienzo del nombre cuando el apellido se repite, como los Aliaga). Si quedaron dos filas de
+// la misma persona (por ejemplo "Honorarios Julieta" y "Honorarios Juli Bornancini", agregada desde
+// los pagos fuera de la estructura), se unen en la primera. claves: palabras del nombre de una fila
+// que dicen que es esa persona (enteras).
+const ESTR_PERSONAS = [
+  { nombre: "Honorarios Benjamín Aliaga", claves: ["BENJAMIN", "BENJA"], buscar: "honorarios aliaga benja" },
+  { nombre: "Honorarios Federico Carrosan", claves: ["FEDERICO", "CARROSAN"], buscar: "honorarios carrosan" },
+  { nombre: "Honorarios Julieta Bornancini", claves: ["JULIETA", "JULI", "BORNANCINI"], buscar: "honorarios bornancini" },
+  { nombre: "Honorarios Francisco Gomez", claves: ["FRANCISCO", "FRAN"], buscar: "honorarios gomez fran" },
+  { nombre: "Honorarios Facundo Aliaga", claves: ["FACUNDO", "FACU"], buscar: "honorarios aliaga facu" }
+];
+function estrUnirPersonas(r) {
+  ESTR_PERSONAS.forEach(p => {
+    const suyas = [];
+    r.filas.forEach((f, i) => {
+      const pal = normalizar(f.nombre).split(/[^A-Z0-9]+/);
+      if (pal.some(w => p.claves.indexOf(w) >= 0)) suyas.push(i);
+    });
+    if (!suyas.length) return;
+    const f = r.filas[suyas[0]];
+    f.nombre = p.nombre;
+    f.tipo = "Honorarios";
+    if (!f.buscar.trim() || suyas.length > 1) f.buscar = p.buscar;
+    for (let k = suyas.length - 1; k >= 1; k--) r.filas.splice(suyas[k], 1);
+  });
 }
 
 async function cargarEstructura(forzar) {
@@ -25845,7 +25878,7 @@ function tarjetaFaltantesEstructura(sueltos) {
   const head = el("div", "estr-head");
   const tit = el("div");
   tit.append(el("h3", null, "Alquileres y honorarios fuera de la estructura"),
-    el("p", "estr-sub", "Pagos del período que dicen alquiler u honorarios y no coinciden con ningún concepto. “Agregar” lo suma a la lista; después se ajusta en Editar conceptos."));
+    el("p", "estr-sub", "Pagos del período que dicen alquiler u honorarios y no coinciden con ningún concepto. Si es alguien que ya está (escrito de otra forma), usá “Sumar a…”; si es nuevo, “Agregar”."));
   head.append(tit);
   card.append(head);
   const grupos = {};
@@ -25875,7 +25908,6 @@ function tarjetaFaltantesEstructura(sueltos) {
     const b = el("button", "secondary small", "Agregar");
     b.type = "button";
     b.addEventListener("click", () => {
-      const base = g.quien ? g.quien.replace(/\s+/g, " ").trim() : g.concepto;
       const nombre = (g.tipo === "Alquiler" ? "Alquiler " : "Honorarios ") + base;
       // Se busca por la palabra del tipo y las dos primeras del destinatario (o del concepto).
       const buscar = (g.tipo === "Alquiler" ? "alquiler " : "honorarios ") + estrPalabrasDe(base).slice(0, 2).join(" ").toLowerCase();
@@ -25883,7 +25915,29 @@ function tarjetaFaltantesEstructura(sueltos) {
       copia.filas.push({ nombre: nombre, tipo: g.tipo, buscar: buscar });
       guardarEstructura(copia, "“" + nombre + "” agregado a la estructura.");
     });
-    td.append(b);
+    // O sumarlo a un concepto que ya está (la misma persona escrita de otra forma): se le agrega una
+    // opción de búsqueda con el destinatario. Si algún concepto comparte el comienzo de un nombre
+    // ("Juli" y "Julieta"), se lo sugiere primero.
+    const base = g.quien ? g.quien.replace(/\s+/g, " ").trim() : g.concepto;
+    const palBase = estrPalabrasDe(base);
+    const parecido = i => estrPalabrasDe(estr.filas[i].nombre).some(w => w.length >= 4 && palBase.some(x => x.length >= 4 && (w.indexOf(x.slice(0, 4)) === 0)));
+    const candidatas = estr.filas.map((f, i) => i).filter(i => estr.filas[i].tipo === g.tipo);
+    candidatas.sort((a, c2) => (parecido(c2) ? 1 : 0) - (parecido(a) ? 1 : 0));
+    const sel = el("select", "estr-sumar");
+    sel.setAttribute("aria-label", "Sumar a un concepto que ya está");
+    sel.append(new Option(candidatas.some(parecido) ? "Sumar a… (¿" + estr.filas[candidatas[0]].nombre + "?)" : "Sumar a…", ""));
+    candidatas.forEach(i => sel.append(new Option(estr.filas[i].nombre + (parecido(i) ? " · parecido" : ""), String(i))));
+    sel.addEventListener("change", () => {
+      if (sel.value === "") return;
+      const copia = JSON.parse(JSON.stringify(estr));
+      const f = copia.filas[parseInt(sel.value, 10)];
+      const actual = f.buscar.trim() || estrPalabrasDe(f.nombre).join(" ").toLowerCase();
+      f.buscar = actual + ", " + (g.tipo === "Alquiler" ? "alquiler " : "honorarios ") + palBase.slice(0, 2).join(" ").toLowerCase();
+      guardarEstructura(copia, "Los pagos a “" + base + "” ahora suman en “" + f.nombre + "”.");
+    });
+    const accs = el("div", "estr-faltante-acc");
+    accs.append(sel, b);
+    td.replaceChildren(accs);
     tr.append(td);
     t.append(tr);
   });
