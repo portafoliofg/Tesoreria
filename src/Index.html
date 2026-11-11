@@ -1373,6 +1373,9 @@
   .an-uso-barra.cerca { background: var(--warn); }
   .an-uso-barra.pasado { background: var(--bad); }
   .an-vacio { color: var(--muted); padding: 14px 0 4px; }
+  .an-cuadros { margin-bottom: 16px; }
+  .an-det-sec { margin-top: 14px; }
+  .an-det-sec .ing-sec-head { border-bottom: none; padding-bottom: 4px; }
   /* ---------- Estadísticas ---------- */
   .est-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 10px; }
   .est-anio { display: flex; align-items: center; gap: 8px; }
@@ -19517,10 +19520,89 @@ function anTabla(encabezados, filas, numericas, clases) {
   return wrap;
 }
 
-function anBarras(filas) {
-  const box = el("div");
-  barrasHorizontales(box, filas.map(f => ({ label: f[0], sub: f[2] || "", barras: [{ v: f[1], color: "var(--primary)", texto: f[3] || montoCorto(f[1]) }] })));
-  return box;
+// Cuadros (uno por rubro, centro, proveedor, mes…): cada uno con su importe y un par de datos, y
+// al tocarlo se abre debajo su detalle. Mismo diseño que los cuadros por ingeniero de Estadísticas.
+// items: [{ clave, nombre, valor (texto), lineas: [[etiqueta, texto]], pie, detalle: () => [nodos] }].
+// El cuadro abierto se recuerda por solapa.
+const anAbierto = {};
+
+function anCuadros(items) {
+  const caja = el("div", "viz an-cuadros");
+  const solapa = anTab;
+  const pintar = () => {
+    caja.replaceChildren();
+    const grid = el("div", "ing-grid");
+    items.forEach((it, i) => {
+      const abierto = anAbierto[solapa] === it.clave;
+      const c = el("div", "ing-cuadro" + (abierto ? " abierto" : ""));
+      c.dataset.clave = it.clave;
+      c.tabIndex = 0;
+      c.setAttribute("role", "button");
+      c.setAttribute("aria-expanded", abierto ? "true" : "false");
+      c.style.setProperty("--tono", "var(--vz-" + (i % 8 + 1) + ")");
+      c.append(el("div", "ing-nombre", it.nombre), el("div", "ing-monto", it.valor));
+      (it.lineas || []).forEach(l => {
+        const d = el("div", "ing-linea");
+        d.append(el("span", null, l[0]), el("b", null, l[1]));
+        c.append(d);
+      });
+      c.append(el("div", "ing-n", (it.pie ? it.pie + " · " : "") + (abierto ? "tocá para cerrar" : "tocá para ver el detalle")));
+      const alternar = () => {
+        anAbierto[solapa] = abierto ? "" : it.clave;
+        pintar();
+        const mismo = Array.from(caja.querySelectorAll(".ing-cuadro")).find(n => n.dataset.clave === it.clave);
+        if (mismo) mismo.focus({ preventScroll: true });
+      };
+      c.addEventListener("click", alternar);
+      c.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); } });
+      grid.append(c);
+    });
+    caja.append(grid);
+    const i = items.findIndex(x => x.clave === anAbierto[solapa]);
+    if (i < 0) return;
+    const it = items[i];
+    const det = el("div", "ing-detalle");
+    det.style.setProperty("--tono", "var(--vz-" + (i % 8 + 1) + ")");
+    const head = el("div", "ing-det-head");
+    const tit = el("div");
+    tit.append(el("h4", null, it.nombre), el("span", null, it.valor + (it.pie ? " · " + it.pie : "")));
+    const cerrar = el("button", "link-btn", "Cerrar");
+    cerrar.type = "button";
+    cerrar.addEventListener("click", () => { anAbierto[solapa] = ""; pintar(); });
+    head.append(tit, cerrar);
+    det.append(head);
+    it.detalle().forEach(n => { if (n) det.append(n); });
+    caja.append(det);
+  };
+  pintar();
+  return caja;
+}
+
+// Una parte del detalle de un cuadro: título y contenido.
+function anSeccion(titulo, nodo) {
+  const s = el("div", "an-det-sec");
+  s.append(el("div", "ing-sec-head", titulo), nodo);
+  return s;
+}
+
+// Mes por mes de una lista de gastos (solo cuando el período tiene más de un mes).
+function anSeccionMeses(meses, gastos) {
+  if (meses.length < 2) return null;
+  const por = {};
+  gastos.forEach(x => anSumar(por, x.mes, x.m));
+  const total = anTotal(gastos);
+  // Solo los meses con gasto.
+  return anSeccion("Mes por mes", anTabla(["Mes", "Total", "Parte"], meses.filter(m => por[m]).map(m => [mesLargo(m + "-01"), fmtImp(por[m]), anPct(por[m], total)]), [1, 2]));
+}
+
+// Reparto de una lista de gastos por rubro, subrubro, centro… (campo: de dónde sale el nombre).
+function anSeccionReparto(titulo, encabezado, gastos, campo, sinNombre) {
+  const por = {};
+  gastos.forEach(x => anSumar(por, x[campo] || "", x.m));
+  const claves = Object.keys(por).sort((a, b) => por[b] - por[a]);
+  if (claves.length < 2 && !claves[0]) return null;
+  const total = anTotal(gastos);
+  return anSeccion(titulo, anTabla([encabezado, "Total", "Parte"], claves.map(k => [k || sinNombre, fmtImp(por[k]), anPct(por[k], total)]), [1, 2]));
 }
 
 // Sube el gasto: en rojo. Baja: en verde.
@@ -19643,8 +19725,12 @@ function anRubros(box) {
       clases.push("an-sub");
     });
   });
-  card.append(anBarras(rubros.slice(0, 8).map(k => [k, por[k].total, anPct(por[k].total, total)])),
-    anTabla(["Rubro", "Movimientos", "Total", "Por mes", "Parte"], filas, [1, 2, 3, 4], clases));
+  card.append(anCuadros(rubros.map(k => {
+    const mios = gastos.filter(x => x.rubro === k);
+    return { clave: k, nombre: k, valor: fmtImp(por[k].total), lineas: [["Parte del gasto", anPct(por[k].total, total)], ["Por mes", fmtImp(por[k].total / n)]],
+      pie: por[k].n + " movimiento(s)",
+      detalle: () => [anSeccionReparto("Subrubros", "Subrubro", mios, "sub", "Sin subrubro"), anSeccionMeses(r.meses, mios), anSeccion("Conceptos", anTablaConceptos(mios, false))] };
+  })), anTabla(["Rubro", "Movimientos", "Total", "Por mes", "Parte"], filas, [1, 2, 3, 4], clases));
   box.append(card);
   anDetalleConceptos(box, gastos, rubros);
 }
@@ -19653,6 +19739,15 @@ function anRubros(box) {
 function anDetalleConceptos(box, gastos, rubros) {
   if (anRubroDet && rubros.indexOf(anRubroDet) < 0) anRubroDet = "";
   const mios = anRubroDet ? gastos.filter(x => x.rubro === anRubroDet) : gastos;
+  const card = anTarjeta("Detalle de conceptos", "Los conceptos de los egresos del período, juntando los que están escritos igual, con a quién se le pagó más por cada uno.");
+  const ctrl = el("div", "an-ctrl");
+  ctrl.append(anCtrl("Rubro", anSelect([["", "Todos los rubros"]].concat(rubros.map(k => [k, k])), anRubroDet, v => { anRubroDet = v; renderAnalisis(); })));
+  card.append(ctrl, anTablaConceptos(mios, true));
+  box.append(card);
+}
+
+// Tabla de conceptos de una lista de gastos, juntando los que están escritos igual.
+function anTablaConceptos(mios, conRubro) {
   const total = anTotal(mios);
   const grupos = {};
   mios.forEach(x => {
@@ -19665,18 +19760,16 @@ function anDetalleConceptos(box, gastos, rubros) {
     if (x.quien) anSumar(g.quienes, x.quien, x.m);
   });
   const lista = Object.keys(grupos).map(k => grupos[k]).sort((a, b) => b.total - a.total);
-  const card = anTarjeta("Detalle de conceptos", "Los conceptos de los egresos del período, juntando los que están escritos igual, con a quién se le pagó más por cada uno.");
-  const ctrl = el("div", "an-ctrl");
-  ctrl.append(anCtrl("Rubro", anSelect([["", "Todos los rubros"]].concat(rubros.map(k => [k, k])), anRubroDet, v => { anRubroDet = v; renderAnalisis(); })));
-  card.append(ctrl, anTabla(["Concepto", "Rubro", "Movimientos", "Total", "Parte", "Último"], lista.slice(0, 150).map(g => {
+  const caja = el("div");
+  caja.append(anTabla(["Concepto"].concat(conRubro ? ["Rubro"] : [], ["Movimientos", "Total", "Parte", "Último"]), lista.slice(0, 150).map(g => {
     const nombre = el("div");
     nombre.append(el("div", "dt-principal", g.nombre || "Sin concepto"));
     const quienes = Object.keys(g.quienes).sort((a, b) => g.quienes[b] - g.quienes[a]);
     if (quienes.length) nombre.append(el("div", "dt-sub", quienes[0] + (quienes.length > 1 ? " y " + (quienes.length - 1) + " más" : "")));
-    return [nombre, g.rubro, String(g.n), fmtImp(g.total), anPct(g.total, total), isoADma(g.ult)];
-  }), [2, 3, 4]));
-  if (lista.length > 150) card.append(el("p", "hint", "Se muestran los 150 conceptos de mayor importe, de " + lista.length + "."));
-  box.append(card);
+    return [nombre].concat(conRubro ? [g.rubro] : [], [String(g.n), fmtImp(g.total), anPct(g.total, total), isoADma(g.ult)]);
+  }), conRubro ? [2, 3, 4] : [1, 2, 3]));
+  if (lista.length > 150) caja.append(el("p", "hint", "Se muestran los 150 conceptos de mayor importe, de " + lista.length + "."));
+  return caja;
 }
 
 // ----- Centros de costo -----
@@ -19705,8 +19798,12 @@ function anCentros(box) {
   const filas = centros.map(k => [k, String(por[k].n), fmtImp(por[k].total), fmtImp(por[k].total / n), anPct(por[k].total, total), principal(por[k])]);
   if (por[""]) filas.push(["Sin centro", String(por[""].n), fmtImp(sinCentro), fmtImp(sinCentro / n), anPct(sinCentro, total), principal(por[""])]);
   const card = anTarjeta("Gasto por centro de costo", "El centro de costo se asigna con las reglas de clasificación.");
-  card.append(anBarras(centros.slice(0, 8).map(k => [k, por[k].total, anPct(por[k].total, total)])),
-    anTabla(["Centro de costo", "Movimientos", "Total", "Por mes", "Parte", "Rubro principal"], filas, [1, 2, 3, 4]));
+  card.append(anCuadros(centros.concat(por[""] ? [""] : []).map(k => {
+    const mios = gastos.filter(x => x.centro === k);
+    return { clave: k || "(sin centro)", nombre: k || "Sin centro", valor: fmtImp(por[k].total), lineas: [["Parte del gasto", anPct(por[k].total, total)], ["Rubro principal", principal(por[k])]],
+      pie: por[k].n + " movimiento(s)",
+      detalle: () => [anSeccionReparto("Rubros", "Rubro", mios, "rubro", "Sin rubro"), anSeccionMeses(r.meses, mios), anSeccion("Conceptos", anTablaConceptos(mios, true))] };
+  })), anTabla(["Centro de costo", "Movimientos", "Total", "Por mes", "Parte", "Rubro principal"], filas, [1, 2, 3, 4]));
   box.append(card);
   // Cada centro abierto por rubro.
   const det = anTarjeta("Cada centro, por rubro");
@@ -19924,8 +20021,18 @@ async function anDolares(box) {
   ]));
   if (!gastos.length) { box.append(anVacio("No hay egresos en el período.")); return; }
   const card = anTarjeta("Gasto mensual en dólares", "Cada mes se convierte al promedio del dólar " + nombreTipo.toLowerCase() + " (venta) de ese mes, así se pueden comparar los meses sin el efecto de la inflación. Cotizaciones de " + (d.fuente || "argentinadatos.com") + ".");
-  card.append(anBarras(conDato.map(f => [mesCorto(f.m + "-01", true), f.usd, "", usd(f.usd)])),
-    anTabla(["Mes", "En pesos", "Dólar promedio", "En dólares"], filas.map(f => [mesLargo(f.m + "-01"), fmtImp(f.pesos), f.cot ? fmtImp(f.cot) : "—", f.usd === null ? "—" : usd(f.usd)]), [1, 2, 3]));
+  card.append(anCuadros(conDato.map(f => {
+    const mios = gastos.filter(x => x.mes === f.m);
+    return { clave: f.m, nombre: mesLargo(f.m + "-01"), valor: usd(f.usd), lineas: [["En pesos", fmtImp(f.pesos)], ["Dólar promedio", fmtImp(f.cot)]],
+      pie: mios.length + " movimiento(s)",
+      detalle: () => {
+        const por = {};
+        mios.forEach(x => anSumar(por, x.rubro, x.m));
+        const rubros = Object.keys(por).sort((a, b) => por[b] - por[a]);
+        return [rubros.length ? anSeccion("Rubros del mes", anTabla(["Rubro", "En pesos", "En dólares", "Parte"], rubros.map(k => [k, fmtImp(por[k]), usd(por[k] / f.cot), anPct(por[k], f.pesos)]), [1, 2, 3]))
+          : anVacio("Sin egresos este mes.")];
+      } };
+  })), anTabla(["Mes", "En pesos", "Dólar promedio", "En dólares"], filas.map(f => [mesLargo(f.m + "-01"), fmtImp(f.pesos), f.cot ? fmtImp(f.cot) : "—", f.usd === null ? "—" : usd(f.usd)]), [1, 2, 3]));
   box.append(card);
 }
 
@@ -19935,7 +20042,7 @@ function anProveedores(box) {
   const por = {};
   gastos.forEach(x => {
     const k = normalizar(x.quien).trim();
-    const y = por[k] || (por[k] = { nombre: x.quien || "Sin destinatario", n: 0, total: 0, rubros: {} });
+    const y = por[k] || (por[k] = { k: k, nombre: x.quien || "Sin destinatario", n: 0, total: 0, rubros: {} });
     y.n++;
     y.total += x.m;
     anSumar(y.rubros, x.rubro, x.m);
@@ -19952,8 +20059,12 @@ function anProveedores(box) {
   if (!lista.length) { box.append(anVacio("No hay egresos en el período.")); return; }
   let acum = 0;
   const card = anTarjeta("Los 10 proveedores a los que más se les pagó", "Por destinatario del egreso. Cuanto más alto el acumulado, más depende el gasto de pocos proveedores.");
-  card.append(anBarras(lista.slice(0, 10).map(y => [y.nombre, y.total, anPct(y.total, total)])),
-    anTabla(["#", "Proveedor", "Pagos", "Total", "Parte", "Acumulado", "Rubro principal"], lista.slice(0, 10).map((y, i) => {
+  card.append(anCuadros(lista.slice(0, 10).map(y => {
+    const mios = gastos.filter(x => normalizar(x.quien).trim() === y.k);
+    return { clave: y.k || "(sin destinatario)", nombre: y.nombre, valor: fmtImp(y.total), lineas: [["Parte del gasto", anPct(y.total, total)], ["Rubro principal", Object.keys(y.rubros).sort((a, b) => y.rubros[b] - y.rubros[a])[0]]],
+      pie: y.n + " pago(s)",
+      detalle: () => [anSeccionReparto("Rubros", "Rubro", mios, "rubro", "Sin rubro"), anSeccionMeses(r.meses, mios), anSeccion("Conceptos", anTablaConceptos(mios, true))] };
+  })), anTabla(["#", "Proveedor", "Pagos", "Total", "Parte", "Acumulado", "Rubro principal"], lista.slice(0, 10).map((y, i) => {
       acum += y.total;
       return [String(i + 1), y.nombre, String(y.n), fmtImp(y.total), anPct(y.total, total), anPct(acum, total), Object.keys(y.rubros).sort((a, b) => y.rubros[b] - y.rubros[a])[0]];
     }), [0, 2, 3, 4, 5]));
@@ -20063,8 +20174,12 @@ async function anFinanciero(box) {
   if (!(total > 0)) { box.append(anVacio("No hay costos financieros en el período. Los intereses, comisiones e impuestos se leen de los resúmenes de cuenta cargados en Carga.")); return; }
   const fila = (nombre, y) => [nombre].concat(AN_COSTOS.map(c => y[c[0]] ? fmtImp(y[c[0]]) : "—"), [fmtImp(costoDe(y)), anPct(costoDe(y), y.volumen)]);
   const card = anTarjeta("Cuánto cuesta mover y financiar la plata", "Intereses, comisiones, impuesto al cheque e IVA salen de los resúmenes de cuenta; el descuento, de los cheques en estado Descontado; la bolsa, de los cheques negociados con importe recibido. La última columna es el costo sobre todo lo que se movió ese mes (ingresos y egresos, sin cuentas propias).");
-  card.append(anBarras(AN_COSTOS.filter(c => totales[c[0]] > 0).sort((a, b) => totales[b[0]] - totales[a[0]]).map(c => [c[1], totales[c[0]], anPct(totales[c[0]], total)])),
-    anTabla(["Mes"].concat(AN_COSTOS.map(c => c[1]), ["Total", "Sobre lo movido"]), r.meses.map(m => fila(mesLargo(m + "-01"), por[m])).concat([fila("Total", totales)]),
+  card.append(anCuadros(AN_COSTOS.filter(c => totales[c[0]] > 0).sort((a, b) => totales[b[0]] - totales[a[0]]).map(c => ({
+    clave: c[0], nombre: c[1], valor: fmtImp(totales[c[0]]), lineas: [["Parte del costo", anPct(totales[c[0]], total)], ["Por mes", fmtImp(totales[c[0]] / r.meses.length)]],
+    pie: r.meses.filter(m => por[m][c[0]] > 0).length + " mes(es) con costo",
+    detalle: () => [anSeccion("Mes por mes", anTabla(["Mes", c[1], "Parte del costo del mes", "Sobre lo movido"],
+      r.meses.map(m => [mesLargo(m + "-01"), por[m][c[0]] ? fmtImp(por[m][c[0]]) : "—", anPct(por[m][c[0]], costoDe(por[m])), anPct(por[m][c[0]], por[m].volumen)]), [1, 2, 3]))]
+  }))), anTabla(["Mes"].concat(AN_COSTOS.map(c => c[1]), ["Total", "Sobre lo movido"]), r.meses.map(m => fila(mesLargo(m + "-01"), por[m])).concat([fila("Total", totales)]),
       AN_COSTOS.map((c, i) => i + 1).concat([AN_COSTOS.length + 1, AN_COSTOS.length + 2]), r.meses.map(() => "").concat(["an-rubro"])));
   box.append(card);
 }
