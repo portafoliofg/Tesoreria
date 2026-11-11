@@ -25542,11 +25542,12 @@ function estrNormalizar(e) {
 // Profesionales con nombre y apellido: cada uno en un solo concepto, que se busca por el apellido
 // (y el comienzo del nombre cuando el apellido se repite, como los Aliaga). Si quedaron dos filas de
 // la misma persona (por ejemplo "Honorarios Julieta" y "Honorarios Juli Bornancini", agregada desde
-// los pagos fuera de la estructura), se unen en la primera. claves: palabras del nombre de una fila
-// que dicen que es esa persona (enteras).
+// los pagos fuera de la estructura), se unen en la primera sin perder nada: la fila que queda busca
+// por el apellido y además por todo lo que buscaban las otras. claves: palabras del nombre de una
+// fila que dicen que es esa persona (enteras). "Carrosan" era un error de tipeo de Casorran.
 const ESTR_PERSONAS = [
   { nombre: "Honorarios Benjamín Aliaga", claves: ["BENJAMIN", "BENJA"], buscar: "honorarios aliaga benja" },
-  { nombre: "Honorarios Federico Carrosan", claves: ["FEDERICO", "CARROSAN"], buscar: "honorarios carrosan" },
+  { nombre: "Honorarios Federico Casorran", claves: ["FEDERICO", "CASORRAN", "CARROSAN"], buscar: "honorarios casorran" },
   { nombre: "Honorarios Julieta Bornancini", claves: ["JULIETA", "JULI", "BORNANCINI"], buscar: "honorarios bornancini" },
   { nombre: "Honorarios Francisco Gomez", claves: ["FRANCISCO", "FRAN"], buscar: "honorarios gomez fran" },
   { nombre: "Honorarios Facundo Aliaga", claves: ["FACUNDO", "FACU"], buscar: "honorarios aliaga facu" }
@@ -25559,10 +25560,17 @@ function estrUnirPersonas(r) {
       if (pal.some(w => p.claves.indexOf(w) >= 0)) suyas.push(i);
     });
     if (!suyas.length) return;
+    // Opciones de búsqueda: la del apellido y las que ya tenían sus filas (sin las del error de
+    // tipeo ni repetidas).
+    const opciones = [p.buscar];
+    suyas.forEach(i => String(r.filas[i].buscar || "").split(",").forEach(o => {
+      const t = o.trim().toLowerCase().replace(/\s+/g, " ");
+      if (t && t.indexOf("carrosan") < 0 && opciones.indexOf(t) < 0) opciones.push(t);
+    }));
     const f = r.filas[suyas[0]];
     f.nombre = p.nombre;
     f.tipo = "Honorarios";
-    if (!f.buscar.trim() || suyas.length > 1) f.buscar = p.buscar;
+    f.buscar = opciones.join(", ");
     for (let k = suyas.length - 1; k >= 1; k--) r.filas.splice(suyas[k], 1);
   });
 }
