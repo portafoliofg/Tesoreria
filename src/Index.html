@@ -2072,7 +2072,8 @@
       <div class="actions">
         <button id="btnProcesar" type="button">Procesar</button>
         <button class="secondary" id="btnPegarTexto" type="button">Pegar texto</button>
-        <button class="secondary btn-entrada-manual" data-tipo-default="Transferencia" type="button">Entrada manual</button>
+        <button class="secondary btn-entrada-manual" data-tipo-default="Transferencia" data-segun-carga type="button" title="Abre el formulario del tipo de documento elegido arriba">Entrada manual</button>
+        <button class="secondary btn-entrada-manual" data-tipo-default="Efectivo" type="button" title="Cargar a mano un movimiento de caja en efectivo">Cargar efectivo</button>
       </div>
       <p id="status"></p>
     </div>
@@ -2471,6 +2472,7 @@
       </div>
       <div class="actions" style="margin-top:0">
         <button class="secondary" type="button" data-refrescar-planilla="efectivo">Actualizar</button>
+        <button class="btn-entrada-manual" data-tipo-default="Efectivo" type="button">Cargar movimiento</button>
       </div>
     </div>
     <div id="kpis-efectivo" class="kpis"></div>
@@ -2871,6 +2873,7 @@
             <option>Transferencia</option>
             <option>Cheque emitido</option>
             <option>Cheque de terceros</option>
+            <option value="Efectivo">Efectivo (movimiento de caja)</option>
             <option value="FCI">FCI (rescate o suscripción)</option>
           </select>
         </label>
@@ -2948,6 +2951,41 @@
           <label><span id="manualFechaDebitoEt">Fecha</span><input id="manualFechaDebito" type="date"></label>
           <label>Hora<input id="manualHoraDebito" type="time" step="60"></label>
         </div>
+      </div>
+
+      <!-- Efectivo: movimiento de caja cargado a mano (va a la pestaña Efectivo y a Movimientos). -->
+      <div id="manualCamposEfectivo" class="manual-campos" hidden>
+        <div class="row">
+          <label>Fecha<input id="manualEftFecha" type="date"></label>
+          <label>Persona (de quién es la caja)<input id="manualEftPersona" type="text" list="manualEftPersonas" autocomplete="off" placeholder="Vacío: Caja"></label>
+          <datalist id="manualEftPersonas"></datalist>
+        </div>
+        <div class="row">
+          <label>Moneda
+            <select id="manualEftMoneda">
+              <option value="Pesos">Pesos</option>
+              <option value="USD">Dólares</option>
+            </select>
+          </label>
+          <label>Condición
+            <select id="manualEftCondicion">
+              <option>Egreso</option>
+              <option>Ingreso</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Monto<input id="manualEftMonto" class="monto monto-grande neg" type="text" inputmode="decimal" placeholder="-100.000,00"></label>
+        </div>
+        <div class="row">
+          <label>Origen (de dónde sale)<input id="manualEftOrigen" type="text" list="manualEftLugares" autocomplete="off" placeholder="Ej.: Caja"></label>
+          <label>Destino (a quién va)<input id="manualEftDestino" type="text" list="manualEftLugares" autocomplete="off" placeholder="Ej.: proveedor, persona"></label>
+          <datalist id="manualEftLugares"></datalist>
+        </div>
+        <div class="row">
+          <label>Concepto<input id="manualEftConcepto" type="text" list="listaConceptos" autocomplete="off" placeholder="Escribí o elegí un concepto usado antes"></label>
+        </div>
+        <p class="hint">Suma o resta en la caja de la persona elegida. El N° interno se asigna automáticamente al guardar.</p>
       </div>
 
       <!-- FCI: rescate o suscripción, cargado a mano (va a la pestaña FCI y Bolsa). -->
@@ -6658,14 +6696,17 @@ function actualizarCamposManual() {
   const tipo = $("manualTipo").value;
   const esFci = tipo === "FCI";
   const esTransferencia = tipo === "Transferencia";
+  const esEfectivo = tipo === "Efectivo";
   $("manualCamposTransferencia").hidden = !esTransferencia;
-  $("manualCamposCheque").hidden = esTransferencia || esFci;
+  $("manualCamposCheque").hidden = esTransferencia || esFci || esEfectivo;
   $("manualCamposFci").hidden = !esFci;
+  $("manualCamposEfectivo").hidden = !esEfectivo;
   const terceros = tipo === "Cheque de terceros";
-  $("labManualBanco").hidden = terceros || esFci;
-  $("labManualCuenta").hidden = terceros || esFci;
+  $("labManualBanco").hidden = terceros || esFci || esEfectivo;
+  $("labManualCuenta").hidden = terceros || esFci || esEfectivo;
+  if (esEfectivo) prepararEfectivoManual();
   // Estado del cheque: Pendiente (emitido) o En cartera (de terceros), con selector para cambiarlo.
-  if (!esTransferencia && !esFci) {
+  if (!esTransferencia && !esFci && !esEfectivo) {
     const sel = selectEstado(terceros ? "De terceros" : "Emitido", "");
     sel.dataset.campo = "Estado";
     $("manualEstadoCheque").replaceChildren(sel);
@@ -6683,6 +6724,94 @@ function actualizarCamposManual() {
     pintarCuando();
   }
   if (esFci) prepararFciManual();
+}
+
+// ----- Efectivo en la entrada manual -----
+// Un movimiento de caja como los de la hoja EFT: persona (de quién es la caja), origen, destino
+// y concepto. Se guarda en Movimientos con Instrumento "Efectivo", sin banco ni cuenta.
+// Las columnas van por posición, en el orden de la hoja del servidor (ver Código.gs).
+const HEADERS_MOVIMIENTOS_HOJA = HEADERS_TRANSFERENCIAS.concat(["Comprobante", "Instrumento", "Persona", "Ordenante", "Clase", "Factura Asociada", "Estado", "ID Planilla"]);
+
+function pintarMontoEfectivo() {
+  const neg = $("manualEftCondicion").value === "Egreso";
+  $("manualEftMonto").classList.toggle("neg", neg);
+  $("manualEftMonto").classList.toggle("pos", !neg);
+}
+
+// Sugerencias con lo ya cargado: personas con caja, y orígenes y destinos usados en efectivo.
+function prepararEfectivoManual() {
+  if (!$("manualEftFecha").value) $("manualEftFecha").value = hoyIso();
+  const personas = {}, lugares = { "Caja": true };
+  transferenciasDatos.forEach(f => {
+    if (f["Instrumento"] !== "Efectivo") return;
+    if (f["Persona"]) personas[f["Persona"]] = true;
+    [f["Ordenante"], f["Destinatario"]].forEach(x => { if (x) lugares[x] = true; });
+  });
+  const llenar = (id, obj) => { const dl = $(id); dl.replaceChildren(); Object.keys(obj).sort((a, b) => a.localeCompare(b)).forEach(n => dl.append(new Option(n, n))); };
+  llenar("manualEftPersonas", personas);
+  llenar("manualEftLugares", lugares);
+  pintarMontoEfectivo();
+}
+
+function limpiarEfectivoManual() {
+  ["manualEftMonto", "manualEftPersona", "manualEftOrigen", "manualEftDestino", "manualEftConcepto"].forEach(id => { $(id).value = ""; });
+  $("manualEftFecha").value = hoyIso();
+  pintarMontoEfectivo();
+}
+
+$("manualEftCondicion").addEventListener("change", () => {
+  $("manualEftMonto").value = aplicarSigno($("manualEftMonto").value, $("manualEftCondicion").value);
+  pintarMontoEfectivo();
+});
+$("manualEftMonto").addEventListener("input", () => {
+  if ($("manualEftMonto").value.trim().charAt(0) === "-") $("manualEftCondicion").value = "Egreso";
+  pintarMontoEfectivo();
+});
+$("manualEftMonto").addEventListener("change", () => {
+  $("manualEftMonto").value = aplicarSigno($("manualEftMonto").value, $("manualEftCondicion").value);
+});
+
+async function guardarEfectivoManual() {
+  const st = $("manualStatus");
+  const condicion = $("manualEftCondicion").value;
+  if (!Math.abs(parseImporte($("manualEftMonto").value))) { setStatus(st, "Completá el monto.", "hint msg-error"); return; }
+  if (!$("manualEftFecha").value) { setStatus(st, "Elegí la fecha.", "hint msg-error"); return; }
+  const concepto = $("manualEftConcepto").value.trim();
+  const datos = {
+    "Archivo": "Carga manual", "Origen": "Manual", "Instrumento": "Efectivo",
+    "Fecha del Movimiento": isoADma($("manualEftFecha").value),
+    "Persona": $("manualEftPersona").value.trim(),
+    "Moneda": $("manualEftMoneda").value,
+    "Condición": condicion,
+    "Monto": aplicarSigno($("manualEftMonto").value, condicion),
+    "Ordenante": $("manualEftOrigen").value.trim(),
+    "Destinatario": $("manualEftDestino").value.trim(),
+    "Concepto": concepto,
+    "Entre Cuentas Propias": "No"
+  };
+  const fila = HEADERS_MOVIMIENTOS_HOJA.map(h => datos[h] || "");
+  const btn = $("modalManualGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  setStatus(st, "Guardando…", "hint");
+  try {
+    const res = await runJson("guardarTransferencias", { filas: [fila] });
+    if (!res.agregadas) { setStatus(st, "No se guardó el movimiento.", "hint msg-error"); return; }
+    const numero = res.numeros && res.numeros[0] ? " N° interno " + res.numeros[0] + "." : "";
+    setStatus(st, "Guardado." + numero, "hint msg-ok");
+    toast("Movimiento en efectivo cargado." + numero, "ok");
+    recordarConceptos([concepto]);
+    limpiarEfectivoManual();
+    transferenciasCargadas = false;
+    if ($("vista-efectivo").classList.contains("active")) cargarVistaPlanilla("efectivo", true);
+    else if ($("vista-transferencias").classList.contains("active")) cargarTransferencias(true);
+    setTimeout(() => cerrarModal("modalManual"), 900);
+  } catch (err) {
+    setStatus(st, "Error al guardar: " + msgErr(err), "hint msg-error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
 }
 
 // FCI en la entrada manual: bancos con FCI (o del listado) y los fondos ya usados para sugerir.
@@ -6848,6 +6977,7 @@ function limpiarCamposManual() {
   $("manualHoraDebito").value = "";
   $("manualCuandoCheque").hidden = true;
   pintarMontoManual();
+  limpiarEfectivoManual();
 }
 
 function abrirModalManual(tipoDefault) {
@@ -6859,8 +6989,14 @@ function abrirModalManual(tipoDefault) {
   abrirModal("modalManual");
 }
 
+// En Carga, "Entrada manual" abre el formulario del tipo de documento elegido arriba (Efectivo, FCI,
+// cheque…); un resumen de cuenta no se carga a mano, así que ahí abre una transferencia.
 document.querySelectorAll(".btn-entrada-manual").forEach(btn => {
-  btn.addEventListener("click", () => abrirModalManual(btn.dataset.tipoDefault));
+  btn.addEventListener("click", () => {
+    let tipo = btn.dataset.tipoDefault;
+    if (btn.dataset.segunCarga !== undefined && Array.from($("manualTipo").options).some(o => o.value === $("tipo").value)) tipo = $("tipo").value;
+    abrirModalManual(tipo);
+  });
 });
 $("manualTipo").addEventListener("change", actualizarCamposManual);
 
@@ -6881,6 +7017,7 @@ $("modalManualGuardar").addEventListener("click", async () => {
   const st = $("manualStatus");
   const tipo = $("manualTipo").value;
   if (tipo === "FCI") { guardarFciManual(); return; }
+  if (tipo === "Efectivo") { guardarEfectivoManual(); return; }
   const banco = $("manualBanco").value;
   const esCheque = tipo !== "Transferencia";
   const tipoCheque = tipo === "Cheque emitido" ? "Emitido" : tipo === "Cheque de terceros" ? "De terceros" : null;
@@ -16773,7 +16910,7 @@ function renderEfectivo() {
       filas: filas,
       orden: { clave: "fecha", dir: "desc" },
       alClic: f => abrirDetalle("transferencias", f),
-      vacio: movs.length ? "Ningún movimiento coincide con los filtros." : "Todavía no hay movimientos en efectivo. Importá la planilla de flujo de fondos (pestaña EFT) o cargalos con Entrada manual → Efectivo.",
+      vacio: movs.length ? "Ningún movimiento coincide con los filtros." : "Todavía no hay movimientos en efectivo. Importá la planilla de flujo de fondos (pestaña EFT) o cargalos a mano con el botón Cargar movimiento.",
       columnas: [
         { clave: "n", titulo: "N°", clase: "nowrap", orden: f => parseInt(soloDigitos(String(f["ID Planilla"] || "").split("-").pop()) || f["N° Interno"] || 0, 10), celda: f => String(f["ID Planilla"] || "").indexOf("EFT") === 0 ? String(f["ID Planilla"]).split("-").pop() : (f["N° Interno"] || "—") },
         { clave: "persona", titulo: "Persona", orden: f => normalizar(f["Persona"]), celda: f => f["Persona"] || "—" },
