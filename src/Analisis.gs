@@ -98,9 +98,9 @@ function guardarJsonTrozos_(prop, valor) {
 }
 
 // ----- Estructura (vista Estructura) -----
-// El presupuesto mensual de la estructura: alquileres, honorarios, cajas chicas, seguros…, mes a
-// mes, con el tipo de cambio ROFEX de cada mes. Lo ven y lo cambian solo los que tienen acceso a
-// Facturas (son honorarios). Si nunca se guardó, la página muestra la planilla inicial.
+// La estructura: los conceptos (alquileres, honorarios, cajas chicas, seguros…) que la página busca en
+// los movimientos y cheques, mes a mes, y el tipo de cambio ROFEX de cada mes. Lo ven y lo cambian los que tienen acceso a
+// Facturas (son honorarios). Si nunca se guardó, la página usa la lista inicial.
 const ESTR_PROP = 'ESTRUCTURA_CFG';
 
 function obtenerEstructura_(d, u) {
@@ -108,7 +108,7 @@ function obtenerEstructura_(d, u) {
   return { ok: true, estructura: leerJsonTrozos_(ESTR_PROP) };
 }
 
-/** d.estructura: {meses, filas: [{nombre, tipo, buscar, v: [...]}], tc: [...], tcBna, tcBnaFecha} */
+/** d.estructura: {version, meses, filas: [{nombre, tipo, buscar}], tc: [...], tcBna, tcBnaFecha} */
 function guardarEstructura_(d, u) {
   if (!tieneAccesoFacturas_(u)) return sinAccesoFacturas_();
   const e = d && d.estructura;

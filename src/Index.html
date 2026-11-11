@@ -1387,24 +1387,52 @@
   .est-inicio select { width: auto; margin: 0; height: 32px; }
   .est-conc input { width: min(420px, 60vw); margin: 0; height: 32px; }
   /* Estructura */
-  .estr-card { margin-top: 16px; }
-  .estr-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .estr-head h3, .estr-card > h3 { margin: 0; }
+  .estr-card { margin-top: 16px; padding: 20px 22px; }
+  .estr-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .estr-head h3 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+  .estr-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
   .estr-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
-  .estr-tabla td.num, .estr-tabla th.num { font-size: 12px; }
-  .estr-tabla .estr-nombre { position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 170px; white-space: nowrap; }
-  .estr-tabla th.estr-nombre { background: var(--surface); }
-  .estr-tipo { margin-left: 8px; font-size: 11px; color: var(--faint); }
-  .estr-tabla .estr-total { font-weight: 600; }
-  .estr-tabla tr.estr-tc td { color: var(--muted); }
-  .estr-tabla tr.estr-usd td { font-weight: 600; background: var(--surface-2); }
-  .estr-tabla tr.est-total td.estr-nombre, .estr-tabla tr.estr-usd td:first-child { background: var(--surface-2); }
-  .estr-tabla input { height: 28px; margin: 0; padding: 0 6px; font-size: 12px; }
-  .estr-tabla input.estr-imp { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
-  .estr-tabla .estr-nombre input { width: 180px; }
-  .estr-tabla select { height: 28px; margin: 0; font-size: 12px; }
-  .estr-bna { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
-  .estr-bna input { width: 130px; height: 30px; margin: 0 0 0 6px; }
+  .estr-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--border); border-radius: 10px; }
+  .estr-tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .estr-tabla th, .estr-tabla td { padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .estr-tabla thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-3); color: var(--muted); font-size: 11px; font-weight: 600;
+    letter-spacing: .05em; text-transform: uppercase; text-align: left; border-bottom: 1px solid var(--border-strong); }
+  .estr-tabla th.num, .estr-tabla td.num { text-align: right; }
+  .estr-tabla .estr-col-nombre { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 210px; text-align: left; box-shadow: 1px 0 0 var(--border); }
+  .estr-tabla thead .estr-col-nombre { z-index: 3; background: var(--surface-3); }
+  .estr-tabla .estr-col-total { font-weight: 600; background: var(--surface-2); box-shadow: inset 1px 0 0 var(--border); }
+  .estr-tabla th.estr-hoy, .estr-tabla td.estr-hoy { background: rgba(var(--accent-rgb), .07); }
+  .estr-tabla thead th.estr-hoy { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+  .estr-tabla thead th.estr-futuro { color: var(--faint); font-weight: 500; }
+  .estr-tabla td.estr-guion { color: var(--faint); }
+  .estr-tabla tr.estr-grupo td { background: var(--surface-2); font-weight: 600; color: var(--text); border-top: 1px solid var(--border-strong); }
+  .estr-tabla tr.estr-grupo td.estr-col-nombre { background: var(--surface-2); text-transform: uppercase; font-size: 11px; letter-spacing: .06em; color: var(--muted);
+    box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }
+  .estr-tabla tr.estr-fila:hover td { background: var(--surface-2); }
+  .estr-tabla tr.estr-fila:hover td.estr-col-nombre, .estr-tabla tr.estr-fila.abierta td.estr-col-nombre { background: var(--surface-2); }
+  .estr-tabla tr.estr-fila.abierta td { background: rgba(var(--accent-rgb), .05); }
+  .estr-nombre-btn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding-left: 8px; color: var(--text); }
+  .estr-nombre-btn:hover span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+  .estr-nombre-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .estr-caret { display: inline-block; width: 10px; color: var(--faint); transition: transform .15s; }
+  .estr-fila.abierta .estr-caret { transform: rotate(90deg); color: var(--accent); }
+  .estr-tabla tr.estr-detalle > td { background: var(--surface-2); padding: 10px 14px 14px 26px; white-space: normal; }
+  .estr-det-tabla { max-width: 980px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .estr-det-fecha, .estr-det-ref { color: var(--muted); white-space: nowrap; }
+  .estr-tabla tr.estr-total td { font-weight: 700; font-size: 13px; background: var(--surface-3); border-top: 2px solid var(--border-strong); }
+  .estr-tabla tr.estr-tc td { color: var(--muted); font-size: 12px; }
+  .estr-tabla tr.estr-usd td { font-weight: 600; color: var(--text); background: var(--surface-2); border-bottom: 0; }
+  .estr-tabla tr.estr-total td.estr-col-nombre { background: var(--surface-3); }
+  .estr-tabla tr.estr-usd td.estr-col-nombre { background: var(--surface-2); }
+  .estr-nota { margin: 10px 2px 0; font-size: 12px; color: var(--faint); }
+  .estr-vacio { margin: 0; font-size: 13px; color: var(--muted); }
+  .estr-ed-tabla input, .estr-ed-tabla select { height: 32px; margin: 0; font-size: 13px; }
+  .estr-ed-tabla .estr-ed-nombre { width: 240px; }
+  .estr-ed-tabla .estr-ed-buscar { width: 280px; }
+  .estr-h4 { margin: 18px 0 8px; font-size: 13px; }
+  .estr-tc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+  .estr-tc-grid label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .estr-tc-grid input { width: 100%; height: 32px; margin: 4px 0 0; text-align: right; font-variant-numeric: tabular-nums; }
   /* Estadísticas: cuadros por ingeniero y Combustible Bandera */
   .ing-meses { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 12px; }
   .ing-meses-et { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
@@ -2548,7 +2576,7 @@
     <div class="page-head">
       <div>
         <h1>Estructura <span class="pill pill-propia fac-candado" title="Solo lo ven los usuarios habilitados">Acceso restringido</span></h1>
-        <p class="sub">Lo que cuesta la estructura cada mes: alquileres, honorarios, cajas chicas, seguros y demás, en pesos y en dólares. Abajo, los alquileres y honorarios pagados que todavía no están en la lista.</p>
+        <p class="sub">Lo pagado cada mes por alquileres, honorarios, cajas chicas, seguros y demás gastos de estructura, según los movimientos y cheques cargados. Tocá un concepto para ver sus pagos.</p>
       </div>
       <div class="actions" style="margin-top:0">
         <button id="btnRefrescarEstructura" class="secondary" type="button">Actualizar</button>
@@ -25444,49 +25472,32 @@ function listaEditableEst(etiqueta, actual, porDefecto, clave, maximo, ayuda) {
 }
 
 // ===================== Vista: Estructura =====================
-// El presupuesto mensual de la estructura (alquileres, honorarios, cajas chicas, seguros…) de mayo
-// a abril, con el tipo de cambio ROFEX de cada mes y el total en dólares al tipo de cambio BNA. Es
-// una sola para todos y la ven solo los que tienen acceso restringido (como Facturas). Se edita en
-// la página y se guarda en el servidor (obtenerEstructura / guardarEstructura).
-// Abajo, los alquileres y honorarios que aparecen en los movimientos y no están en la lista, para
-// agregarlos con un clic.
+// Lo que se pagó cada mes por cada concepto de la estructura (alquileres, honorarios, cajas
+// chicas, seguros…), de mayo a abril. Los importes salen de los movimientos y cheques emitidos en
+// pesos cuyo concepto, destinatario o clase coincide con la fila; si en un mes no hay ninguno, va
+// un guion. Cada fila se busca por las palabras de su nombre o por las de "Buscar". En dólares,
+// cada mes al tipo de cambio ROFEX y el total al tipo de cambio BNA. Es una sola para todos y la
+// ven solo los que tienen acceso restringido (como Facturas): obtenerEstructura / guardarEstructura.
 
-// La planilla inicial (hasta que se guarde una): cada fila con su valor de may–jul, ago–oct,
-// nov–ene y feb–abr (la estructura sube 7 % por trimestre, menos el seguro y el estudio).
+// Filas iniciales (hasta que se guarde una lista): nombre y tipo.
 const ESTR_INICIAL_FILAS = [
-  ["Alquiler oficina", "Alquiler", [870000, 930900, 996063, 1065787.41]],
-  ["Comisión oficina", "Alquiler", [92000, 98440, 105330.80, 112703.96]],
-  ["Honorarios Benjamín", "Honorarios", [5700000, 6099000, 6525930, 6982745.10]],
-  ["Honorarios Fonseca", "Honorarios", [2500000, 2675000, 2862250, 3062607.50]],
-  ["Honorarios Esteban", "Honorarios", [2750000, 2942500, 3148475, 3368868.25]],
-  ["Honorarios Rodriguez", "Honorarios", [2500000, 2675000, 2862250, 3062607.50]],
-  ["Honorarios Ismael", "Honorarios", [1100000, 1177000, 1259390, 1347547.30]],
-  ["Honorarios Lenci", "Honorarios", [500000, 535000, 572450, 612521.50]],
-  ["Cajas chicas", "Otros", [3000000, 3210000, 3434700, 3675129]],
-  ["Honorarios Andrés", "Honorarios", [13797598.50, 14763430.40, 15796870.52, 16902651.46]],
-  ["Honorarios Viviana", "Honorarios", [1340000, 1433800, 1534166, 1641557.62]],
-  ["Honorarios Federico", "Honorarios", [1100000, 1177000, 1259390, 1347547.30]],
-  ["Honorarios Candela", "Honorarios", [1250000, 1337500, 1431125, 1531303.75]],
-  ["Honorarios Facundo", "Honorarios", [650000, 695500, 744185, 796277.95]],
-  ["Teléfono ingenieros", "Otros", [12000, 12840, 13738.80, 14700.52]],
-  ["Internet Bandera", "Otros", [28000, 29960, 32057.20, 34301.20]],
-  ["Combustible Bandera", "Otros", [2479338.84, 2652892.56, 2838595.04, 3037296.69]],
-  ["Galpón Bandera", "Alquiler", [2400000, 2568000, 2747760, 2940103.20]],
-  ["Casa Alicia", "Alquiler", [45000, 48150, 51520.50, 55126.94]],
-  ["Galpón Picca", "Alquiler", [2495453.65, 2670135.41, 2857044.89, 3057038.03]],
-  ["Seguro galpón Picca", "Otros", [939074.38, 939074.38, 939074.38, 939074.38]],
-  ["Fletes internos", "Otros", [6733277.04, 7204606.43, 7708928.88, 8248553.90]],
-  ["Seguros autos", "Otros", [578512.40, 619008.26, 662338.84, 708702.56]],
-  ["Mantenimiento autos", "Otros", [770000, 823900, 881573, 943283.11]],
-  ["Estudio contable", "Honorarios", [2000000, 2000000, 2000000, 2000000]]
+  ["Alquiler oficina", "Alquiler"], ["Comisión oficina", "Alquiler"], ["Galpón Bandera", "Alquiler"], ["Casa Alicia", "Alquiler"], ["Galpón Picca", "Alquiler"],
+  ["Honorarios Benjamín", "Honorarios"], ["Honorarios Fonseca", "Honorarios"], ["Honorarios Esteban", "Honorarios"], ["Honorarios Rodriguez", "Honorarios"],
+  ["Honorarios Ismael", "Honorarios"], ["Honorarios Lenci", "Honorarios"], ["Honorarios Andrés", "Honorarios"], ["Honorarios Viviana", "Honorarios"],
+  ["Honorarios Federico", "Honorarios"], ["Honorarios Julieta", "Honorarios"], ["Honorarios Francisco", "Honorarios"], ["Honorarios Facundo", "Honorarios"],
+  ["Estudio contable", "Honorarios"],
+  ["Cajas chicas", "Otros"], ["Teléfono ingenieros", "Otros"], ["Internet Bandera", "Otros"], ["Combustible Bandera", "Otros"], ["Seguro galpón Picca", "Otros"],
+  ["Fletes internos", "Otros"], ["Seguros autos", "Otros"], ["Mantenimiento autos", "Otros"]
 ];
 const ESTR_TIPOS = ["Alquiler", "Honorarios", "Otros"];
+const ESTR_TITULO_TIPO = { Alquiler: "Alquileres", Honorarios: "Honorarios", Otros: "Otros gastos de estructura" };
+const ESTR_VERSION = 2;
 
 function estrInicial() {
-  const meses = Array.from({ length: 12 }, (_, i) => sumarMesesIso("2026-05-01", i).substring(0, 7));
   return {
-    meses: meses,
-    filas: ESTR_INICIAL_FILAS.map(f => ({ nombre: f[0], tipo: f[1], buscar: "", v: meses.map((m, i) => f[2][Math.floor(i / 3)]) })),
+    version: ESTR_VERSION,
+    meses: Array.from({ length: 12 }, (_, i) => sumarMesesIso("2026-05-01", i).substring(0, 7)),
+    filas: ESTR_INICIAL_FILAS.map(f => ({ nombre: f[0], tipo: f[1], buscar: "" })),
     tc: [1382, 1408.50, 1435.50, 1462.50, 1490, 1515.50, 1540, 1580, 1580, 1650, 1680, 1695],
     tcBna: 1349,
     tcBnaFecha: "2026-04-17"
@@ -25496,20 +25507,31 @@ function estrInicial() {
 let estr = null;          // la estructura guardada (o la inicial)
 let estrEditando = null;  // copia que se está editando, o null
 let estrCargada = false;
+let estrAbierta = "";     // fila con el detalle abierto
 
 function estrNormalizar(e) {
   const base = estrInicial();
   if (!e || !Array.isArray(e.meses) || !e.meses.length || !Array.isArray(e.filas)) return base;
   const n = e.meses.length;
   const num = x => { const v = Number(x); return isFinite(v) ? v : 0; };
-  const lista = a => Array.from({ length: n }, (_, i) => num(Array.isArray(a) ? a[i] : 0));
-  return {
+  const r = {
+    version: ESTR_VERSION,
     meses: e.meses.map(String),
-    filas: e.filas.map(f => ({ nombre: String(f.nombre || ""), tipo: ESTR_TIPOS.indexOf(f.tipo) >= 0 ? f.tipo : "Otros", buscar: String(f.buscar || ""), v: lista(f.v) })),
-    tc: lista(e.tc),
+    filas: e.filas.map(f => ({ nombre: String(f.nombre || ""), tipo: ESTR_TIPOS.indexOf(f.tipo) >= 0 ? f.tipo : "Otros", buscar: String(f.buscar || "") })),
+    tc: Array.from({ length: n }, (_, i) => num(Array.isArray(e.tc) ? e.tc[i] : 0)),
     tcBna: num(e.tcBna) || base.tcBna,
     tcBnaFecha: String(e.tcBnaFecha || "")
   };
+  // Versión 1 → 2: Candela ya no está (la reemplaza Julieta) y se suma Francisco.
+  if (!(Number(e.version) >= 2)) {
+    const k = r.filas.findIndex(f => normalizar(f.nombre).indexOf("CANDELA") >= 0);
+    if (k >= 0) r.filas[k] = { nombre: "Honorarios Julieta", tipo: "Honorarios", buscar: "" };
+    if (!r.filas.some(f => normalizar(f.nombre).indexOf("FRANCISCO") >= 0)) {
+      const j = r.filas.findIndex(f => normalizar(f.nombre).indexOf("JULIETA") >= 0);
+      r.filas.splice(j >= 0 ? j + 1 : r.filas.length, 0, { nombre: "Honorarios Francisco", tipo: "Honorarios", buscar: "" });
+    }
+  }
+  return r;
 }
 
 async function cargarEstructura(forzar) {
@@ -25524,266 +25546,348 @@ async function cargarEstructura(forzar) {
       box.replaceChildren(nodoError("No se pudo traer la estructura: " + msgErr(err)));
       return;
     }
-    // Los movimientos hacen falta para buscar alquileres y honorarios que falten.
+    if (forzar) { transferenciasCargadas = false; chequesCargados = false; }
     await Promise.all([asegurarTransferencias(), asegurarCheques()]).catch(() => {});
   }
   renderEstructura();
 }
 
-// Subtotal de cada mes, total en pesos y en dólares (BNA y ROFEX mes a mes).
-function estrTotales(e) {
-  const sub = e.meses.map((m, i) => e.filas.reduce((a, f) => a + (f.v[i] || 0), 0));
-  const rofex = sub.map((s, i) => (e.tc[i] ? s / e.tc[i] : 0));
-  const pesos = sub.reduce((a, x) => a + x, 0);
-  return { sub: sub, rofex: rofex, pesos: pesos, usdBna: e.tcBna ? pesos / e.tcBna : 0, usdRofex: rofex.reduce((a, x) => a + x, 0) };
+// ----- Cómo se reconoce cada fila en los movimientos -----
+// Las palabras de "Buscar" (varias opciones separadas por coma: alcanza con una) o, si está vacío,
+// las del nombre. Tienen que estar todas en el concepto, el destinatario o la clase, al comienzo de
+// una palabra y sin importar el plural: "Honorarios Lenci" encuentra "HONORARIOS LENCINA MARIA".
+// Si un movimiento coincide con dos filas, va a la que pide más palabras ("Seguro galpón Picca"
+// le gana a "Galpón Picca").
+const ESTR_VACIAS = { DE: 1, DEL: 1, LA: 1, EL: 1, LOS: 1, LAS: 1, CON: 1, PARA: 1, POR: 1 };
+function estrRaiz(w) { return w.length > 4 && w.charAt(w.length - 1) === "S" ? w.slice(0, -1) : w; }
+function estrPalabrasDe(texto) {
+  return normalizar(texto).split(/[^A-Z0-9]+/).filter(p => p.length >= 3 && !ESTR_VACIAS[p]).map(estrRaiz);
+}
+function estrGrupos(f) {
+  const fuente = f.buscar.trim() ? f.buscar.split(",") : [f.nombre];
+  return fuente.map(estrPalabrasDe).filter(g => g.length);
+}
+// Cuántas palabras pide la opción que coincide (0: no coincide).
+function estrPuntaje(grupos, palabras) {
+  let mejor = 0;
+  grupos.forEach(g => { if (g.length > mejor && g.every(p => palabras.some(w => w.indexOf(p) === 0))) mejor = g.length; });
+  return mejor;
 }
 
-function fmtUsd(n) {
-  return "US$ " + formatMonto(n);
+// Pagos en pesos: movimientos que salen (sin los renglones de resúmenes ya conciliados) y cheques
+// emitidos (por fecha de débito o de pago; sin anulados, rechazados ni endosados).
+function estrPagos() {
+  const out = [];
+  transferenciasDatos.forEach(f => {
+    if ((f["Origen"] === "Resumen" && f["Conciliación"]) || f["Moneda"] === "USD") return;
+    const monto = -parseImporte(f["Monto"]);
+    if (!(monto > 0)) return;
+    const quien = f["Destinatario"] || f["Contraparte"] || "";
+    out.push({ iso: fechaAOrden(fechaMov(f)), monto: monto, concepto: f["Concepto"] || "", quien: quien, ref: "Movimiento N° " + f["N° Interno"],
+      texto: [f["Concepto"], quien, f["Clase"]].join(" ") });
+  });
+  chequesDatos.forEach(c => {
+    if (c["Tipo"] !== "Emitido" || monedaCheque(c) !== "Pesos" || ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
+    const monto = Math.abs(importeCheque(c));
+    if (!monto) return;
+    out.push({ iso: fechaAOrden(c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"]), monto: monto, concepto: c["Concepto"] || "", quien: c["Titular"] || "",
+      ref: "Cheque N° " + c["N° de Cheque"], texto: [c["Concepto"], c["Titular"]].join(" ") });
+  });
+  out.forEach(p => { p.palabras = normalizar(p.texto).split(/[^A-Z0-9]+/).filter(Boolean); p.mes = String(p.iso || "").substring(0, 7); });
+  return out.filter(p => p.iso);
+}
+
+// Reparte los pagos de los meses de la estructura entre las filas. Devuelve por fila los importes
+// de cada mes y sus pagos, los totales y los pagos de alquileres u honorarios que no son de ninguna.
+function estrCalcular(e) {
+  const grupos = e.filas.map(estrGrupos);
+  const filas = e.filas.map(() => ({ v: e.meses.map(() => 0), pagos: [] }));
+  const sueltos = [];
+  const desde = e.meses[0], hasta = e.meses[e.meses.length - 1];
+  estrPagos().forEach(p => {
+    if (p.mes < desde || p.mes > hasta) return;
+    let k = -1, mejor = 0;
+    grupos.forEach((g, i) => { const s = estrPuntaje(g, p.palabras); if (s > mejor) { mejor = s; k = i; } });
+    if (k < 0) {
+      if (p.palabras.some(w => w.indexOf("ALQUIL") === 0 || w.indexOf("HONORARIO") === 0)) sueltos.push(p);
+      return;
+    }
+    filas[k].v[e.meses.indexOf(p.mes)] += p.monto;
+    filas[k].pagos.push(p);
+  });
+  const sub = e.meses.map((m, i) => filas.reduce((a, f) => a + f.v[i], 0));
+  const rofex = sub.map((s, i) => (e.tc[i] ? s / e.tc[i] : 0));
+  const pesos = sub.reduce((a, x) => a + x, 0);
+  return { filas: filas, sub: sub, rofex: rofex, pesos: pesos, usdBna: e.tcBna ? pesos / e.tcBna : 0,
+    usdRofex: rofex.reduce((a, x) => a + x, 0), sueltos: sueltos };
+}
+
+function fmtEntero(n) {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
 function renderEstructura() {
   const box = $("estructuraBox");
   box.replaceChildren();
-  const e = estrEditando || estr;
-  const t = estrTotales(e);
+  const e = estr;
+  const c = estrCalcular(e);
+  const hoy = hoyIso().substring(0, 7);
+  const transcurridos = e.meses.filter(m => m <= hoy).length || 1;
+  const sinPagos = c.filas.filter(f => !f.pagos.length).length;
 
   const kpis = el("div", "kpis");
   box.append(kpis);
   renderKpis(kpis, [
-    { label: "Total en pesos", valor: t.pesos, formato: v => fmtImp(v), sub: e.meses.length + " meses · " + mesCorto(e.meses[0] + "-01", true) + " a " + mesCorto(e.meses[e.meses.length - 1] + "-01", true), tono: "var(--accent)" },
-    { label: "Total en dólares (BNA)", valor: t.usdBna, formato: v => fmtUsd(v), sub: "A $ " + formatMonto(e.tcBna) + (e.tcBnaFecha ? " del " + isoADma(e.tcBnaFecha) : ""), tono: "var(--ok)" },
-    { label: "Total en dólares (ROFEX)", valor: t.usdRofex, formato: v => fmtUsd(v), sub: "Cada mes a su tipo de cambio ROFEX", tono: "var(--vz-3)" },
-    { label: "Promedio por mes", valor: t.pesos / (e.meses.length || 1), formato: v => fmtImp(v), sub: e.filas.length + " conceptos", tono: "var(--vz-5)" }
+    { label: "Pagado en el período", valor: c.pesos, formato: v => fmtImp(v), sub: mesLargo(e.meses[0] + "-01") + " a " + mesLargo(e.meses[e.meses.length - 1] + "-01"), tono: "var(--accent)" },
+    { label: "Promedio mensual", valor: c.pesos / transcurridos, formato: v => fmtImp(v), sub: "Sobre " + transcurridos + " mes(es) transcurrido(s)", tono: "var(--vz-5)" },
+    { label: "En dólares (ROFEX)", valor: c.usdRofex, formato: v => "US$ " + formatMonto(v), sub: "Cada mes a su tipo de cambio ROFEX", tono: "var(--vz-3)" },
+    { label: "En dólares (BNA)", valor: c.usdBna, formato: v => "US$ " + formatMonto(v), sub: "A $ " + formatMonto(e.tcBna) + (e.tcBnaFecha ? " del " + isoADma(e.tcBnaFecha) : ""), tono: "var(--ok)" }
   ]);
 
+  // ----- Tabla -----
   const card = el("div", "card estr-card");
   const head = el("div", "estr-head");
-  head.append(el("h3", null, "Estructura mensual"));
+  const tit = el("div");
+  tit.append(el("h3", null, "Estructura mensual"),
+    el("p", "estr-sub", e.filas.length + " conceptos · importes en pesos de los movimientos y cheques pagados" + (sinPagos ? " · " + sinPagos + " sin pagos en el período" : "")));
+  head.append(tit);
   const acc = el("div", "estr-acciones");
-  const boton = (txt, cls, fn) => { const b = el("button", cls, txt); b.type = "button"; b.addEventListener("click", fn); acc.append(b); return b; };
-  if (!estrEditando) {
-    boton("Editar", "secondary small", () => { estrEditando = JSON.parse(JSON.stringify(estr)); renderEstructura(); });
-  } else {
-    boton("+ Agregar fila", "secondary small", () => {
-      estrEditando.filas.push({ nombre: "", tipo: "Honorarios", buscar: "", v: estrEditando.meses.map(() => 0) });
-      renderEstructura();
-      const ins = box.querySelectorAll(".estr-nombre input");
-      if (ins.length) ins[ins.length - 1].focus();
-    });
-    boton("Cancelar", "secondary small", () => { estrEditando = null; renderEstructura(); });
-    boton("Guardar", "small", () => guardarEstructura());
-  }
+  const bEd = el("button", "secondary small", "Editar conceptos");
+  bEd.type = "button";
+  bEd.addEventListener("click", () => { estrEditando = JSON.parse(JSON.stringify(estr)); renderEstructura(); });
+  acc.append(bEd);
   head.append(acc);
   card.append(head);
-  card.append(el("p", "hint", estrEditando
-    ? "Tocá un importe para cambiarlo (se escribe como en la planilla: 1.065.787,41). Una fila sin nombre no se guarda. “Buscar” son las palabras con que aparece en los movimientos (por ejemplo el apellido): si queda vacío se usa el nombre."
-    : "Lo que cuesta la estructura cada mes. En dólares, el subtotal de cada mes a su tipo de cambio ROFEX y el total al tipo de cambio BNA."));
 
-  const tabla = el("table", "est-tabla estr-tabla");
+  const cols = e.meses.length + 2;
+  const tabla = el("table", "estr-tabla");
+  const thead = el("thead");
   const cab = el("tr");
-  cab.append(el("th", "estr-nombre", "Concepto"));
-  if (estrEditando) cab.append(el("th", null, "Tipo"), el("th", null, "Buscar"));
-  e.meses.forEach(m => cab.append(el("th", "num", mesCorto(m + "-01", true))));
-  cab.append(el("th", "num", "Total"));
-  if (estrEditando) cab.append(el("th"));
-  tabla.append(cab);
+  cab.append(el("th", "estr-col-nombre", "Concepto"));
+  e.meses.forEach(m => {
+    const th = el("th", "num" + (m === hoy ? " estr-hoy" : (m > hoy ? " estr-futuro" : "")), mesCorto(m + "-01", true));
+    cab.append(th);
+  });
+  cab.append(el("th", "num estr-col-total", "Total"));
+  thead.append(cab);
+  tabla.append(thead);
+  const tbody = el("tbody");
 
-  const campoImporte = (valor, alCambiar) => {
-    const inp = el("input", "estr-imp");
-    inp.type = "text";
-    inp.inputMode = "decimal";
-    inp.value = formatMonto(valor || 0);
-    inp.addEventListener("change", () => {
-      const n = importeEscrito(inp.value);
-      alCambiar(n === null ? 0 : n);
-      renderEstructura();
-    });
-    return inp;
+  const celdaMonto = (v, m, cls, titulo) => {
+    const td = el("td", "num" + (cls ? " " + cls : "") + (m === hoy ? " estr-hoy" : ""));
+    if (v > 0) td.textContent = fmtEntero(v); else { td.textContent = "—"; td.classList.add("estr-guion"); }
+    if (titulo) td.title = titulo;
+    return td;
   };
 
-  e.filas.forEach((f, k) => {
-    const tr = el("tr");
-    const tdN = el("td", "estr-nombre");
-    if (estrEditando) {
-      const inp = el("input");
-      inp.type = "text";
-      inp.value = f.nombre;
-      inp.placeholder = "Nombre";
-      inp.setAttribute("aria-label", "Nombre de la fila");
-      inp.addEventListener("input", () => { f.nombre = inp.value; });
-      tdN.append(inp);
-      tr.append(tdN);
-      const tdT = el("td");
-      const sel = el("select");
-      ESTR_TIPOS.forEach(x => sel.append(new Option(x, x)));
-      sel.value = f.tipo;
-      sel.addEventListener("change", () => { f.tipo = sel.value; });
-      tdT.append(sel);
-      const tdB = el("td");
-      const bus = el("input");
-      bus.type = "text";
-      bus.value = f.buscar;
-      bus.placeholder = estrPalabras(f).join(" ") || "—";
-      bus.setAttribute("aria-label", "Palabras para buscarlo en los movimientos");
-      bus.addEventListener("input", () => { f.buscar = bus.value; });
-      tdB.append(bus);
-      tr.append(tdT, tdB);
-    } else {
-      tdN.append(el("span", null, f.nombre), el("span", "estr-tipo", f.tipo));
-      tr.append(tdN);
-    }
-    e.meses.forEach((m, i) => {
-      const td = el("td", "num");
-      if (estrEditando) td.append(campoImporte(f.v[i], n => { f.v[i] = n; }));
-      else td.textContent = formatMonto(f.v[i] || 0);
-      tr.append(td);
-    });
-    tr.append(el("td", "num estr-total", formatMonto(f.v.reduce((a, x) => a + (x || 0), 0))));
-    if (estrEditando) {
-      const td = el("td");
-      const b = el("button", "secondary small", "Quitar");
+  ESTR_TIPOS.forEach(tipo => {
+    const idx = e.filas.map((f, i) => i).filter(i => e.filas[i].tipo === tipo);
+    if (!idx.length) return;
+    // Encabezado del grupo con su subtotal por mes.
+    const sub = e.meses.map((m, j) => idx.reduce((a, i) => a + c.filas[i].v[j], 0));
+    const trg = el("tr", "estr-grupo");
+    trg.append(el("td", "estr-col-nombre", ESTR_TITULO_TIPO[tipo]));
+    sub.forEach((v, j) => trg.append(celdaMonto(v, e.meses[j])));
+    trg.append(celdaMonto(sub.reduce((a, x) => a + x, 0), "", "estr-col-total"));
+    tbody.append(trg);
+
+    idx.forEach(i => {
+      const f = e.filas[i], cf = c.filas[i];
+      const clave = String(i) + "|" + f.nombre;
+      const tr = el("tr", "estr-fila" + (estrAbierta === clave ? " abierta" : ""));
+      const tdN = el("td", "estr-col-nombre");
+      const b = el("button", "estr-nombre-btn");
       b.type = "button";
-      b.title = "Quitar esta fila";
-      b.addEventListener("click", () => { estrEditando.filas.splice(k, 1); renderEstructura(); });
-      td.append(b);
-      tr.append(td);
-    }
-    tabla.append(tr);
+      b.setAttribute("aria-expanded", estrAbierta === clave ? "true" : "false");
+      b.append(el("span", "estr-caret", "›"), el("span", null, f.nombre));
+      b.title = cf.pagos.length ? cf.pagos.length + " pago(s). Tocá para ver el detalle." : "Sin pagos en el período. Se busca por: " + (estrGrupos(f).map(g => g.join(" ")).join(" o ") || "—");
+      b.addEventListener("click", () => { estrAbierta = estrAbierta === clave ? "" : clave; renderEstructura(); });
+      tdN.append(b);
+      tr.append(tdN);
+      e.meses.forEach((m, j) => {
+        const n = cf.pagos.filter(p => p.mes === m).length;
+        tr.append(celdaMonto(cf.v[j], m, "", cf.v[j] > 0 ? "$ " + formatMonto(cf.v[j]) + " · " + n + " pago(s)" : ""));
+      });
+      tr.append(celdaMonto(cf.v.reduce((a, x) => a + x, 0), "", "estr-col-total"));
+      tbody.append(tr);
+
+      if (estrAbierta === clave) {
+        const trd = el("tr", "estr-detalle");
+        const td = el("td");
+        td.colSpan = cols;
+        if (!cf.pagos.length) {
+          td.append(el("p", "hint", "No hay movimientos ni cheques de este concepto en el período. Se busca por: " +
+            (estrGrupos(f).map(g => g.join(" ")).join(" o ") || "—") + ". Si figura con otras palabras, cambialas en “Editar conceptos” → Buscar."));
+        } else {
+          const t = el("table", "est-tabla estr-det-tabla");
+          const ch = el("tr");
+          [["Fecha", ""], ["Concepto", ""], ["Destinatario", ""], ["Comprobante", ""], ["Importe", "num"]].forEach(h => ch.append(el("th", h[1], h[0])));
+          t.append(ch);
+          cf.pagos.slice().sort((a, b) => a.iso.localeCompare(b.iso)).forEach(p => {
+            const r = el("tr");
+            r.append(el("td", "estr-det-fecha", isoADma(p.iso)), el("td", null, p.concepto || "—"), el("td", null, p.quien || "—"), el("td", "estr-det-ref", p.ref), el("td", "num", fmtImp(p.monto)));
+            t.append(r);
+          });
+          td.append(t);
+        }
+        trd.append(td);
+        tbody.append(trd);
+      }
+    });
   });
 
-  const extra = estrEditando ? 2 : 0;
-  const filaPie = (titulo, valores, fmt, cls, total) => {
+  // Pie: total, tipo de cambio y dólares.
+  const pie = (titulo, valores, fmt, cls, total) => {
     const tr = el("tr", cls);
-    const td = el("td", null, titulo);
-    td.colSpan = 1 + extra;
-    tr.append(td);
-    valores.forEach(v => tr.append(el("td", "num", fmt(v))));
-    tr.append(el("td", "num", total == null ? "" : fmt(total)));
-    if (estrEditando) tr.append(el("td"));
+    tr.append(el("td", "estr-col-nombre", titulo));
+    valores.forEach((v, j) => {
+      const td = el("td", "num" + (e.meses[j] === hoy ? " estr-hoy" : ""));
+      td.textContent = v > 0 ? fmt(v) : "—";
+      if (!(v > 0)) td.classList.add("estr-guion");
+      tr.append(td);
+    });
+    const tt = el("td", "num estr-col-total", total == null ? "" : (total > 0 ? fmt(total) : "—"));
+    tr.append(tt);
     return tr;
   };
-  tabla.append(filaPie("Subtotal mes", t.sub, formatMonto, "est-total", t.pesos));
-  if (estrEditando) {
-    const tr = el("tr", "estr-tc");
-    const td = el("td", null, "TC ROFEX");
-    td.colSpan = 1 + extra;
-    tr.append(td);
-    estrEditando.tc.forEach((v, i) => { const c = el("td", "num"); c.append(campoImporte(v, n => { estrEditando.tc[i] = n; })); tr.append(c); });
-    tr.append(el("td"), el("td"));
-    tabla.append(tr);
-  } else {
-    tabla.append(filaPie("TC ROFEX", e.tc, formatMonto, "estr-tc", null));
-  }
-  tabla.append(filaPie("Mensual ROFEX (US$)", t.rofex, formatMonto, "estr-usd", t.usdRofex));
-  card.append(envolverTabla(tabla));
-
-  // Tipo de cambio BNA para el total en dólares.
-  if (estrEditando) {
-    const fila = el("div", "estr-bna");
-    const tc = el("input");
-    tc.type = "text";
-    tc.value = formatMonto(estrEditando.tcBna);
-    tc.addEventListener("change", () => { const n = importeEscrito(tc.value); if (n) estrEditando.tcBna = n; renderEstructura(); });
-    const fe = el("input");
-    fe.type = "date";
-    fe.value = estrEditando.tcBnaFecha || "";
-    fe.addEventListener("change", () => { estrEditando.tcBnaFecha = fe.value; renderEstructura(); });
-    const l1 = el("label", null, "Tipo de cambio BNA ");
-    l1.append(tc);
-    const l2 = el("label", null, "del ");
-    l2.append(fe);
-    fila.append(l1, l2);
-    card.append(fila);
-  }
+  tbody.append(pie("Total mensual", c.sub, fmtEntero, "estr-total", c.pesos));
+  tbody.append(pie("TC ROFEX", e.tc, v => formatMonto(v), "estr-tc", null));
+  tbody.append(pie("Total en US$ (ROFEX)", c.rofex, fmtEntero, "estr-usd", c.usdRofex));
+  tabla.append(tbody);
+  const wrap = el("div", "estr-wrap");
+  wrap.append(tabla);
+  card.append(wrap);
+  card.append(el("p", "estr-nota", "Importes en pesos sin centavos (el detalle de cada concepto los tiene completos). “—”: ningún pago ese mes. " +
+    "Se cuentan las transferencias y pagos que salen y los cheques emitidos por su fecha de débito; los movimientos en dólares no entran."));
   box.append(card);
 
-  // Alquileres y honorarios de los movimientos que no están en la lista.
-  if (!estrEditando) box.append(tarjetaFaltantesEstructura());
+  if (estrEditando) box.append(tarjetaEditarEstructura());
+  box.append(tarjetaFaltantesEstructura(c.sueltos));
+  if (estrEditando) { const c2 = box.querySelector(".estr-editar"); if (c2 && c2.scrollIntoView) c2.scrollIntoView({ block: "start", behavior: "smooth" }); }
 }
 
-// Palabras con que una fila aparece en los movimientos: las de "Buscar" o, si está vacío, las del
-// nombre sin las genéricas ("Honorarios Fonseca" → FONSECA). Se comparan con el comienzo de cada
-// palabra del movimiento, así "Benja" encuentra "Benjamín".
-const ESTR_GENERICAS = { HONORARIOS: 1, HONORARIO: 1, ALQUILER: 1, ALQUILERES: 1, DE: 1, DEL: 1, LA: 1, EL: 1, LOS: 1, LAS: 1, Y: 1 };
-function estrPalabras(f) {
-  return normalizar(f.buscar || f.nombre).split(/[^A-Z0-9]+/).filter(p => p.length >= 3 && !ESTR_GENERICAS[p]);
-}
-
-function estrCubre(filas, palabrasMov) {
-  return filas.some(f => {
-    const ps = estrPalabras(f);
-    return ps.length && ps.every(p => palabrasMov.some(w => w.indexOf(p) === 0));
+// ----- Editar conceptos y tipos de cambio -----
+function tarjetaEditarEstructura() {
+  const e = estrEditando;
+  const card = el("div", "card estr-card estr-editar");
+  const head = el("div", "estr-head");
+  head.append(el("h3", null, "Editar conceptos"));
+  const acc = el("div", "estr-acciones");
+  const boton = (txt, cls, fn) => { const b = el("button", cls, txt); b.type = "button"; b.addEventListener("click", fn); acc.append(b); };
+  boton("+ Agregar concepto", "secondary small", () => {
+    e.filas.push({ nombre: "", tipo: "Honorarios", buscar: "" });
+    renderEstructura();
+    const ins = document.querySelectorAll(".estr-editar .estr-ed-nombre");
+    if (ins.length) ins[ins.length - 1].focus();
   });
+  boton("Cancelar", "secondary small", () => { estrEditando = null; renderEstructura(); });
+  boton("Guardar", "small", () => guardarEstructura());
+  head.append(acc);
+  card.append(head);
+  card.append(el("p", "hint", "“Buscar”: las palabras con que el concepto aparece en los movimientos (en el concepto o el destinatario); tienen que estar todas. Varias opciones, separadas por coma. Vacío: se usan las del nombre. Un concepto sin nombre no se guarda."));
+
+  const t = el("table", "est-tabla estr-ed-tabla");
+  const ch = el("tr");
+  ["Concepto", "Tipo", "Buscar", ""].forEach(h => ch.append(el("th", null, h)));
+  t.append(ch);
+  e.filas.forEach((f, k) => {
+    const tr = el("tr");
+    const n = el("input", "estr-ed-nombre");
+    n.type = "text"; n.value = f.nombre; n.placeholder = "Ej.: Honorarios Julieta";
+    n.setAttribute("aria-label", "Nombre del concepto");
+    n.addEventListener("input", () => { f.nombre = n.value; });
+    const s = el("select");
+    s.setAttribute("aria-label", "Tipo");
+    ESTR_TIPOS.forEach(x => s.append(new Option(x, x)));
+    s.value = f.tipo;
+    s.addEventListener("change", () => { f.tipo = s.value; });
+    const b = el("input", "estr-ed-buscar");
+    b.type = "text"; b.value = f.buscar; b.placeholder = estrPalabrasDe(f.nombre).join(" ") || "—";
+    b.setAttribute("aria-label", "Palabras para buscarlo en los movimientos");
+    b.addEventListener("input", () => { f.buscar = b.value; });
+    const q = el("button", "secondary small", "Quitar");
+    q.type = "button";
+    q.addEventListener("click", () => { e.filas.splice(k, 1); renderEstructura(); });
+    [n, s, b, q].forEach(x => { const td = el("td"); td.append(x); tr.append(td); });
+    t.append(tr);
+  });
+  card.append(envolverTabla(t));
+
+  // Tipos de cambio.
+  card.append(el("h4", "estr-h4", "Tipo de cambio ROFEX por mes"));
+  const tc = el("div", "estr-tc-grid");
+  e.meses.forEach((m, i) => {
+    const l = el("label", null, mesCorto(m + "-01", true));
+    const inp = el("input");
+    inp.type = "text"; inp.inputMode = "decimal"; inp.value = formatMonto(e.tc[i] || 0);
+    inp.addEventListener("change", () => { const v = importeEscrito(inp.value); e.tc[i] = v === null ? 0 : v; inp.value = formatMonto(e.tc[i]); });
+    l.append(inp);
+    tc.append(l);
+  });
+  const lb = el("label", null, "BNA");
+  const ib = el("input");
+  ib.type = "text"; ib.inputMode = "decimal"; ib.value = formatMonto(e.tcBna);
+  ib.addEventListener("change", () => { const v = importeEscrito(ib.value); if (v) e.tcBna = v; ib.value = formatMonto(e.tcBna); });
+  lb.append(ib);
+  const lf = el("label", null, "Fecha BNA");
+  const fb = el("input");
+  fb.type = "date"; fb.value = e.tcBnaFecha || "";
+  fb.addEventListener("change", () => { e.tcBnaFecha = fb.value; });
+  lf.append(fb);
+  tc.append(lb, lf);
+  card.append(tc);
+  return card;
 }
 
-// Pagos (movimientos que salen y cheques emitidos, en pesos) de los meses de la estructura o del
-// último año cuyo concepto o clase dice alquiler u honorarios, agrupados por destinatario.
-function faltantesEstructura(e) {
-  const desde = e.meses[0] < sumarMesesIso(hoyIso().substring(0, 7) + "-01", -12).substring(0, 7) ? sumarMesesIso(hoyIso().substring(0, 7) + "-01", -12).substring(0, 7) : e.meses[0];
-  const grupos = {};
-  const mirar = (iso, monto, destinatario, concepto, clase, ref) => {
-    if (!iso || iso.substring(0, 7) < desde || !(monto > 0)) return;
-    const txt = normalizar([concepto, clase].join(" "));
-    const tipo = /\bALQUILER/.test(txt) ? "Alquiler" : (/\bHONORARIO/.test(txt) ? "Honorarios" : "");
-    if (!tipo) return;
-    const pal = normalizar([destinatario, concepto].join(" ")).split(/[^A-Z0-9]+/).filter(Boolean);
-    if (estrCubre(e.filas, pal)) return;
-    const quien = String(destinatario || "").trim();
-    const k = tipo + "|" + (quien ? normalizar(quien).trim() : normalizar(concepto).replace(/[0-9]+/g, "").replace(/\s+/g, " ").trim());
-    const g = grupos[k] || (grupos[k] = { tipo: tipo, quien: quien, concepto: String(concepto || ""), n: 0, total: 0, meses: {}, ultimo: "", ultimoMonto: 0, refs: [] });
-    g.n++;
-    g.total += monto;
-    g.meses[iso.substring(0, 7)] = (g.meses[iso.substring(0, 7)] || 0) + monto;
-    if (iso >= g.ultimo) { g.ultimo = iso; g.ultimoMonto = monto; g.concepto = String(concepto || g.concepto); }
-    if (g.refs.length < 5) g.refs.push(ref);
-  };
-  transferenciasDatos.forEach(f => {
-    if (esPropia(f) || (f["Origen"] === "Resumen" && f["Conciliación"]) || f["Moneda"] === "USD") return;
-    mirar(fechaAOrden(fechaMov(f)), -parseImporte(f["Monto"]), f["Destinatario"] || f["Contraparte"], f["Concepto"], f["Clase"], "Movimiento N° " + f["N° Interno"]);
-  });
-  chequesDatos.forEach(c => {
-    if (c["Tipo"] !== "Emitido" || monedaCheque(c) !== "Pesos" || ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
-    mirar(fechaAOrden(c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"]), Math.abs(importeCheque(c)), c["Titular"], c["Concepto"], "", "Cheque N° " + c["N° de Cheque"]);
-  });
-  return Object.keys(grupos).map(k => grupos[k]).sort((a, b) => b.total - a.total);
-}
-
-function tarjetaFaltantesEstructura() {
+// ----- Alquileres y honorarios que no son de ninguna fila -----
+function tarjetaFaltantesEstructura(sueltos) {
   const card = el("div", "card estr-card");
-  card.append(el("h3", null, "Alquileres y honorarios que no están en la estructura"));
-  const lista = faltantesEstructura(estr);
+  const head = el("div", "estr-head");
+  const tit = el("div");
+  tit.append(el("h3", null, "Alquileres y honorarios fuera de la estructura"),
+    el("p", "estr-sub", "Pagos del período que dicen alquiler u honorarios y no coinciden con ningún concepto. “Agregar” lo suma a la lista; después se ajusta en Editar conceptos."));
+  head.append(tit);
+  card.append(head);
+  const grupos = {};
+  sueltos.forEach(p => {
+    const tipo = p.palabras.some(w => w.indexOf("ALQUIL") === 0) ? "Alquiler" : "Honorarios";
+    const k = tipo + "|" + (p.quien ? normalizar(p.quien).trim() : normalizar(p.concepto).replace(/[0-9]+/g, "").replace(/\s+/g, " ").trim());
+    const g = grupos[k] || (grupos[k] = { tipo: tipo, quien: String(p.quien || "").trim(), concepto: p.concepto, n: 0, total: 0, ultimo: "", refs: [] });
+    g.n++; g.total += p.monto;
+    if (p.iso >= g.ultimo) { g.ultimo = p.iso; g.concepto = p.concepto || g.concepto; }
+    if (g.refs.length < 6) g.refs.push(p.ref);
+  });
+  const lista = Object.keys(grupos).map(k => grupos[k]).sort((a, b) => b.total - a.total);
   if (!lista.length) {
-    card.append(el("p", "hint", "Todos los pagos de alquileres y honorarios del período ya están en alguna fila de la estructura."));
+    card.append(el("p", "estr-vacio", "Todos los pagos de alquileres y honorarios del período están en algún concepto de la estructura."));
     return card;
   }
-  card.append(el("p", "hint", "Pagos cuyo concepto o clase dice alquiler u honorarios y que no coinciden con ninguna fila (se compara por las palabras de “Buscar” o del nombre). “Agregar” suma la fila con el último importe pagado en todos los meses: después se ajusta con Editar."));
-  const tabla = el("table", "est-tabla");
-  const cab = el("tr");
-  ["Tipo", "Destinatario", "Último concepto", "Pagos", "Meses", "Último pago", "Total", ""].forEach((h, i) => cab.append(el("th", i >= 3 && i <= 6 ? "num" : "", h)));
-  tabla.append(cab);
+  const t = el("table", "est-tabla");
+  const ch = el("tr");
+  [["Tipo", ""], ["Destinatario", ""], ["Último concepto", ""], ["Pagos", "num"], ["Último", "num"], ["Total", "num"], ["", ""]].forEach(h => ch.append(el("th", h[1], h[0])));
+  t.append(ch);
   lista.slice(0, 40).forEach(g => {
     const tr = el("tr");
     tr.title = g.refs.join(", ");
     tr.append(el("td", null, g.tipo), el("td", null, g.quien || "—"), el("td", null, g.concepto || "—"), el("td", "num", String(g.n)),
-      el("td", "num", String(Object.keys(g.meses).length)), el("td", "num", fmtImp(g.ultimoMonto) + " · " + isoADma(g.ultimo)), el("td", "num", fmtImp(g.total)));
+      el("td", "num", isoADma(g.ultimo)), el("td", "num", fmtImp(g.total)));
     const td = el("td");
     const b = el("button", "secondary small", "Agregar");
     b.type = "button";
     b.addEventListener("click", () => {
-      const nombreBase = g.quien ? g.quien.replace(/\s+/g, " ").trim() : g.concepto;
-      const nombre = (g.tipo === "Alquiler" ? "Alquiler " : "Honorarios ") + nombreBase;
-      const buscar = g.quien ? normalizar(g.quien).split(/[^A-Z0-9]+/).filter(p => p.length >= 3).slice(0, 2).join(" ") : "";
-      const nueva = { nombre: nombre, tipo: g.tipo, buscar: buscar, v: estr.meses.map(() => Math.round(g.ultimoMonto * 100) / 100) };
+      const base = g.quien ? g.quien.replace(/\s+/g, " ").trim() : g.concepto;
+      const nombre = (g.tipo === "Alquiler" ? "Alquiler " : "Honorarios ") + base;
+      // Se busca por la palabra del tipo y las dos primeras del destinatario (o del concepto).
+      const buscar = (g.tipo === "Alquiler" ? "alquiler " : "honorarios ") + estrPalabrasDe(base).slice(0, 2).join(" ").toLowerCase();
       const copia = JSON.parse(JSON.stringify(estr));
-      copia.filas.push(nueva);
+      copia.filas.push({ nombre: nombre, tipo: g.tipo, buscar: buscar });
       guardarEstructura(copia, "“" + nombre + "” agregado a la estructura.");
     });
     td.append(b);
     tr.append(td);
-    tabla.append(tr);
+    t.append(tr);
   });
-  card.append(envolverTabla(tabla));
+  card.append(envolverTabla(t));
   if (lista.length > 40) card.append(el("p", "viz-mas", "… y " + (lista.length - 40) + " más."));
   return card;
 }
@@ -25791,7 +25895,8 @@ function tarjetaFaltantesEstructura() {
 async function guardarEstructura(nueva, mensaje) {
   const e = nueva || estrEditando;
   if (!e) return;
-  e.filas = e.filas.filter(f => f.nombre.trim()).map(f => Object.assign(f, { nombre: f.nombre.trim(), buscar: f.buscar.trim() }));
+  e.version = ESTR_VERSION;
+  e.filas = e.filas.filter(f => f.nombre.trim()).map(f => ({ nombre: f.nombre.trim(), tipo: f.tipo, buscar: f.buscar.trim() }));
   try {
     await runJson("guardarEstructura", { estructura: e });
     estr = estrNormalizar(e);
