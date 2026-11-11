@@ -1403,6 +1403,8 @@
   .ing-monto { font-family: var(--font-num); font-size: 20px; font-weight: 650; letter-spacing: -0.02em; margin: 6px 0 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ing-cuadro.vacio .ing-monto { color: var(--faint); }
   .ing-monto.neg { color: var(--bad); }
+  select.ing-mover { width: 150px; height: 28px; margin: 0; padding: 0 22px 0 8px; font-size: 12px; flex-shrink: 0; }
+  .ing-secciones.ing-secciones-anchas { grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); }
   .ing-sub { margin-top: 2px; font-size: 12px; color: var(--muted); }
   .ing-grid-ancho { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
   .est-aparte { margin-top: 18px; }
@@ -2394,7 +2396,7 @@
     <div class="page-head">
       <div>
         <h1>Estadísticas</h1>
-        <p class="sub">Cajas chicas y combustible de cada ingeniero por año, y aparte el flujo de caja de la cosecha fina y de la cosecha gruesa.</p>
+        <p class="sub">Lo transferido a cada ingeniero por rubro y el combustible de Bandera, por año; y aparte el flujo de caja de la cosecha fina y de la cosecha gruesa.</p>
       </div>
       <div class="actions" style="margin-top:0">
         <button id="estActualizar" class="secondary" type="button">Actualizar</button>
@@ -25338,34 +25340,6 @@ function tarjetaCosechasEst() {
   return t.card;
 }
 
-// Movimientos y cheques cuyo Concepto contiene alguno de los textos (sin importar mayúsculas ni
-// acentos); k es la posición del texto en la lista. Se cuenta como gasto: las salidas suman y las
-// entradas restan. Movimientos: todos (también entre cuentas propias, porque la caja chica se
-// repone así), menos los renglones de resúmenes ya conciliados. Cheques: por fecha de débito (o
-// de pago si no tiene), sin anulados, rechazados ni endosados.
-function itemsConceptosEst(conceptos) {
-  const claves = conceptos.map(c => normalizar(c).trim());
-  const items = [];
-  transferenciasDatos.forEach(f => {
-    if (f["Origen"] === "Resumen" && f["Conciliación"]) return;
-    const k = claves.findIndex(x => normalizar(f["Concepto"] || "").indexOf(x) >= 0);
-    if (k < 0) return;
-    items.push({ k: k, iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
-      fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"],
-      nombres: [f["Destinatario"], f["Contraparte"], f["Ordenante"], f["Persona"], f["Concepto"]].join(" ") });
-  });
-  chequesDatos.forEach(c => {
-    if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
-    const k = claves.findIndex(x => normalizar(c["Concepto"] || "").indexOf(x) >= 0);
-    if (k < 0) return;
-    const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
-    items.push({ k: k, iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
-      fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"],
-      nombres: [c["Titular"], c["Destino"], c["Concepto"]].join(" ") });
-  });
-  return items;
-}
-
 // Campo de texto con una lista separada por comas que se guarda en las preferencias de Estadísticas.
 function listaEditableEst(etiqueta, actual, porDefecto, clave, maximo, ayuda) {
   const form = el("div", "est-barra");
@@ -25392,10 +25366,10 @@ function listaEditableEst(etiqueta, actual, porDefecto, clave, maximo, ayuda) {
   return form;
 }
 
-// ----- Estadísticas: cajas chicas y combustible por ingeniero -----
-// Un cuadro por ingeniero con lo que se le transfirió por Caja Chica y por Combustible Movilidad
-// (movimientos y cheques en pesos con ese texto en el concepto), y un cuadro aparte para
-// Combustible Bandera, que no es de ningún ingeniero. Al abrir un cuadro se ve cada cosa por
+// ----- Estadísticas: transferencias a ingenieros y combustible -----
+// Un cuadro por ingeniero con todo lo que se le transfirió (movimientos y cheques en pesos),
+// repartido en rubros unificados según el concepto (ver RUBROS_ING), y un cuadro aparte para
+// Combustible Bandera, que no es de ningún ingeniero. Al abrir un cuadro se ve cada rubro por
 // separado, mes por mes y con su detalle. Los meses se eligen arriba (uno, varios o todo el período).
 // El ingeniero se reconoce por su nombre en el destinatario, la contraparte, el ordenante, la
 // persona o el concepto, en cualquier orden ("RIOS ESTEBAN" o "Esteban Ríos"); si no está el
@@ -25420,9 +25394,77 @@ function ingenieroDeTexto(texto, ingenieros) {
   return porApellido.length === 1 ? porApellido[0] : -1;
 }
 
+// Rubros en que se reparten las transferencias a cada ingeniero, en el orden en que se muestran.
+// Cada uno junta los conceptos que tienen alguna de sus palabras (al comienzo de una palabra, sin
+// importar mayúsculas ni acentos): "Changarines" y "Jornales" son Labores; "Raticidas" y
+// "Garrafas", Insumos; "Arreglo alambrado", Mantenimiento. Se prueban en el orden de
+// RUBROS_ING_PRUEBA (lo más específico primero) y lo que no coincide con nada va a Otros.
+// Un concepto se puede pasar a mano a otro rubro: queda en las preferencias (rubrosIng).
+const RUBROS_ING = [
+  ["Caja chica", ["CAJA CHICA", "CAJA CH"]],
+  ["Combustible Movilidad", ["COMBUSTIBLE", "MOVILIDAD", "NAFTA", "GASOIL", "GAS OIL"]],
+  ["Insumos", ["INSUMO", "RATICIDA", "GARRAFA", "HERBICIDA", "INSECTICIDA", "FUNGICIDA", "HORMIGUICIDA", "AGROQUIMIC", "SEMILLA", "FERTILIZANTE", "VENENO", "CEBO",
+    "FERRETERIA", "MATERIAL", "HERRAMIENTA", "BOLSA", "ACEITE", "LUBRICANTE", "PINTURA", "CLAVO", "TORNILLO", "ALAMBRE", "LIBRERIA", "LIMPIEZA", "COMPRA"]],
+  ["Labores", ["LABOR", "CHANGARIN", "CHANGA", "JORNAL", "PEON", "MANO DE OBRA", "SIEMBRA", "COSECHA", "FUMIGA", "PULVERIZ", "DESMALEZ", "CONTRATISTA", "TRABAJO", "TAREA"]],
+  ["Mantenimiento", ["MANTENIMIENTO", "ARREGLO", "REPARACION", "REPARAR", "ALAMBRADO", "REPUESTO", "TALLER", "GOMERIA", "NEUMATICO", "CUBIERTA", "SERVICE", "SOLDADURA",
+    "MECANIC", "ELECTRICISTA", "PLOMER"]],
+  ["Alojamiento", ["ALOJAMIENTO", "HOTEL", "HOSPEDAJE", "HOSTEL", "CABANA", "ALQUILER"]],
+  ["Viáticos", ["VIATICO", "COMIDA", "ALMUERZO", "CENA", "DESAYUNO", "VIANDA", "RESTAURANT", "PEAJE", "PASAJE", "VIAJE", "ESTACIONAMIENTO"]],
+  ["Fletes", ["FLETE", "ACARREO", "TRANSPORTE"]],
+  ["Honorarios y sueldos", ["HONORARIO", "SUELDO", "AGUINALDO", "ADELANTO", "ANTICIPO", "HABERES"]],
+  ["Otros", []]
+];
+const RUBROS_ING_PRUEBA = ["Caja chica", "Combustible Movilidad", "Mantenimiento", "Labores", "Alojamiento", "Viáticos", "Fletes", "Insumos", "Honorarios y sueldos"];
+const RUBRO_ING_OTROS = RUBROS_ING.length - 1;
+
+/** Posición en RUBROS_ING del rubro de un concepto (ya normalizado). movidos: los pasados a mano. */
+function rubroIngeniero(kc, movidos) {
+  const aMano = RUBROS_ING.findIndex(r => r[0] === movidos[kc]);
+  if (aMano >= 0) return aMano;
+  const texto = " " + kc.replace(/[^A-Z0-9]+/g, " ") + " ";
+  const nombre = RUBROS_ING_PRUEBA.find(n => RUBROS_ING.find(r => r[0] === n)[1].some(p => texto.indexOf(" " + p) >= 0));
+  return nombre ? RUBROS_ING.findIndex(r => r[0] === nombre) : RUBRO_ING_OTROS;
+}
+
+// Movimientos y cheques en pesos de los cuadros: todo lo que nombra a un ingeniero (con su rubro),
+// las cajas chicas y el combustible de movilidad que no nombran a ninguno ("Sin identificar",
+// ing −1) y el combustible de Bandera (bandera: true). Se cuenta como gasto: las salidas suman y
+// las entradas restan. Movimientos: todos (también entre cuentas propias, porque la caja chica se
+// repone así), menos los renglones de resúmenes ya conciliados. Cheques: por fecha de débito (o
+// de pago si no tiene), sin anulados, rechazados ni endosados.
+function itemsIngenierosEst(ingenieros) {
+  const movidos = (preferencias.estadisticas || {}).rubrosIng || {};
+  const items = [];
+  const sumar = x => {
+    if (x.moneda !== "Pesos" || !x.iso) return;
+    x.kc = normalizar(x.concepto || "").trim();
+    if (x.kc.indexOf("COMBUSTIBLE BANDERA") >= 0) { x.bandera = true; x.ing = -1; items.push(x); return; }
+    x.ing = ingenieroDeTexto(x.nombres, ingenieros);
+    x.rubro = rubroIngeniero(x.kc, movidos);
+    x.movido = !!movidos[x.kc];
+    // Sin ingeniero solo cuentan las que dicen Caja Chica o Combustible Movilidad.
+    if (x.ing < 0 && x.kc.indexOf("CAJA CHICA") < 0 && x.kc.indexOf("COMBUSTIBLE MOVILIDAD") < 0) return;
+    items.push(x);
+  };
+  transferenciasDatos.forEach(f => {
+    if (f["Origen"] === "Resumen" && f["Conciliación"]) return;
+    sumar({ iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
+      fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"],
+      nombres: [f["Destinatario"], f["Contraparte"], f["Ordenante"], f["Persona"], f["Concepto"]].join(" ") });
+  });
+  chequesDatos.forEach(c => {
+    if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
+    const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
+    sumar({ iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
+      fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"],
+      nombres: [c["Titular"], c["Destino"], c["Concepto"]].join(" ") });
+  });
+  return items;
+}
+
 function tarjetaIngenierosEst(ini, barraPeriodo) {
   const ingenieros = ingenierosEst();
-  const t = tarjetaViz("Cajas chicas y combustible por ingeniero", "Año " + estAnio + ". Lo que se le transfirió a cada ingeniero por caja chica y por combustible de movilidad, y aparte el combustible de Bandera. En pesos.", null);
+  const t = tarjetaViz("Transferencias a ingenieros y combustible", "Año " + estAnio + ". Todo lo que se le transfirió a cada ingeniero, separado por rubro (caja chica, combustible de movilidad, insumos, labores…), y aparte el combustible de Bandera. En pesos.", null);
   t.cuerpo.hidden = false;
   t.btnDetalle.hidden = true;
   t.resumen.hidden = true;
@@ -25430,19 +25472,17 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
   t.btnTabla.hidden = true;
   t.modos.replaceChildren(barraPeriodo, listaEditableEst("Ingenieros ", ingenieros, INGENIEROS_CAJA_CHICA, "ingenieros", 12,
     "Nombre y apellido, separados por coma. Se buscan en el destinatario y en el concepto, sin importar el orden, las mayúsculas ni los acentos."));
-  t.ayuda.textContent = "Movimientos y cheques en pesos con “Caja Chica”, “Combustible Movilidad” o “Combustible Bandera” en el concepto. El ingeniero sale del nombre en el destinatario o en el concepto. Lo que se devuelve resta.";
+  t.ayuda.textContent = "Movimientos y cheques en pesos que nombran a un ingeniero en el destinatario o en el concepto. El rubro sale de las palabras del concepto; si uno quedó mal, se cambia en su detalle y vale para todos los movimientos con ese concepto. Lo que se devuelve resta.";
 
   const hoy = hoyIso().substring(0, 7);
   const meses = Array.from({ length: 12 }, (_, i) => sumarMesesIso(ini, i).substring(0, 7)).filter(m => m <= hoy);
-  const items = itemsConceptosEst(["Caja Chica", "Combustible Movilidad", "Combustible Bandera"])
-    .filter(x => x.moneda === "Pesos" && x.iso && meses.indexOf(x.iso.substring(0, 7)) >= 0);
-  items.forEach(x => { x.ing = x.k === 2 ? -1 : ingenieroDeTexto(x.nombres, ingenieros); });
   Object.keys(estIng.meses).forEach(m => { if (meses.indexOf(m) < 0) delete estIng.meses[m]; });
   const suma = l => l.reduce((a, x) => a + x.gasto, 0);
   const caja = el("div", "ing-caja");
   t.extra.append(caja);
 
   const pintar = () => {
+    const items = itemsIngenierosEst(ingenieros).filter(x => meses.indexOf(x.iso.substring(0, 7)) >= 0);
     const elegidos = meses.filter(m => estIng.meses[m]);
     const vis = items.filter(x => !elegidos.length || estIng.meses[x.iso.substring(0, 7)]);
     const periodo = elegidos.length ? elegidos.map(m => mesCorto(m, true)).join(", ") : "Todo el período";
@@ -25465,24 +25505,27 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
     caja.append(chips);
 
     if (!items.length) {
-      caja.append(el("p", "hint", "No hay movimientos ni cheques con “Caja Chica”, “Combustible Movilidad” o “Combustible Bandera” en el concepto en este período."));
+      caja.append(el("p", "hint", "No hay movimientos ni cheques a nombre de estos ingenieros, ni con “Caja Chica”, “Combustible Movilidad” o “Combustible Bandera” en el concepto, en este período."));
       return;
     }
 
-    // Totales de lo elegido.
+    // Las partes de un grupo: un rubro por cada uno que tenga movimientos, en el orden de RUBROS_ING.
+    const partesDe = f => RUBROS_ING.map((r, i) => ({ titulo: r[0], rubro: i, items: vis.filter(x => !x.bandera && x.rubro === i && f(x)) })).filter(p => p.items.length);
+    const bandera = vis.filter(x => x.bandera);
+
+    // Totales de lo elegido: cada rubro que tenga algo, Bandera y el total.
     const tot = el("div", "ing-totales");
-    [["Cajas chicas", vis.filter(x => x.k === 0)], ["Combustible Movilidad", vis.filter(x => x.k === 1)], ["Combustible Bandera", vis.filter(x => x.k === 2)], ["Total", vis]].forEach((p, i) => {
-      const d = el("div", "ing-total" + (i === 3 ? " ing-total-gral" : ""));
+    partesDe(() => true).map(p => [p.titulo, p.items]).concat([["Combustible Bandera", bandera], ["Total", vis]]).forEach((p, i, todos) => {
+      const d = el("div", "ing-total" + (i === todos.length - 1 ? " ing-total-gral" : ""));
       d.append(el("span", null, p[0]), el("b", null, fmtImp(suma(p[1]))));
       tot.append(d);
     });
     caja.append(tot);
 
     // Un cuadro por ingeniero, "Sin identificar" si hace falta y el de Combustible Bandera.
-    const partesDe = f => [{ titulo: "Caja chica", items: vis.filter(x => x.k === 0 && f(x)) }, { titulo: "Combustible Movilidad", items: vis.filter(x => x.k === 1 && f(x)) }];
     const grupos = ingenieros.map((n, i) => ({ clave: "ing:" + n, nombre: n, tono: "var(--vz-" + (i % 8 + 1) + ")", partes: partesDe(x => x.ing === i) }));
-    if (items.some(x => x.k < 2 && x.ing < 0)) grupos.push({ clave: "sin", nombre: "Sin identificar", tono: "var(--muted)", partes: partesDe(x => x.ing < 0) });
-    grupos.push({ clave: "bandera", nombre: "Combustible Bandera", tono: "var(--warn)", partes: [{ titulo: "Combustible Bandera", items: vis.filter(x => x.k === 2) }] });
+    if (items.some(x => !x.bandera && x.ing < 0)) grupos.push({ clave: "sin", nombre: "Sin identificar", tono: "var(--muted)", partes: partesDe(x => x.ing < 0) });
+    grupos.push({ clave: "bandera", nombre: "Combustible Bandera", tono: "var(--warn)", sinRubros: true, partes: [{ titulo: "Combustible Bandera", items: bandera }] });
 
     const grid = el("div", "ing-grid");
     grupos.forEach(g => {
@@ -25495,7 +25538,7 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
       c.setAttribute("aria-expanded", abierto ? "true" : "false");
       c.style.setProperty("--tono", g.tono);
       c.append(el("div", "ing-nombre", g.nombre), el("div", "ing-monto", fmtImp(suma(todos))));
-      if (g.partes.length > 1) g.partes.forEach(p => {
+      if (!g.sinRubros) g.partes.forEach(p => {
         const l = el("div", "ing-linea");
         l.append(el("span", null, p.titulo), el("b", null, fmtImp(suma(p.items))));
         c.append(l);
@@ -25513,7 +25556,7 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
     });
     caja.append(grid);
 
-    // Detalle del cuadro abierto: cada cosa por separado, mes por mes y movimiento por movimiento.
+    // Detalle del cuadro abierto: cada rubro por separado, mes por mes y movimiento por movimiento.
     const g = grupos.find(x => x.clave === estIng.abierto);
     if (!g) return;
     const det = el("div", "ing-detalle");
@@ -25526,6 +25569,7 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
     cerrar.addEventListener("click", () => { estIng.abierto = ""; pintar(); });
     head.append(tit, cerrar);
     det.append(head);
+    if (!g.partes.length) { det.append(el("p", "hint", "Sin movimientos en " + (elegidos.length ? "los meses elegidos" : "el período") + ".")); caja.append(det); return; }
 
     const tabla = el("table", "est-tabla");
     const trh = el("tr");
@@ -25548,15 +25592,37 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
     tabla.append(trt);
     det.append(envolverTabla(tabla));
 
-    const secciones = el("div", "ing-secciones");
+    // Pasar un concepto a otro rubro: vale para todos los movimientos con ese concepto.
+    const selectorRubro = x => {
+      const s = el("select", "ing-mover");
+      s.setAttribute("aria-label", "Rubro de “" + (x.concepto || "") + "”");
+      s.title = "Cambiar el rubro de todos los movimientos con este concepto";
+      RUBROS_ING.forEach((r, i) => s.append(new Option(r[0], String(i))));
+      s.value = String(x.rubro);
+      s.addEventListener("change", () => {
+        const pe = Object.assign({}, preferencias.estadisticas || {});
+        pe.rubrosIng = Object.assign({}, pe.rubrosIng || {});
+        const nuevo = RUBROS_ING[parseInt(s.value, 10)][0];
+        // Si es el rubro que le tocaría solo, no hace falta recordarlo.
+        if (rubroIngeniero(x.kc, {}) === parseInt(s.value, 10)) delete pe.rubrosIng[x.kc]; else pe.rubrosIng[x.kc] = nuevo;
+        preferencias.estadisticas = pe;
+        guardarPreferencias();
+        pintar();
+        toast("“" + x.concepto + "” pasó a " + nuevo + " en todos sus movimientos.", "ok");
+      });
+      return s;
+    };
+    const secciones = el("div", "ing-secciones ing-secciones-anchas");
     g.partes.forEach(p => {
       const sec = el("div", "ing-seccion");
       const sh = el("div", "ing-sec-head");
       sh.append(el("span", null, p.titulo + " · " + p.items.length + " movimiento(s)"), el("b", null, fmtImp(suma(p.items))));
       sec.append(sh);
-      if (!p.items.length) sec.append(el("p", "hint", "Sin movimientos en " + (elegidos.length ? "los meses elegidos" : "el período") + "."));
-      p.items.slice().sort((a, b) => a.iso.localeCompare(b.iso)).slice(0, 150).forEach(x =>
-        sec.append(filaDetalle(String(x.fecha).substring(0, 5), x.quien || x.tipo, x.tipo + (x.concepto ? " · " + x.concepto : ""), -x.gasto)));
+      p.items.slice().sort((a, b) => a.iso.localeCompare(b.iso)).slice(0, 150).forEach(x => {
+        const fila = filaDetalle(String(x.fecha).substring(0, 5), x.concepto || x.tipo, x.tipo + (x.quien ? " · " + x.quien : ""), -x.gasto);
+        if (!g.sinRubros && x.kc) fila.insertBefore(selectorRubro(x), fila.lastChild);
+        sec.append(fila);
+      });
       if (p.items.length > 150) sec.append(el("p", "viz-mas", "… y " + (p.items.length - 150) + " más."));
       secciones.append(sec);
     });
