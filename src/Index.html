@@ -1404,7 +1404,17 @@
   .ing-cuadro.vacio .ing-monto { color: var(--faint); }
   .ing-monto.neg { color: var(--bad); }
   select.ing-mover { width: 150px; height: 28px; margin: 0; padding: 0 22px 0 8px; font-size: 12px; flex-shrink: 0; }
-  .ing-secciones.ing-secciones-anchas { grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); }
+  .ing-movs-tit { margin: 18px 0 6px; font-size: 13px; font-weight: 600; }
+  .ing-movs td { vertical-align: middle; }
+  .ing-movs .ing-movs-grupo td { background: var(--surface-2); font-weight: 600; border-top: 1px solid var(--border-strong); }
+  .ing-movs-fecha, .ing-movs-comp { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ing-movs-concepto { font-weight: 500; min-width: 160px; }
+  .ing-movs-rubro { width: 190px; }
+  .ing-movs-mas { color: var(--faint); font-size: 12px; }
+  select.ing-mover { width: 100%; min-width: 150px; }
+  .ing-totales { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px 18px; }
+  .ing-totales .ing-total-gral { margin-left: 0; text-align: left; }
+  .ing-cuadro .ing-linea span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .ing-sub { margin-top: 2px; font-size: 12px; color: var(--muted); }
   .ing-grid-ancho { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
   .est-aparte { margin-top: 18px; }
@@ -25372,8 +25382,8 @@ function listaEditableEst(etiqueta, actual, porDefecto, clave, maximo, ayuda) {
 // Combustible Bandera, que no es de ningún ingeniero. Al abrir un cuadro se ve cada rubro por
 // separado, mes por mes y con su detalle. Los meses se eligen arriba (uno, varios o todo el período).
 // El ingeniero se reconoce por su nombre en el destinatario, la contraparte, el ordenante, la
-// persona o el concepto, en cualquier orden ("RIOS ESTEBAN" o "Esteban Ríos"); si no está el
-// nombre completo, alcanza con el apellido cuando es de uno solo de la lista. Lo que no es de
+// persona o el concepto, en cualquier orden ("RIOS ESTEBAN" o "Esteban Ríos"), cada campo por separado;
+// el apellido solo alcanza en el destinatario sin otro nombre de pila (ver ingenieroDeCampos). Lo que no es de
 // ninguno va a "Sin identificar".
 const INGENIEROS_CAJA_CHICA = ["Esteban Rios", "Fabricio Fonseca", "Juan Dotti", "Lucas Quevedo", "Marcos Gonzalez", "Joaquin Rodriguez"];
 const estIng = { meses: {}, abierto: "" }; // meses elegidos ("2026-10": true; ninguno = todo el período) y cuadro abierto
@@ -25383,38 +25393,78 @@ function ingenierosEst() {
   return Array.isArray(c) && c.length ? c : INGENIEROS_CAJA_CHICA;
 }
 
-/** Posición en la lista del ingeniero nombrado en el texto, o −1. */
-function ingenieroDeTexto(texto, ingenieros) {
-  const pal = {};
-  normalizar(texto).split(/[^A-Z0-9]+/).forEach(p => { if (p) pal[p] = true; });
+// Palabras que pueden acompañar a un nombre en el destinatario sin ser parte de él.
+const ING_PAL_NEUTRAS = { SR: 1, SRA: 1, SRES: 1, ING: 1, INGENIERO: 1, INGENIERA: 1, DE: 1, DEL: 1, LA: 1, LAS: 1, LOS: 1, Y: 1, E: 1, CUIT: 1, CUIL: 1, DNI: 1 };
+
+/**
+ * Posición en la lista del ingeniero al que corresponde un movimiento, o −1.
+ * campos: [texto, esNombre] en orden de prioridad (destinatario, contraparte…, y el concepto
+ * con esNombre = false). Cada campo se mira solo, sin mezclar palabras de uno con las de otro.
+ *  - Nombre completo: todas sus palabras juntas en el mismo campo, en cualquier orden y con a lo
+ *    sumo una palabra en el medio ("RODRIGUEZ JOAQUIN", "Joaquín M. Rodríguez").
+ *  - Solo el apellido: vale únicamente en un campo de nombre que no tenga otro nombre de pila
+ *    ("RODRIGUEZ", "RODRIGUEZ J", "Sr. Rodriguez"). "BRISA RODRIGUEZ" no es Joaquín Rodríguez,
+ *    ni lo es un concepto que dice "Rodriguez" sin el nombre.
+ */
+function ingenieroDeCampos(campos, ingenieros) {
   const partes = ingenieros.map(n => normalizar(n).split(/[^A-Z0-9]+/).filter(Boolean));
-  const completo = partes.findIndex(p => p.length && p.every(x => pal[x]));
-  if (completo >= 0) return completo;
-  const porApellido = partes.map((p, i) => p.length && pal[p[p.length - 1]] ? i : -1).filter(i => i >= 0);
-  return porApellido.length === 1 ? porApellido[0] : -1;
+  for (let c = 0; c < campos.length; c++) {
+    const pal = normalizar(campos[c][0] || "").split(/[^A-Z0-9]+/).filter(p => p && !/[0-9]/.test(p));
+    if (!pal.length) continue;
+    // Nombre completo: el que aparece primero en el campo.
+    let mejor = -1, desde = Infinity;
+    partes.forEach((p, i) => {
+      if (!p.length) return;
+      const pos = p.map(x => pal.indexOf(x));
+      if (pos.some(x => x < 0)) return;
+      const ini = Math.min.apply(null, pos), fin = Math.max.apply(null, pos);
+      if (fin - ini <= p.length && ini < desde) { mejor = i; desde = ini; }
+    });
+    if (mejor >= 0) return mejor;
+    if (!campos[c][1]) continue;
+    // Solo el apellido, en un campo de nombre: lo demás tiene que ser iniciales de ese mismo
+    // ingeniero o palabras neutras. Y el apellido tiene que ser de uno solo de la lista.
+    const porApellido = partes.map((p, i) => {
+      if (p.length < 2 || pal.indexOf(p[p.length - 1]) < 0) return -1;
+      const iniciales = p.slice(0, -1).map(x => x.charAt(0));
+      const ajenas = pal.filter(x => p.indexOf(x) < 0 && !ING_PAL_NEUTRAS[x] && !(x.length === 1 && iniciales.indexOf(x) >= 0));
+      return ajenas.length ? -1 : i;
+    }).filter(i => i >= 0);
+    if (porApellido.length === 1) return porApellido[0];
+  }
+  return -1;
 }
 
 // Rubros en que se reparten las transferencias a cada ingeniero, en el orden en que se muestran.
 // Cada uno junta los conceptos que tienen alguna de sus palabras (al comienzo de una palabra, sin
 // importar mayúsculas ni acentos): "Changarines" y "Jornales" son Labores; "Raticidas" y
 // "Garrafas", Insumos; "Arreglo alambrado", Mantenimiento. Se prueban en el orden de
-// RUBROS_ING_PRUEBA (lo más específico primero) y lo que no coincide con nada va a Otros.
+// RUBROS_ING_PRUEBA (lo más específico primero) y lo que no coincide con nada va a Otros. Si el
+// concepto dice el nombre de un rubro ("Mantenimiento movilidad", "Combustible movilidad"), le
+// gana a las palabras. Una palabra que termina en espacio tiene que ir entera ("AUTO " no es "AUTORIZ").
 // Un concepto se puede pasar a mano a otro rubro: queda en las preferencias (rubrosIng).
 const RUBROS_ING = [
   ["Caja chica", ["CAJA CHICA", "CAJA CH"]],
-  ["Combustible Movilidad", ["COMBUSTIBLE", "MOVILIDAD", "NAFTA", "GASOIL", "GAS OIL"]],
+  ["Combustible Movilidad", ["COMBUSTIBLE", "NAFTA", "GASOIL", "GAS OIL"]],
+  // Todo lo de las camionetas y demás vehículos (ruedas, lavado, service, arreglos), menos el combustible.
+  ["Mantenimiento Movilidad", ["CAMIONETA", "CAMIONET", "HILUX", "AMAROK", "RANGER", "TOYOTA", "PICK UP", "PICKUP", "VEHICULO", "RODADO", "AUTOMOTOR", "AUTO ", "AUTOS ",
+    "RUEDA", "GOMERIA", "GOMA", "NEUMATICO", "CUBIERTA", "PARCHE", "SERVICE", "LUBRICENTRO", "CAMBIO DE ACEITE", "ALINEACION", "ALINEADO", "BALANCEO", "TREN DELANTERO",
+    "FRENO", "EMBRAGUE", "AMORTIGUADOR", "BATERIA", "ESCAPE", "PARABRISA", "CHAPISTA", "CHAPA Y PINTURA", "MECANIC", "VTV", "PATENTE", "LAVADERO", "LAVADO", "LAVAR"]],
   ["Insumos", ["INSUMO", "RATICIDA", "GARRAFA", "HERBICIDA", "INSECTICIDA", "FUNGICIDA", "HORMIGUICIDA", "AGROQUIMIC", "SEMILLA", "FERTILIZANTE", "VENENO", "CEBO",
     "FERRETERIA", "MATERIAL", "HERRAMIENTA", "BOLSA", "ACEITE", "LUBRICANTE", "PINTURA", "CLAVO", "TORNILLO", "ALAMBRE", "LIBRERIA", "LIMPIEZA", "COMPRA"]],
   ["Labores", ["LABOR", "CHANGARIN", "CHANGA", "JORNAL", "PEON", "MANO DE OBRA", "SIEMBRA", "COSECHA", "FUMIGA", "PULVERIZ", "DESMALEZ", "CONTRATISTA", "TRABAJO", "TAREA"]],
-  ["Mantenimiento", ["MANTENIMIENTO", "ARREGLO", "REPARACION", "REPARAR", "ALAMBRADO", "REPUESTO", "TALLER", "GOMERIA", "NEUMATICO", "CUBIERTA", "SERVICE", "SOLDADURA",
-    "MECANIC", "ELECTRICISTA", "PLOMER"]],
+  ["Mantenimiento", ["MANTENIMIENTO", "ARREGLO", "REPARACION", "REPARAR", "ALAMBRADO", "REPUESTO", "TALLER", "SOLDADURA", "ELECTRICISTA", "PLOMER"]],
   ["Alojamiento", ["ALOJAMIENTO", "HOTEL", "HOSPEDAJE", "HOSTEL", "CABANA", "ALQUILER"]],
   ["Viáticos", ["VIATICO", "COMIDA", "ALMUERZO", "CENA", "DESAYUNO", "VIANDA", "RESTAURANT", "PEAJE", "PASAJE", "VIAJE", "ESTACIONAMIENTO"]],
   ["Fletes", ["FLETE", "ACARREO", "TRANSPORTE"]],
   ["Honorarios y sueldos", ["HONORARIO", "SUELDO", "AGUINALDO", "ADELANTO", "ANTICIPO", "HABERES"]],
   ["Otros", []]
 ];
-const RUBROS_ING_PRUEBA = ["Caja chica", "Combustible Movilidad", "Mantenimiento", "Labores", "Alojamiento", "Viáticos", "Fletes", "Insumos", "Honorarios y sueldos"];
+// Orden de prueba: un nombre usa las palabras de su rubro; [nombre, palabras] prueba solo esas.
+// "Movilidad" sola queda para el final: es combustible salvo que el concepto diga otra cosa
+// ("Lavado movilidad", "Arreglo movilidad" son Mantenimiento Movilidad).
+const RUBROS_ING_PRUEBA = ["Caja chica", "Combustible Movilidad", "Mantenimiento Movilidad", "Mantenimiento", "Labores", "Alojamiento", "Viáticos", "Fletes", "Insumos",
+  "Honorarios y sueldos", ["Combustible Movilidad", ["MOVILIDAD"]]];
 const RUBRO_ING_OTROS = RUBROS_ING.length - 1;
 
 /** Posición en RUBROS_ING del rubro de un concepto (ya normalizado). movidos: los pasados a mano. */
@@ -25422,8 +25472,21 @@ function rubroIngeniero(kc, movidos) {
   const aMano = RUBROS_ING.findIndex(r => r[0] === movidos[kc]);
   if (aMano >= 0) return aMano;
   const texto = " " + kc.replace(/[^A-Z0-9]+/g, " ") + " ";
-  const nombre = RUBROS_ING_PRUEBA.find(n => RUBROS_ING.find(r => r[0] === n)[1].some(p => texto.indexOf(" " + p) >= 0));
-  return nombre ? RUBROS_ING.findIndex(r => r[0] === nombre) : RUBRO_ING_OTROS;
+  // La caja chica sigue primero, como siempre; después, el nombre de un rubro escrito en el
+  // concepto (el más largo, si hay más de uno).
+  if (RUBROS_ING[0][1].some(w => texto.indexOf(" " + w) >= 0)) return 0;
+  let porNombre = -1;
+  RUBROS_ING.forEach((r, i) => {
+    if (i !== RUBRO_ING_OTROS && texto.indexOf(" " + normalizar(r[0]) + " ") >= 0 && (porNombre < 0 || r[0].length > RUBROS_ING[porNombre][0].length)) porNombre = i;
+  });
+  if (porNombre >= 0) return porNombre;
+  for (let k = 0; k < RUBROS_ING_PRUEBA.length; k++) {
+    const p = RUBROS_ING_PRUEBA[k];
+    const nombre = Array.isArray(p) ? p[0] : p;
+    const palabras = Array.isArray(p) ? p[1] : RUBROS_ING.find(r => r[0] === nombre)[1];
+    if (palabras.some(w => texto.indexOf(" " + w) >= 0)) return RUBROS_ING.findIndex(r => r[0] === nombre);
+  }
+  return RUBRO_ING_OTROS;
 }
 
 // Movimientos y cheques en pesos de los cuadros: todo lo que nombra a un ingeniero (con su rubro),
@@ -25439,7 +25502,7 @@ function itemsIngenierosEst(ingenieros) {
     if (x.moneda !== "Pesos" || !x.iso) return;
     x.kc = normalizar(x.concepto || "").trim();
     if (x.kc.indexOf("COMBUSTIBLE BANDERA") >= 0) { x.bandera = true; x.ing = -1; items.push(x); return; }
-    x.ing = ingenieroDeTexto(x.nombres, ingenieros);
+    x.ing = ingenieroDeCampos(x.campos, ingenieros);
     x.rubro = rubroIngeniero(x.kc, movidos);
     x.movido = !!movidos[x.kc];
     // Sin ingeniero solo cuentan las que dicen Caja Chica o Combustible Movilidad.
@@ -25450,14 +25513,14 @@ function itemsIngenierosEst(ingenieros) {
     if (f["Origen"] === "Resumen" && f["Conciliación"]) return;
     sumar({ iso: fechaAOrden(fechaMov(f)), gasto: -parseImporte(f["Monto"]), moneda: f["Moneda"] === "USD" ? "USD" : "Pesos",
       fecha: fechaMov(f), quien: f["Destinatario"] || f["Contraparte"] || f["Banco"] || "", tipo: "Movimiento N° " + f["N° Interno"], concepto: f["Concepto"],
-      nombres: [f["Destinatario"], f["Contraparte"], f["Ordenante"], f["Persona"], f["Concepto"]].join(" ") });
+      campos: [[f["Destinatario"], true], [f["Contraparte"], true], [f["Ordenante"], true], [f["Persona"], true], [f["Concepto"], false]] });
   });
   chequesDatos.forEach(c => {
     if (ESTADOS_CHEQUE_SIN_EFECTO.indexOf(normalizar(c["Estado"] || "").trim()) >= 0) return;
     const fecha = c["Fecha de Débito"] || c["Fecha de Pago"] || c["Fecha de Emisión"];
     sumar({ iso: fechaAOrden(fecha), gasto: -importeCheque(c), moneda: monedaCheque(c),
       fecha: fecha, quien: c["Titular"] || c["Destino"] || "", tipo: "Cheque N° " + c["N° de Cheque"], concepto: c["Concepto"],
-      nombres: [c["Titular"], c["Destino"], c["Concepto"]].join(" ") });
+      campos: [[c["Titular"], true], [c["Destino"], true], [c["Concepto"], false]] });
   });
   return items;
 }
@@ -25472,7 +25535,7 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
   t.btnTabla.hidden = true;
   t.modos.replaceChildren(barraPeriodo, listaEditableEst("Ingenieros ", ingenieros, INGENIEROS_CAJA_CHICA, "ingenieros", 12,
     "Nombre y apellido, separados por coma. Se buscan en el destinatario y en el concepto, sin importar el orden, las mayúsculas ni los acentos."));
-  t.ayuda.textContent = "Movimientos y cheques en pesos que nombran a un ingeniero en el destinatario o en el concepto. El rubro sale de las palabras del concepto; si uno quedó mal, se cambia en su detalle y vale para todos los movimientos con ese concepto. Lo que se devuelve resta.";
+  t.ayuda.textContent = "Movimientos y cheques en pesos que nombran a un ingeniero en el destinatario o en el concepto (nombre y apellido; el apellido solo, únicamente si el destinatario no tiene otro nombre: “Brisa Rodriguez” no es Joaquin Rodriguez). El rubro sale de las palabras del concepto; si uno quedó mal, se cambia en su detalle y vale para todos los movimientos con ese concepto. Lo que se devuelve resta.";
 
   const hoy = hoyIso().substring(0, 7);
   const meses = Array.from({ length: 12 }, (_, i) => sumarMesesIso(ini, i).substring(0, 7)).filter(m => m <= hoy);
@@ -25612,21 +25675,37 @@ function tarjetaIngenierosEst(ini, barraPeriodo) {
       });
       return s;
     };
-    const secciones = el("div", "ing-secciones ing-secciones-anchas");
+    // Los movimientos en una sola tabla, con las columnas alineadas: cada rubro con su renglón de
+    // título y subtotal, y debajo sus movimientos por fecha.
+    det.append(el("div", "ing-movs-tit", "Movimientos"));
+    const movs = el("table", "est-tabla ing-movs");
+    const cab = el("tr");
+    [["Fecha", ""], ["Concepto", ""], ["Destinatario", ""], ["Comprobante", ""]].concat(g.sinRubros ? [] : [["Rubro", ""]], [["Importe", "num"]])
+      .forEach(c => cab.append(el("th", c[1], c[0])));
+    movs.append(cab);
+    const columnas = g.sinRubros ? 5 : 6;
     g.partes.forEach(p => {
-      const sec = el("div", "ing-seccion");
-      const sh = el("div", "ing-sec-head");
-      sh.append(el("span", null, p.titulo + " · " + p.items.length + " movimiento(s)"), el("b", null, fmtImp(suma(p.items))));
-      sec.append(sh);
+      const trg = el("tr", "ing-movs-grupo");
+      const tdg = el("td", null, p.titulo + " · " + p.items.length + " movimiento(s)");
+      tdg.colSpan = columnas - 1;
+      trg.append(tdg, el("td", "num", fmtImp(suma(p.items))));
+      movs.append(trg);
       p.items.slice().sort((a, b) => a.iso.localeCompare(b.iso)).slice(0, 150).forEach(x => {
-        const fila = filaDetalle(String(x.fecha).substring(0, 5), x.concepto || x.tipo, x.tipo + (x.quien ? " · " + x.quien : ""), -x.gasto);
-        if (!g.sinRubros && x.kc) fila.insertBefore(selectorRubro(x), fila.lastChild);
-        sec.append(fila);
+        const tr = el("tr");
+        tr.append(el("td", "ing-movs-fecha", String(x.fecha).substring(0, 10)), el("td", "ing-movs-concepto", x.concepto || "Sin concepto"), el("td", null, x.quien || "—"), el("td", "ing-movs-comp", x.tipo));
+        if (!g.sinRubros) { const td = el("td", "ing-movs-rubro"); if (x.kc) td.append(selectorRubro(x)); else td.textContent = p.titulo; tr.append(td); }
+        tr.append(el("td", "num", fmtImp(x.gasto)));
+        movs.append(tr);
       });
-      if (p.items.length > 150) sec.append(el("p", "viz-mas", "… y " + (p.items.length - 150) + " más."));
-      secciones.append(sec);
+      if (p.items.length > 150) {
+        const trm = el("tr");
+        const tdm = el("td", "ing-movs-mas", "… y " + (p.items.length - 150) + " más.");
+        tdm.colSpan = columnas;
+        trm.append(tdm);
+        movs.append(trm);
+      }
     });
-    det.append(secciones);
+    det.append(envolverTabla(movs));
     caja.append(det);
   };
   pintar();
