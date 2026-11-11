@@ -267,6 +267,7 @@ const ACCIONES = {
   guardarRecibidoBolsa: guardarRecibidoBolsa_,
   guardarMovimientosFci: guardarMovimientosFci_,
   eliminarMovimientoFci: eliminarMovimientoFci_,
+  eliminarMovimiento: (d, u) => eliminarMovimiento_(d, u),
   cambiarFechaMovimientoFci: cambiarFechaMovimientoFci_,
   registrarSalidaCheques: registrarSalidaCheques_,
   obtenerReporteConfig: obtenerReporteConfig_,
@@ -301,6 +302,8 @@ const ACCIONES = {
   // Vista Análisis: configuración compartida y dólar histórico (Analisis.gs).
   obtenerAnalisis: (d, u) => obtenerAnalisis_(d, u),
   guardarAnalisis: (d, u) => guardarAnalisis_(d, u),
+  obtenerEstructura: (d, u) => obtenerEstructura_(d, u),
+  guardarEstructura: (d, u) => guardarEstructura_(d, u),
   dolarHistorico: (d, u) => dolarHistorico_(d, u),
   // ASISTENTE: chat con Gemini (Asistente.gs). Si se borra ese archivo, borrar también esta línea.
   asistente: (d, u) => typeof asistente_ === 'function' ? asistente_(d, u) : { ok: false, error: 'El asistente no está instalado.' },
@@ -1061,6 +1064,48 @@ function movimientoPorInterno_(interno) {
   const fila = buscarFila_(sheet, COL_INTERNO, v => v === interno);
   if (!interno || !fila) throw new Error('No se encontró el movimiento N° ' + interno + '.');
   return { sheet: sheet, fila: fila };
+}
+
+
+// IDs de la planilla de flujo de los movimientos borrados en la app: al volver a importar la
+// planilla no se cargan de nuevo.
+const MOVS_BORRADOS_PROP = 'MOVS_BORRADOS';
+
+function idsMovimientosBorrados_() {
+  const v = leerJsonTrozos_(MOVS_BORRADOS_PROP);
+  return Array.isArray(v) ? v : [];
+}
+
+/**
+ * Borra un movimiento (cualquier origen: comprobante, a mano, planilla o resumen). Solo un
+ * administrador, y no si está conciliado (primero se anula la conciliación). Queda en Auditoría
+ * con todos sus datos; si vino de la planilla, su ID se recuerda para que no vuelva a entrar.
+ * d: {interno}
+ */
+function eliminarMovimiento_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
+  return conLock_(() => {
+    const interno = String(d.interno || '').trim();
+    if (!interno) return { ok: false, error: 'Falta el número de movimiento.' };
+    const H = HEADERS_TRANSFERENCIAS, iId = H.indexOf('ID Planilla');
+    let conciliado = false;
+    const salen = eliminarFilasDonde_(SHEET_TRANSFERENCIAS, H, f => {
+      if (String(f[COL_INTERNO]).trim() !== interno) return false;
+      if (String(f[COL_CONC_TRANS] || '').trim()) { conciliado = true; return false; }
+      return true;
+    });
+    if (conciliado) return { ok: false, error: 'El movimiento N° ' + interno + ' está conciliado: primero anulá la conciliación.' };
+    if (!salen.length) return { ok: false, error: 'No se encontró el movimiento N° ' + interno + '.' };
+    const fila = salen[0];
+    const id = String(fila[iId] || '').trim();
+    if (id) {
+      const ids = idsMovimientosBorrados_();
+      if (ids.indexOf(id) < 0) { ids.push(id); guardarJsonTrozos_(MOVS_BORRADOS_PROP, ids); }
+    }
+    registrar_(u, 'Movimiento eliminado', 'Movimiento N° ' + interno + ': ' + fila[COL_MONTO] + ' · ' + (fila[H.indexOf('Concepto')] || ''), interno,
+      filaComoObjeto_(H, fila), '');
+    return { ok: true };
+  });
 }
 
 /** Pasa un movimiento guardado de Ingreso a Egreso (o al revés). d: {interno, condicion} */
@@ -2855,6 +2900,10 @@ function depurarPlanilla_(destino, dep, archivo, u) {
 }
 
 function importarMovimientos_(filas, d, u) {
+  // Los que se borraron en la app no vuelven a entrar.
+  const borrados = {};
+  idsMovimientosBorrados_().forEach(id => { borrados[id] = true; });
+  filas = filas.filter(o => !borrados[String(o['ID Planilla'] || '').trim()]);
   const H = HEADERS_TRANSFERENCIAS;
   const hoja = obtenerHoja_(SHEET_TRANSFERENCIAS, H);
   const ult = hoja.getLastRow();

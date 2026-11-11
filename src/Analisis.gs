@@ -76,3 +76,59 @@ function dolarHistorico_() {
   try { cache.put('dolar_hist', JSON.stringify(r), 21600); } catch (e) {}
   return r;
 }
+
+// ----- JSON grande en propiedades del script -----
+// Una propiedad admite unos 9 KB: el texto se parte en trozos PROP_0, PROP_1… y PROP_N dice cuántos.
+function leerJsonTrozos_(prop) {
+  const p = propiedades_();
+  const n = parseInt(p.getProperty(prop + '_N') || '0', 10) || 0;
+  let texto = '';
+  for (let i = 0; i < n; i++) texto += p.getProperty(prop + '_' + i) || '';
+  try { return JSON.parse(texto || 'null'); } catch (e) { return null; }
+}
+
+function guardarJsonTrozos_(prop, valor) {
+  const texto = JSON.stringify(valor);
+  const p = propiedades_();
+  const antes = parseInt(p.getProperty(prop + '_N') || '0', 10) || 0;
+  const n = Math.ceil(texto.length / AN_TROZO);
+  for (let i = 0; i < n; i++) p.setProperty(prop + '_' + i, texto.substring(i * AN_TROZO, (i + 1) * AN_TROZO));
+  p.setProperty(prop + '_N', String(n));
+  for (let i = n; i < antes; i++) p.deleteProperty(prop + '_' + i);
+}
+
+// ----- Estructura (vista Estructura) -----
+// El presupuesto mensual de la estructura: alquileres, honorarios, cajas chicas, seguros…, mes a
+// mes, con el tipo de cambio ROFEX de cada mes. Lo ven y lo cambian solo los que tienen acceso a
+// Facturas (son honorarios). Si nunca se guardó, la página muestra la planilla inicial.
+const ESTR_PROP = 'ESTRUCTURA_CFG';
+
+function obtenerEstructura_(d, u) {
+  if (!tieneAccesoFacturas_(u)) return sinAccesoFacturas_();
+  return { ok: true, estructura: leerJsonTrozos_(ESTR_PROP) };
+}
+
+/** d.estructura: {meses, filas: [{nombre, tipo, buscar, v: [...]}], tc: [...], tcBna, tcBnaFecha} */
+function guardarEstructura_(d, u) {
+  if (!tieneAccesoFacturas_(u)) return sinAccesoFacturas_();
+  const e = d && d.estructura;
+  if (!e || typeof e !== 'object' || !Array.isArray(e.filas) || !Array.isArray(e.meses)) return { ok: false, error: 'Estructura inválida.' };
+  if (JSON.stringify(e).length > AN_MAX) return { ok: false, error: 'La estructura es demasiado grande.' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    olvidarPropiedades_();
+    const antes = leerJsonTrozos_(ESTR_PROP);
+    guardarJsonTrozos_(ESTR_PROP, e);
+    // Solo se anota qué filas se agregaron o quitaron, no cada importe.
+    const nombres = x => (x && Array.isArray(x.filas) ? x.filas.map(f => String(f.nombre || '')) : []);
+    const a = nombres(antes), b = nombres(e);
+    const nuevas = b.filter(n => a.indexOf(n) < 0), quitadas = a.filter(n => b.indexOf(n) < 0);
+    if (antes && (nuevas.length || quitadas.length)) {
+      registrar_(u, 'Estructura', (nuevas.length ? 'Agregadas: ' + nuevas.join(', ') + '. ' : '') + (quitadas.length ? 'Quitadas: ' + quitadas.join(', ') + '.' : ''), '', '', '');
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true };
+}
