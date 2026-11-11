@@ -1435,6 +1435,20 @@
   .estr-tc-grid input { width: 100%; height: 32px; margin: 4px 0 0; text-align: right; font-variant-numeric: tabular-nums; }
   .estr-faltante-acc { display: flex; gap: 8px; justify-content: flex-end; align-items: center; white-space: nowrap; }
   select.estr-sumar { height: 30px; margin: 0; padding: 0 24px 0 8px; font-size: 12px; max-width: 240px; }
+  /* Estructura para imprimir: A4 apaisada */
+  @page horizontal { size: A4 landscape; margin: 10mm 8mm; }
+  .rep-horizontal { page: horizontal; }
+  .rep-estr-res { display: flex; gap: 22px; flex-wrap: wrap; margin: 0 0 10px; font-size: 10px; color: #5a6577; }
+  .rep-estr-res div { display: flex; flex-direction: column; gap: 1px; }
+  .rep-estr-res b { font-size: 12px; color: #0f1b2d; }
+  .rep-estr-tabla { font-size: 9.5px; table-layout: auto; }
+  .rep-estr-tabla th { font-size: 8.5px; letter-spacing: .03em; text-transform: uppercase; }
+  .rep-estr-tabla th, .rep-estr-tabla td { padding: 3px 4px; }
+  .rep-estr-tabla th:first-child, .rep-estr-tabla td:first-child { white-space: nowrap; }
+  .rep-estr-tabla td.rep-guion { color: #a3acb9; }
+  .rep-estr-tabla tr.rep-estr-grupo td { text-transform: uppercase; letter-spacing: .04em; font-size: 8.5px; color: #1c4a2c; border-top: 1px solid #cdd5e0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rep-estr-tabla tr.rep-estr-tc td { color: #5a6577; }
+  .rep-estr-tabla tr { page-break-inside: avoid; }
   /* Estadísticas: cuadros por ingeniero y Combustible Bandera */
   .ing-meses { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 12px; }
   .ing-meses-et { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
@@ -25696,7 +25710,11 @@ function renderEstructura() {
   const bEd = el("button", "secondary small", "Editar conceptos");
   bEd.type = "button";
   bEd.addEventListener("click", () => { estrEditando = JSON.parse(JSON.stringify(estr)); renderEstructura(); });
-  acc.append(bEd);
+  const bImp = el("button", "secondary small", "Imprimir");
+  bImp.type = "button";
+  bImp.title = "Imprimir la tabla o guardarla como PDF (hoja A4 apaisada)";
+  bImp.addEventListener("click", () => imprimir(reporteEstructuraNodo()));
+  acc.append(bImp, bEd);
   head.append(acc);
   card.append(head);
 
@@ -25805,6 +25823,58 @@ function renderEstructura() {
   if (estrEditando) box.append(tarjetaEditarEstructura());
   box.append(tarjetaFaltantesEstructura(c.sueltos));
   if (estrEditando) { const c2 = box.querySelector(".estr-editar"); if (c2 && c2.scrollIntoView) c2.scrollIntoView({ block: "start", behavior: "smooth" }); }
+}
+
+// ----- Versión para imprimir -----
+// La misma tabla en una hoja A4 apaisada, siempre clara: encabezado de la empresa, los totales del
+// período, los conceptos por grupo con su subtotal, el total mensual, el TC ROFEX y el total en
+// dólares. Sin pagos: guion. Sale por imprimir() (también sirve para guardarla como PDF).
+function reporteEstructuraNodo() {
+  const e = estr;
+  const c = estrCalcular(e);
+  const hoy = hoyIso().substring(0, 7);
+  const transcurridos = e.meses.filter(m => m <= hoy).length || 1;
+  const per = mesLargo(e.meses[0] + "-01") + " a " + mesLargo(e.meses[e.meses.length - 1] + "-01");
+  const rep = el("div", "rep rep-horizontal rep-estr");
+  rep.append(encabezadoReporte("Estructura de gastos", [per, "Importes en pesos según los movimientos y cheques pagados"]));
+
+  const res = el("div", "rep-estr-res");
+  [["Pagado en el período", fmtImp(c.pesos)], ["Promedio mensual", fmtImp(c.pesos / transcurridos)],
+    ["En dólares (ROFEX)", "US$ " + formatMonto(c.usdRofex)], ["En dólares (BNA)", "US$ " + formatMonto(c.usdBna) + " · TC " + formatMonto(e.tcBna)]].forEach(x => {
+    const d = el("div");
+    d.append(el("span", null, x[0]), el("b", null, x[1]));
+    res.append(d);
+  });
+  rep.append(res);
+
+  const t = el("table", "rep-tabla rep-estr-tabla");
+  const cab = el("tr");
+  cab.append(el("th", null, "Concepto"));
+  e.meses.forEach(m => cab.append(el("th", "num", mesCorto(m + "-01", true))));
+  cab.append(el("th", "num", "Total"));
+  t.append(cab);
+  const celda = (v, fmt) => { const td = el("td", "num" + (v > 0 ? "" : " rep-guion"), v > 0 ? (fmt || fmtEntero)(v) : "—"); return td; };
+  const fila = (nombre, valores, total, cls, fmt) => {
+    const tr = el("tr", cls || null);
+    tr.append(el("td", null, nombre));
+    valores.forEach(v => tr.append(celda(v, fmt)));
+    tr.append(total == null ? el("td", "num") : celda(total, fmt));
+    t.append(tr);
+  };
+  ESTR_TIPOS.forEach(tipo => {
+    const idx = e.filas.map((f, i) => i).filter(i => e.filas[i].tipo === tipo);
+    if (!idx.length) return;
+    const sub = e.meses.map((m, j) => idx.reduce((a, i) => a + c.filas[i].v[j], 0));
+    fila(ESTR_TITULO_TIPO[tipo], sub, sub.reduce((a, x) => a + x, 0), "rep-destacada rep-estr-grupo");
+    idx.forEach(i => fila(e.filas[i].nombre, c.filas[i].v, c.filas[i].v.reduce((a, x) => a + x, 0)));
+  });
+  fila("Total mensual", c.sub, c.pesos, "rep-total");
+  fila("TC ROFEX", e.tc, null, "rep-estr-tc", v => formatMonto(v));
+  fila("Total en US$ (ROFEX)", c.rofex, c.usdRofex, "rep-destacada");
+  rep.append(t);
+  rep.append(el("p", "rep-nota", "Importes en pesos sin centavos. “—”: ningún pago ese mes. Se cuentan las transferencias y pagos que salen y los cheques emitidos por su fecha de débito; los movimientos en dólares no entran. " +
+    "Total en dólares BNA al tipo de cambio de $ " + formatMonto(e.tcBna) + (e.tcBnaFecha ? " del " + isoADma(e.tcBnaFecha) : "") + "."));
+  return rep;
 }
 
 // ----- Editar conceptos y tipos de cambio -----
