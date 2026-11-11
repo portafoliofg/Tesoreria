@@ -1374,6 +1374,9 @@
   .an-uso-barra.pasado { background: var(--bad); }
   .an-vacio { color: var(--muted); padding: 14px 0 4px; }
   .an-cuadros { margin-bottom: 16px; }
+  .an-meses { margin: 0; }
+  .an-mover { display: flex; align-items: center; gap: 8px; min-width: 170px; }
+  .an-mover input[type=text] { flex: 1; }
   .an-det-sec { margin-top: 14px; }
   .an-det-sec .ing-sec-head { border-bottom: none; padding-bottom: 4px; }
   /* ---------- Estadísticas ---------- */
@@ -19280,7 +19283,6 @@ const AN_GRUPOS = [
   { k: "estadisticas", nombre: "Estadísticas", tabs: [["comparativo", "Mes contra mes"], ["dolares", "Gasto en dólares"], ["proveedores", "Proveedores"], ["estacionalidad", "Estacionalidad"], ["financiero", "Costo financiero"]] },
   { k: "mediciones", nombre: "Mediciones", tabs: [["presupuesto", "Presupuesto"], ["caja", "Días de caja"], ["plazos", "Plazos de pago y cobro"], ["acierto", "Acierto del flujo"], ["rechazados", "Cheques rechazados"], ["ociosa", "Plata ociosa"]] }
 ];
-const AN_PERIODOS = [["6m", "Últimos 6 meses"], ["12m", "Últimos 12 meses"], ["anio", "Este año"], ["ant", "Año anterior"]];
 const AN_DOLARES = [["oficial", "Oficial"], ["blue", "Blue"], ["mep", "MEP"]];
 // Rubros que se toman como gasto fijo mientras no se diga otra cosa en "Fijo y variable".
 const AN_FIJOS_DEF = ["Personal", "Oficina y alquileres", "Seguros", "Honorarios"];
@@ -19288,9 +19290,8 @@ const AN_FINANCIERO = "Inversiones y financiamiento";
 const AN_SIN = "Sin clasificar";
 let anGrupo = "gastos";
 let anTab = "rubros";
-let anPeriodo = "6m";
-let anMes = ""; // "aaaa-mm" cuando se filtra un solo mes
-let anCfg = { reglas: [], fijos: {}, presu: {}, proy: [], umbral: 0, dolar: "blue" };
+let anMeses = null; // meses elegidos en el filtro ("aaaa-mm": true); null al entrar = el mes actual; vacío = todos
+let anCfg = { reglas: [], fijos: {}, presu: {}, proy: [], mov: {}, umbral: 0, dolar: "blue" };
 let anCfgCargada = false;
 let anCfgFallo = false;
 let anCfgTimer = null;
@@ -19314,6 +19315,7 @@ function anNormalizarCfg(c) {
     fijos: objeto(c.fijos),
     presu: objeto(c.presu),
     proy: (Array.isArray(c.proy) ? c.proy : []).filter(p => p && p.d && p.h),
+    mov: objeto(c.mov), // conceptos movidos a mano: { CONCEPTO NORMALIZADO: rubro }
     umbral: Number(c.umbral) > 0 ? Number(c.umbral) : 0,
     dolar: AN_DOLARES.some(d => d[0] === c.dolar) ? c.dolar : "blue"
   };
@@ -19378,13 +19380,17 @@ function anGastos() {
     const base = rubroDe(f);
     const conRubro = mias.find(r => r.rubro.trim());
     let rubro = base === AN_FINANCIERO || String(f["Clase"] || "").trim() || !conRubro ? base : conRubro.rubro.trim();
+    // Un concepto movido a mano a otro rubro le gana a todo lo demás (ver anMoverConcepto).
+    const kc = normalizar(f["Concepto"] || "").trim();
+    const movido = kc ? String(anCfg.mov[kc] || "").trim() : "";
+    if (movido) rubro = movido;
     // Mismo rubro escrito distinto ("campo" y "Campo"): queda el primero que apareció.
     const kr = normalizar(rubro).trim();
     rubro = nombres[kr] || (nombres[kr] = rubro);
     const conSub = mias.find(r => r.sub.trim() && (!r.rubro.trim() || normalizar(r.rubro).trim() === kr));
     const conCentro = mias.find(r => r.centro.trim());
     lista.push({ f: f, iso: iso, mes: iso.substring(0, 7), m: -monto, rubro: rubro, sub: conSub ? conSub.sub.trim() : "", centro: conCentro ? conCentro.centro.trim() : "",
-      quien: String(f["Destinatario"] || f["Contraparte"] || "").trim(), t: t });
+      quien: String(f["Destinatario"] || f["Contraparte"] || "").trim(), t: t, kc: kc, movido: !!movido });
   });
   anMemo = { datos: transferenciasDatos, ver: anVer, lista: lista };
   return lista;
@@ -19394,17 +19400,23 @@ function anOperativos() {
   return anGastos().filter(x => x.rubro !== AN_FINANCIERO);
 }
 
+// Meses que ofrece el filtro: desde el primero con gastos hasta el actual (los últimos 24 como mucho).
+function anMesesLista() {
+  const mesHoy = hoyIso().substring(0, 7);
+  const primero = anGastos().reduce((a, x) => x.mes < a ? x.mes : a, mesHoy);
+  const lista = [];
+  for (let m = mesHoy; m >= primero && lista.length < 24; m = sumarMesesIso(m + "-01", -1).substring(0, 7)) lista.push(m);
+  return lista.reverse();
+}
+
+// Los meses elegidos en el filtro: uno, varios o todos. Al entrar, el mes actual.
 function anRango() {
-  // Un mes elegido en el filtro le gana al período.
-  if (anMes) return { meses: [anMes], nombre: mesLargo(anMes + "-01") };
-  const hoy = hoyIso(), mesHoy = hoy.substring(0, 7) + "-01", anio = parseInt(hoy.substring(0, 4), 10);
-  let ini = sumarMesesIso(mesHoy, -5), n = 6;
-  if (anPeriodo === "12m") { ini = sumarMesesIso(mesHoy, -11); n = 12; }
-  else if (anPeriodo === "anio") { ini = anio + "-01-01"; n = parseInt(hoy.substring(5, 7), 10); }
-  else if (anPeriodo === "ant") { ini = (anio - 1) + "-01-01"; n = 12; }
-  const meses = [];
-  for (let i = 0; i < n; i++) meses.push(sumarMesesIso(ini, i).substring(0, 7));
-  return { meses: meses, nombre: (AN_PERIODOS.find(p => p[0] === anPeriodo) || AN_PERIODOS[0])[1] };
+  const lista = anMesesLista();
+  if (anMeses === null) { anMeses = {}; anMeses[hoyIso().substring(0, 7)] = true; }
+  const elegidos = lista.filter(m => anMeses[m]);
+  if (elegidos.length === 1) return { meses: elegidos, nombre: mesLargo(elegidos[0] + "-01") };
+  if (elegidos.length) return { meses: elegidos, nombre: elegidos.length + " meses elegidos" };
+  return { meses: lista, nombre: "Todos los meses" };
 }
 
 function anDelPeriodo() {
@@ -19480,21 +19492,41 @@ function anCtrl(etiqueta, control) {
 }
 
 function anBarraPeriodo(box) {
+  // Filtro por mes: se marcan uno o varios, o todos. No hay período aparte.
   const ctrl = el("div", "an-ctrl");
-  ctrl.append(anCtrl("Período", anSelect(AN_PERIODOS, anPeriodo, v => { anPeriodo = v; anMes = ""; renderAnalisis(); })));
-  ctrl.append(anCtrl("Mes", anSelect([["", "Todos los meses"]].concat(anMesesConDatos()), anMes, v => { anMes = v; renderAnalisis(); })));
+  const lista = anMesesLista();
+  anRango(); // deja elegido el mes actual la primera vez
+  const elegidos = lista.filter(m => anMeses[m]);
+  const chips = el("div", "ing-meses an-meses");
+  const chip = (txt, on, alClic) => {
+    const b = el("button", "pill-btn " + (on ? "on" : "off"), txt);
+    b.type = "button";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.addEventListener("click", alClic);
+    return b;
+  };
+  chips.append(el("span", "ing-meses-et", "Meses"), chip("Todos", !elegidos.length, () => { anMeses = {}; renderAnalisis(); }));
+  lista.forEach(m => chips.append(chip(mesCorto(m + "-01", true), !!anMeses[m], () => {
+    if (anMeses[m]) delete anMeses[m]; else anMeses[m] = true;
+    renderAnalisis();
+  })));
+  ctrl.append(chips);
   box.append(ctrl);
   return ctrl;
 }
 
-// Meses para el filtro: del actual hacia atrás, hasta el primero con gastos.
-function anMesesConDatos() {
-  const mesHoy = hoyIso().substring(0, 7);
-  const primero = anGastos().reduce((a, x) => x.mes < a ? x.mes : a, mesHoy);
-  const lista = [];
-  for (let m = mesHoy; m >= primero && lista.length < 120; m = sumarMesesIso(m + "-01", -1).substring(0, 7)) lista.push([m, mesLargo(m + "-01")]);
-  if (anMes && !lista.some(o => o[0] === anMes)) lista.push([anMes, mesLargo(anMes + "-01")]);
-  return lista;
+// Mover un concepto a otro rubro (cuadro): todos los movimientos con ese mismo concepto, de
+// cualquier mes, pasan al rubro elegido. Queda guardado en la configuración compartida y le gana
+// a la Clase de la planilla y a las reglas. rubro vacío: deshace el cambio.
+function anMoverConcepto(kc, rubro, nombre) {
+  if (!kc) return;
+  rubro = String(rubro || "").trim();
+  if (rubro) anCfg.mov[kc] = rubro; else delete anCfg.mov[kc];
+  anVer++;
+  anGuardarCfg();
+  renderAnalisis();
+  const n = anGastos().filter(x => x.kc === kc).length;
+  toast(rubro ? "“" + nombre + "” pasó a " + rubro + ": " + n + " movimiento(s) con ese concepto." : "“" + nombre + "” volvió a su rubro de antes (" + n + " movimiento(s)).", "ok");
 }
 
 function anOpcionesMeses(n) {
@@ -19682,6 +19714,7 @@ function renderAnalisis() {
     if (vez === anVez) cont.replaceChildren(nodoError("No se pudo armar esta pestaña: " + msgErr(err)));
   };
   try {
+    anPoblarListas(); // sugerencias de rubros para "Mover a otro rubro"
     const r = AN_RENDER[anTab](cont);
     if (r && typeof r.then === "function") r.catch(fallo);
   } catch (err) { fallo(err); }
@@ -19758,7 +19791,7 @@ function anTablaConceptos(mios, conRubro) {
   mios.forEach(x => {
     const concepto = String(x.f["Concepto"] || "").trim();
     const k = normalizar(concepto).trim() + "|" + x.rubro;
-    const g = grupos[k] || (grupos[k] = { nombre: concepto, rubro: x.rubro, n: 0, total: 0, ult: "", quienes: {} });
+    const g = grupos[k] || (grupos[k] = { nombre: concepto, rubro: x.rubro, kc: x.kc, movido: x.movido, n: 0, total: 0, ult: "", quienes: {} });
     g.n++;
     g.total += x.m;
     if (x.iso > g.ult) g.ult = x.iso;
@@ -19766,12 +19799,29 @@ function anTablaConceptos(mios, conRubro) {
   });
   const lista = Object.keys(grupos).map(k => grupos[k]).sort((a, b) => b.total - a.total);
   const caja = el("div");
-  caja.append(anTabla(["Concepto"].concat(conRubro ? ["Rubro"] : [], ["Movimientos", "Total", "Parte", "Último"]), lista.slice(0, 150).map(g => {
+  // Última columna: pasar el concepto (todos sus movimientos) a otro rubro, o deshacerlo.
+  const mover = g => {
+    const d = el("div", "an-mover");
+    if (!g.kc) { d.append(el("span", "dt-sub", "Sin concepto")); return d; }
+    const inp = anCampoTexto("", "Mover a…", "anListaRubros", v => { if (v && normalizar(v).trim() !== normalizar(g.rubro).trim()) anMoverConcepto(g.kc, v, g.nombre); });
+    inp.setAttribute("aria-label", "Mover “" + g.nombre + "” a otro rubro");
+    inp.title = "Escribí o elegí el rubro: todos los movimientos con este concepto pasan a ese cuadro";
+    d.append(inp);
+    if (g.movido) {
+      const b = el("button", "link-btn", "Deshacer");
+      b.type = "button";
+      b.title = "Movido a mano a " + g.rubro + ". Deshacer lo devuelve a su rubro de antes.";
+      b.addEventListener("click", () => anMoverConcepto(g.kc, "", g.nombre));
+      d.append(b);
+    }
+    return d;
+  };
+  caja.append(anTabla(["Concepto"].concat(conRubro ? ["Rubro"] : [], ["Movimientos", "Total", "Parte", "Último", "Mover a otro rubro"]), lista.slice(0, 150).map(g => {
     const nombre = el("div");
     nombre.append(el("div", "dt-principal", g.nombre || "Sin concepto"));
     const quienes = Object.keys(g.quienes).sort((a, b) => g.quienes[b] - g.quienes[a]);
     if (quienes.length) nombre.append(el("div", "dt-sub", quienes[0] + (quienes.length > 1 ? " y " + (quienes.length - 1) + " más" : "")));
-    return [nombre].concat(conRubro ? [g.rubro] : [], [String(g.n), fmtImp(g.total), anPct(g.total, total), isoADma(g.ult)]);
+    return [nombre].concat(conRubro ? [g.rubro] : [], [String(g.n), fmtImp(g.total), anPct(g.total, total), isoADma(g.ult), mover(g)]);
   }), conRubro ? [2, 3, 4] : [1, 2, 3]));
   if (lista.length > 150) caja.append(el("p", "hint", "Se muestran los 150 conceptos de mayor importe, de " + lista.length + "."));
   return caja;
