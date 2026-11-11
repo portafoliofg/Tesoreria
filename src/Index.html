@@ -21180,7 +21180,7 @@ function filasPlanillaInicio(fechaIso) {
     const k = claveB(c["Banco"], moneda);
     const g = porBanco[k] || (porBanco[k] = { banco: c["Banco"], moneda: moneda, cuentas: [], fci: null });
     const ult = ultimoSaldo(c, fechaIso);
-    g.cuentas.push({ c: c, valor: ult ? parseImporte(ult["Saldo"]) : null, previo: !!ult && fechaAOrden(ult["Fecha"]) !== fechaIso, fecha: ult ? ult["Fecha"] : "" });
+    g.cuentas.push({ clave: "c|" + c["ID"], c: c, valor: ult ? parseImporte(ult["Saldo"]) : null, previo: !!ult && fechaAOrden(ult["Fecha"]) !== fechaIso, fecha: ult ? ult["Fecha"] : "" });
   });
   // FCI: el último informado de cada banco hasta la fecha (también bancos que solo tienen FCI).
   const ultFci = {};
@@ -21199,11 +21199,11 @@ function filasPlanillaInicio(fechaIso) {
     const moneda = x.s["Moneda"] === "USD" ? "USD" : "Pesos";
     const g = porBanco[k] || (porBanco[k] = { banco: x.s["Banco"], moneda: moneda, cuentas: [], fci: null });
     // Se guarda con el mismo nombre de banco que ya tenía, para no duplicar el FCI.
-    g.fci = { banco: x.s["Banco"], valor: parseImporte(x.s["Saldo"]), previo: x.iso !== fechaIso, fecha: x.s["Fecha"] };
+    g.fci = { clave: "f|" + k, banco: x.s["Banco"], valor: parseImporte(x.s["Saldo"]), previo: x.iso !== fechaIso, fecha: x.s["Fecha"] };
   });
   Object.keys(porBanco).forEach(k => {
     const g = porBanco[k];
-    if (!g.fci) g.fci = { banco: g.banco, valor: null, previo: false, fecha: "" };
+    if (!g.fci) g.fci = { clave: "f|" + k, banco: g.banco, valor: null, previo: false, fecha: "" };
     const pos = c => posicionPlanilla(ORDEN_PLANILLA.cuentas, soloDigitos(c["N° de Cuenta"]));
     g.cuentas.sort((a, b) => pos(a.c) - pos(b.c) ||
       (siglaTipo(a.c["Tipo de Cuenta"]) + a.c["N° de Cuenta"]).localeCompare(siglaTipo(b.c["Tipo de Cuenta"]) + b.c["N° de Cuenta"]));
@@ -21217,22 +21217,39 @@ function filasPlanillaInicio(fechaIso) {
   return Object.keys(porBanco).map(k => porBanco[k]).sort((a, b) => posBanco(a) - posBanco(b) || a.banco.localeCompare(b.banco));
 }
 
+let planillaFocoAfuera = null;      // clave de la casilla que tenía el foco al salir de la pestaña o ventana
+let planillaSinSeleccionar = false; // true mientras se devuelve el foco después de redibujar la planilla
+
 function inputPlanilla(item, alCambiar) {
   const inp = el("input", item.previo ? "pl-previo" : "");
   inp.type = "text";
   inp.inputMode = "decimal";
-  inp.value = item.valor === null ? "" : textoSaldo(item.valor);
+  // dataset.inicial: el valor guardado, al que vuelve Escape. Si la casilla tiene algo escrito sin
+  // guardar (item.texto), se muestra eso mismo, sin puntos de miles ni ",00".
+  inp.dataset.inicial = item.inicial !== undefined ? item.inicial : (item.valor === null ? "" : textoSaldo(item.valor));
+  inp.dataset.clave = item.clave || "";
+  inp.value = item.cambio && item.texto !== undefined ? item.texto : inp.dataset.inicial;
+  if (item.cambio) inp.classList.add("pl-cambio");
   inp.placeholder = "—";
   if (item.fecha) inp.title = (item.previo ? "Último informado: " : "Guardado al ") + item.fecha;
   inp.addEventListener("input", () => {
     item.valor = importeTipeado(inp.value);
+    item.texto = inp.value;
+    item.inicial = inp.dataset.inicial;
     item.previo = false;
     item.cambio = true;
     inp.classList.remove("pl-previo");
     inp.classList.add("pl-cambio");
     alCambiar();
   });
-  inp.addEventListener("focus", () => inp.select());
+  // Al llegar a la casilla se selecciona todo (como en Excel), salvo cuando el foco vuelve solo
+  // por haber cambiado de pestaña o de ventana: ahí el cursor queda donde estaba, para seguir escribiendo.
+  inp.addEventListener("blur", () => { planillaFocoAfuera = document.activeElement === inp || !document.hasFocus() ? inp.dataset.clave : null; });
+  inp.addEventListener("focus", () => {
+    const vuelve = planillaSinSeleccionar || (planillaFocoAfuera !== null && planillaFocoAfuera === inp.dataset.clave);
+    planillaFocoAfuera = null;
+    if (!vuelve) inp.select();
+  });
   inp.addEventListener("keydown", e => { if (!teclaDecimalExcel(e, inp)) moverEnPlanilla(e, inp); });
   // Al salir de la casilla (otra casilla, otra pestaña o ventana) el número queda tal cual se
   // escribió: no se le agregan puntos de miles ni ",00". El total se calcula igual.
@@ -21443,6 +21460,7 @@ function renderRendFciInicio() {
 //   ganado = saldo de hoy − (cierre anterior ± suscripciones y rescates del medio).
 // El saldo de hoy es el que está escrito en la planilla, aunque todavía no se haya guardado.
 let planillaGrupos = [];
+let planillaGruposFecha = "";
 
 function filasRendDia(fechaIso) {
   const res = calcularRendimientoFciSaldos();
@@ -21578,7 +21596,24 @@ function renderPlanillaInicio() {
   const box = $("inicioPlanilla");
   if (!planillaFecha) planillaFecha = hoyIso();
   const grupos = filasPlanillaInicio(planillaFecha);
+  // Lo escrito sin guardar sigue tal cual al redibujar (al volver a Inicio o cuando llegan datos
+  // nuevos): mismo texto, sin formato. Se descarta al guardar o al cambiar la fecha.
+  const escritos = {};
+  if (planillaGruposFecha === planillaFecha) {
+    (planillaGrupos || []).forEach(g => g.cuentas.concat([g.fci]).forEach(x => { if (x.cambio && x.clave) escritos[x.clave] = x; }));
+  }
+  grupos.forEach(g => g.cuentas.concat([g.fci]).forEach(x => {
+    const e = escritos[x.clave];
+    if (!e) return;
+    x.inicial = x.valor === null ? "" : textoSaldo(x.valor);
+    x.valor = e.valor; x.texto = e.texto; x.cambio = true; x.previo = false;
+  }));
+  // La casilla en la que se estaba escribiendo, para devolverle el foco y el cursor.
+  const activo = document.activeElement;
+  const foco = activo && box.contains(activo) && activo.dataset && activo.dataset.clave
+    ? { clave: activo.dataset.clave, a: activo.selectionStart, b: activo.selectionEnd } : null;
   planillaGrupos = grupos;
+  planillaGruposFecha = planillaFecha;
   const card = el("div", "card pl-card");
   const head = el("div", "pl-head");
   const tit = el("div");
@@ -21654,7 +21689,6 @@ function renderPlanillaInicio() {
         const idx = filasPegar.push(fila) - 1;
         if (x) {
           fila.inpC = inputPlanilla(x, () => recalculos.forEach(r => r()));
-          fila.inpC.dataset.inicial = fila.inpC.value;
           planillaNav.saldos.push(fila.inpC);
           fila.inpC.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, false));
           tdS.append(fila.inpC);
@@ -21665,7 +21699,6 @@ function renderPlanillaInicio() {
           const tdF = el("td", "pl-grupo");
           tdF.rowSpan = filas;
           g.inpF = inputPlanilla(g.fci, () => recalculos.forEach(r => r()));
-          g.inpF.dataset.inicial = g.inpF.value;
           planillaNav.fci.push(g.inpF);
           g.inpF.addEventListener("paste", e => pegarColumnasPlanilla(e, filasPegar, idx, true));
           tdF.append(g.inpF);
@@ -21702,6 +21735,7 @@ function renderPlanillaInicio() {
     try {
       const res = await runJson("guardarSaldos", { fecha: isoADma(planillaFecha), origen: "Planilla de Inicio", saldos: saldos, fci: fci });
       toast(res.guardados + " saldo(s) y FCI guardado(s) al " + isoADma(planillaFecha) + (res.reemplazados ? " (" + res.reemplazados + " reemplazado/s)" : "") + ".", "ok");
+      planillaGruposFecha = ""; // ya está guardado: la planilla se vuelve a armar con lo del servidor
       cargarInicio();
     } catch (err) {
       toast(msgErr(err), "error");
@@ -21711,6 +21745,14 @@ function renderPlanillaInicio() {
     }
   });
   box.replaceChildren(card);
+  if (foco) {
+    const inp = planillaNav.orden.find(i => i.dataset.clave === foco.clave);
+    if (inp) {
+      planillaSinSeleccionar = true;
+      try { inp.focus({ preventScroll: true }); if (foco.a !== null) inp.setSelectionRange(foco.a, foco.b); } catch (e) {}
+      planillaSinSeleccionar = false;
+    }
+  }
 }
 
 // Pegar columnas copiadas del Excel en la planilla de Saldos: cada renglón va a la fila que le toca,
