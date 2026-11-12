@@ -19297,7 +19297,7 @@ function calcularRendimientoFci() {
       const rend = fin - capital;         // paso 2
       const dev = diasDevengados(desde, hasta);
       const d = Math.max(1, dev);
-      const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
+      const dudoso = saltoImposibleFci(rend, capital, desde, hasta, d);
       const informado = parseImporte(g.saldos[hasta].inf);
       periodos.push({ desde: desde, hasta: hasta, d: d, sinDias: dev === 0, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
         pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: informado && Math.abs(informado) < Math.abs(fin) * 0.1 ? informado : null });
@@ -21937,7 +21937,7 @@ function filasRendDia(fechaIso) {
       f.dias = diasDevengados(ant.iso, fechaIso);
       if (actual !== null && actual !== undefined && f.cargadoHoy) {
         f.rend = actual - f.capital;
-        f.dudoso = !(f.capital > 0) || Math.abs(f.rend / f.capital) / Math.max(1, f.dias) > 0.003;
+        f.dudoso = saltoImposibleFci(f.rend, f.capital, ant.iso, fechaIso, f.dias);
         f.tna = !f.dudoso && f.dias > 0 ? f.rend / f.capital * 365 / f.dias : null;
         if (f.dudoso) f.sugerencia = sugerenciaFechaFci(b.movs, ant.iso, fechaIso, f.capital, actual, Math.max(1, f.dias));
       }
@@ -23253,6 +23253,13 @@ function habilAnterior(iso) {
 }
 
 /** Días que devengó el fondo entre dos saldos de inicio (ver arriba). */
+/** ¿Salto imposible para un FCI? (más de ~0,3 % por día). Se mide contra el máximo entre los días
+ * devengados y los corridos: con días hábiles, lo de un fin de semana o feriado largo cae en un
+ * solo día y una ganancia normal parecía un movimiento faltante. */
+function saltoImposibleFci(rend, capital, desde, hasta, d) {
+  return !(capital > 0) || Math.abs(rend / capital) / Math.max(1, d, diasEntre(desde, hasta)) > 0.003;
+}
+
 function diasDevengados(desde, hasta) {
   if (modoDiasFci() === "corridos") return diasEntre(desde, hasta);
   return diasEntre(habilAnterior(desde), habilAnterior(hasta));
@@ -23267,7 +23274,7 @@ function sugerenciaFechaFci(movs, desde, hasta, capital, fin, d) {
   const x = delDia.reduce((a, m) => a + m.monto, 0);
   if (!delDia.length || !x) return null;
   const cap = capital + x;
-  if (!(cap > 0) || Math.abs((fin - cap) / cap) / Math.max(1, d) > 0.003) return null;
+  if (saltoImposibleFci(fin - cap, cap, desde, hasta, d)) return null;
   const a = habilAnterior(hasta) >= desde ? habilAnterior(hasta) : desde;
   const rend = fin - cap;
   return { de: hasta, a: a, cantidad: delDia.length, manuales: delDia.filter(m => m.manual).length, ids: delDia.filter(m => m.manual).map(m => m.id), monto: x, capital: cap, rend: rend, tna: d > 0 ? rend / cap * 365 / d : null };
@@ -23321,7 +23328,7 @@ function calcularRendimientoFciSaldos() {
       const d = Math.max(1, dev);
       const rend = fin - capital;         // paso 2
       // Sin días de devengamiento (dos saldos del mismo fin de semana) no hay tasa: solo cuenta lo ganado.
-      const dudoso = !(capital > 0) || Math.abs(rend / capital) / d > 0.003;
+      const dudoso = saltoImposibleFci(rend, capital, desde, hasta, d);
       periodos.push({ desde: desde, hasta: hasta, d: d, corridos: Math.max(1, diasEntre(desde, hasta)), sinDias: dev === 0, ini: ini, fin: fin, susc: susc, resc: resc, capital: capital, rend: rend,
         pct: capital > 0 ? rend / capital : null, dudoso: dudoso, informado: null,
         sugerencia: dudoso ? sugerenciaFechaFci(delBanco, desde, hasta, capital, fin, d) : null });

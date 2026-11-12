@@ -25,6 +25,8 @@ días          = días corridos entre los dos saldos (mínimo 1)
 En el código el cierre del día anterior se llama `capital`. El saldo de un día es el de apertura.
 - **Período dudoso** si el capital no es positivo o `|rendimiento ÷ capital| ÷ días > 0,003`
   (más de ~0,3 % por día). Casi siempre falta cargar un movimiento. No entra en la tasa.
+  Para este control (`saltoImposibleFci`) los días son el máximo entre los devengados y los
+  corridos: con días hábiles, un fin de semana largo cae en un solo día y parecía un salto.
 - **TNA de una ventana** (`tnaVentana`): `Σ rendimiento ÷ Σ (capital × días) × 365`, solo con
   los períodos no dudosos que terminan dentro de la ventana.
 - **Varios bancos juntos** (`rendimientoConjunto`): la misma fórmula sumando los de todos.
