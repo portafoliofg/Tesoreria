@@ -27,6 +27,8 @@ En el código el cierre del día anterior se llama `capital`. El saldo de un dí
   (más de ~0,3 % por día). Casi siempre falta cargar un movimiento. No entra en la tasa.
   Para este control (`saltoImposibleFci`) los días son el máximo entre los devengados y los
   corridos: con días hábiles, un fin de semana largo cae en un solo día y parecía un salto.
+  Además hay un piso del 1 % en el período: un fondo de renta fija puede moverse 0,3 % o más en
+  un día sin que falte nada (pasó con el Ciudad: +0,33 % del 11/11 al 12/11/2026).
 - **TNA de una ventana** (`tnaVentana`): `Σ rendimiento ÷ Σ (capital × días) × 365`, solo con
   los períodos no dudosos que terminan dentro de la ventana.
 - **Varios bancos juntos** (`rendimientoConjunto`): la misma fórmula sumando los de todos.

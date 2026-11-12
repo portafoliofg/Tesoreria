@@ -23255,9 +23255,13 @@ function habilAnterior(iso) {
 /** Días que devengó el fondo entre dos saldos de inicio (ver arriba). */
 /** ¿Salto imposible para un FCI? (más de ~0,3 % por día). Se mide contra el máximo entre los días
  * devengados y los corridos: con días hábiles, lo de un fin de semana o feriado largo cae en un
- * solo día y una ganancia normal parecía un movimiento faltante. */
+ * solo día y una ganancia normal parecía un movimiento faltante. Además hay un piso del 1 % en el
+ * período: un fondo de renta fija puede moverse 0,3 % o más en un día sin que falte nada, y un
+ * rescate o suscripción que falta casi siempre mueve el saldo bastante más. */
 function saltoImposibleFci(rend, capital, desde, hasta, d) {
-  return !(capital > 0) || Math.abs(rend / capital) / Math.max(1, d, diasEntre(desde, hasta)) > 0.003;
+  if (!(capital > 0)) return true;
+  const tope = Math.max(0.01, 0.003 * Math.max(1, d, diasEntre(desde, hasta)));
+  return Math.abs(rend / capital) > tope;
 }
 
 function diasDevengados(desde, hasta) {

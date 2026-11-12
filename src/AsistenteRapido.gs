@@ -313,7 +313,7 @@ function asisRendimientoFci_() {
       const capital = ini + mov;
       const dias = Math.max(1, Math.round((fechaUtc(hasta) - fechaUtc(desde)) / 86400000));
       const rend = fin - capital;
-      periodos.push({ desde: desde, hasta: hasta, dias: dias, capital: capital, rend: rend, dudoso: !(capital > 0) || Math.abs(rend / capital) / dias > 0.003 });
+      periodos.push({ desde: desde, hasta: hasta, dias: dias, capital: capital, rend: rend, dudoso: !(capital > 0) || Math.abs(rend / capital) > Math.max(0.01, 0.003 * dias) });
     }
     const ultima = fechas[fechas.length - 1];
     return { canon: g.canon, banco: g.banco, moneda: g.moneda, periodos: periodos, ultimo: { iso: ultima, saldo: importeANumero(g.porFecha[ultima]['Saldo']) } };
