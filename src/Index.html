@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Cinzel:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   /* =====================================================================
      ESTÉTICA INSTITUCIONAL MODERNA (banca digital)
@@ -1934,6 +1934,189 @@
   .merc-proy b.pos { color: var(--ok); } .merc-proy b.neg { color: var(--bad); }
   .rep-cp-rapidos { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
   .merc-estad { margin-bottom: 14px; }
+
+  /* =====================================================================
+     TEMA "RELIEVE 3D" (solo estética): todo con volumen. Tarjetas con espesor y brillo,
+     títulos y cifras en relieve, tablas con encabezado en bloque y filas que se levantan,
+     botones que se hunden al apretarlos, gráficos con sombra y entradas en perspectiva.
+     Los indicadores y gráficos chicos se inclinan siguiendo el mouse (ver inclinar3d).
+     Sora para títulos y cifras. Con "reducir movimiento" quedan las sombras, sin animación.
+     ===================================================================== */
+  :root[data-tema="relieve"] {
+    --side-bg: #111a3a; --side-bg-2: #18244d; --header-bg: #111a3a; --header-line: #ff9f43;
+    --primary: #3557d6; --primary-hover: #2a48bd; --primary-rgb: 53, 87, 214; --primary-soft: rgba(53, 87, 214, .09);
+    --accent: #ff9f43; --accent-rgb: 255, 159, 67;
+    --bg: #e6eaf4; --surface: #ffffff; --surface-2: #f3f5fb; --surface-3: #e9edf7;
+    --border: #d9dfec; --border-strong: #bfc8dc;
+    --radius: 16px; --radius-sm: 11px;
+    --font-serif: "Sora", var(--font);
+    /* Tokens propios del relieve */
+    --r3-top: #ffffff; --r3-bot: #f1f4fb;          /* degradé de las superficies */
+    --r3-luz: rgba(255, 255, 255, .95);            /* filo de luz arriba */
+    --r3-canto: #c9d1e3;                           /* espesor (el "costado" de la pieza) */
+    --r3-sombra: 22, 32, 70;                       /* color de la sombra proyectada */
+    --r3-ext: rgba(53, 87, 214, .28);              /* extrusión de las letras */
+    --r3-brillo: rgba(255, 255, 255, .55);         /* reflejo que sigue al mouse */
+  }
+  :root[data-modo="oscuro"][data-tema="relieve"] {
+    --side-bg: #070b1a; --side-bg-2: #0d1328; --header-bg: #070b1a;
+    --primary: #6d8bff; --primary-hover: #8099ff; --primary-rgb: 109, 139, 255; --primary-soft: rgba(109, 139, 255, .16);
+    --accent: #ffb066; --accent-rgb: 255, 176, 102;
+    --bg: #0a0f20; --surface: #141c33; --surface-2: #19223c; --surface-3: #1f2a48;
+    --border: #26324f; --border-strong: #354466;
+    --text: #e8ecf8; --muted: #a3acc6; --faint: #6e7896;
+    --r3-top: #1b2542; --r3-bot: #121a30;
+    --r3-luz: rgba(255, 255, 255, .09);
+    --r3-canto: #060a16;
+    --r3-sombra: 0, 0, 0;
+    --r3-ext: rgba(0, 0, 0, .55);
+    --r3-brillo: rgba(160, 180, 255, .16);
+  }
+  :root[data-tema="relieve"] body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(var(--primary-rgb), .14), transparent 60%),
+      radial-gradient(900px 500px at 105% 10%, rgba(var(--accent-rgb), .12), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+
+  /* Letras en relieve */
+  :root[data-tema="relieve"] h1 {
+    font-family: var(--font-serif); font-weight: 800; letter-spacing: -0.02em;
+    text-shadow: 0 1px 0 var(--r3-ext), 0 2px 0 var(--r3-ext), 0 3px 0 var(--r3-ext), 0 8px 14px rgba(var(--r3-sombra), .22);
+  }
+  :root[data-tema="relieve"] h2, :root[data-tema="relieve"] h3, :root[data-tema="relieve"] .card-title {
+    font-family: var(--font-serif); font-weight: 700;
+    text-shadow: 0 1px 0 var(--r3-ext), 0 3px 6px rgba(var(--r3-sombra), .14);
+  }
+  :root[data-tema="relieve"] .kpi .k-val {
+    font-family: var(--font-serif); font-weight: 800;
+    text-shadow: 0 1px 0 var(--r3-ext), 0 2px 0 var(--r3-ext), 0 6px 10px rgba(var(--r3-sombra), .2);
+  }
+  :root[data-tema="relieve"] .rep h1, :root[data-tema="relieve"] .rep h2 { text-shadow: none; font-family: var(--font); }
+
+  /* Piezas con espesor: tarjetas, indicadores, gráficos, tablas */
+  :root[data-tema="relieve"] .card,
+  :root[data-tema="relieve"] .kpi,
+  :root[data-tema="relieve"] .tab-tile {
+    background: linear-gradient(180deg, var(--r3-top), var(--r3-bot));
+    border-color: var(--border);
+    box-shadow:
+      inset 0 1px 0 var(--r3-luz),
+      0 1px 0 var(--r3-canto), 0 2px 0 var(--r3-canto), 0 3px 0 var(--r3-canto),
+      0 10px 18px -6px rgba(var(--r3-sombra), .18),
+      0 26px 40px -24px rgba(var(--r3-sombra), .35);
+    transition: box-shadow .35s ease, border-color .2s;
+  }
+  :root[data-tema="relieve"] .card:hover { box-shadow:
+      inset 0 1px 0 var(--r3-luz),
+      0 1px 0 var(--r3-canto), 0 2px 0 var(--r3-canto), 0 3px 0 var(--r3-canto), 0 4px 0 var(--r3-canto),
+      0 16px 26px -8px rgba(var(--r3-sombra), .22),
+      0 34px 50px -26px rgba(var(--r3-sombra), .42); }
+
+  /* Indicadores y gráficos chicos: se inclinan siguiendo el mouse, con un reflejo */
+  :root[data-tema="relieve"] .kpi,
+  :root[data-tema="relieve"] .viz-card,
+  :root[data-tema="relieve"] .tab-tile {
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--ty, 0px));
+    transition: transform .6s cubic-bezier(.2, .8, .2, 1), box-shadow .35s ease, border-color .2s;
+    will-change: transform;
+  }
+  :root[data-tema="relieve"] .kpi.r3d-on,
+  :root[data-tema="relieve"] .viz-card.r3d-on,
+  :root[data-tema="relieve"] .tab-tile.r3d-on {
+    --ty: -5px;
+    transition: transform .14s ease-out, box-shadow .35s ease;
+    box-shadow:
+      inset 0 1px 0 var(--r3-luz),
+      0 1px 0 var(--r3-canto), 0 2px 0 var(--r3-canto), 0 3px 0 var(--r3-canto), 0 4px 0 var(--r3-canto), 0 5px 0 var(--r3-canto),
+      0 22px 30px -10px rgba(var(--r3-sombra), .28),
+      0 40px 60px -30px rgba(var(--r3-sombra), .45);
+  }
+  :root[data-tema="relieve"] .kpi.r3d-on,
+  :root[data-tema="relieve"] .viz-card.r3d-on {
+    background:
+      radial-gradient(circle at var(--gx, 50%) var(--gy, 0%), var(--r3-brillo), transparent 55%),
+      linear-gradient(180deg, var(--r3-top), var(--r3-bot));
+  }
+  :root[data-tema="relieve"] .kpi::after { opacity: .14; filter: blur(1px); }
+  :root[data-tema="relieve"] .kpi .k-label::before { width: 10px; height: 10px; border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 0 rgba(0, 0, 0, .18); }
+
+  /* Gráficos: las barras, líneas y puntos proyectan sombra */
+  :root[data-tema="relieve"] .viz-plot svg { filter: drop-shadow(0 4px 3px rgba(var(--r3-sombra), .22)) drop-shadow(0 10px 10px rgba(var(--r3-sombra), .12)); }
+  :root[data-tema="relieve"] .hb-pista { border-radius: 99px; background: var(--surface-3); box-shadow: inset 0 2px 3px rgba(var(--r3-sombra), .18); }
+  :root[data-tema="relieve"] .hb-barra {
+    border-radius: 99px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, .18)), var(--c);
+    box-shadow: 0 3px 6px -2px rgba(var(--r3-sombra), .35);
+  }
+
+  /* Tablas: bandeja hundida, encabezado en bloque y filas que se levantan */
+  :root[data-tema="relieve"] .table-wrap,
+  :root[data-tema="relieve"] .dt-wrap {
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 2px 6px rgba(var(--r3-sombra), .1), inset 0 0 0 1px var(--border);
+  }
+  :root[data-tema="relieve"] thead th {
+    background: linear-gradient(180deg, var(--surface), var(--surface-3));
+    box-shadow: inset 0 1px 0 var(--r3-luz), inset 0 -2px 0 var(--r3-canto);
+    color: var(--text);
+  }
+  :root[data-tema="relieve"] tbody tr { transition: transform .25s cubic-bezier(.2, .8, .2, 1), filter .25s; }
+  :root[data-tema="relieve"] tbody tr:hover { transform: translateY(-2px); position: relative; z-index: 1; filter: drop-shadow(0 6px 6px rgba(var(--r3-sombra), .22)); }
+  :root[data-tema="relieve"] tbody tr:hover td { background: var(--surface); box-shadow: inset 0 1px 0 var(--r3-luz); }
+
+  /* Botones que se hunden */
+  :root[data-tema="relieve"] button:not(.nav-item, .tab, .tema-op, .th-btn, .link-btn, .cond-op, .acc-add, .rapida, .chip-x, .chip-limpiar, .fc-btn, .fc-item, .ini-fila, .paleta-item, .modal__close) {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 55%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 3px 0 rgba(var(--r3-sombra), .35), 0 8px 14px -6px rgba(var(--r3-sombra), .35);
+    transition: transform .12s ease, box-shadow .12s ease, background-color .15s;
+  }
+  :root[data-tema="relieve"] button:not(.nav-item, .tab, .tema-op, .th-btn, .link-btn, .cond-op, .acc-add, .rapida, .chip-x, .chip-limpiar, .fc-btn, .fc-item, .ini-fila, .paleta-item, .modal__close):hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 4px 0 rgba(var(--r3-sombra), .35), 0 12px 18px -8px rgba(var(--r3-sombra), .4); }
+  :root[data-tema="relieve"] button:not(.nav-item, .tab, .tema-op, .th-btn, .link-btn, .cond-op, .acc-add, .rapida, .chip-x, .chip-limpiar, .fc-btn, .fc-item, .ini-fila, .paleta-item, .modal__close):active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .18), 0 0 0 rgba(var(--r3-sombra), .35); }
+  :root[data-tema="relieve"] button.secondary { background-image: linear-gradient(180deg, var(--r3-top), var(--r3-bot)); }
+  :root[data-tema="relieve"] .tab.active {
+    background: linear-gradient(180deg, var(--r3-top), var(--r3-bot));
+    box-shadow: inset 0 1px 0 var(--r3-luz), 0 2px 0 var(--r3-canto), 0 6px 12px -6px rgba(var(--r3-sombra), .35);
+  }
+  /* En la barra lateral (oscura) el activo conserva su color y suma un brillo arriba y sombra abajo */
+  :root[data-tema="relieve"] .nav-item.active {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 60%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 3px 0 rgba(0, 0, 0, .35), 0 8px 14px -6px rgba(0, 0, 0, .5);
+  }
+  :root[data-tema="relieve"] .pill { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 1px 0 rgba(var(--r3-sombra), .18); }
+  :root[data-tema="relieve"] input:not([type=checkbox]):not([type=radio]),
+  :root[data-tema="relieve"] select,
+  :root[data-tema="relieve"] textarea { box-shadow: inset 0 2px 4px rgba(var(--r3-sombra), .1); }
+
+  /* Barra superior con volumen */
+  :root[data-tema="relieve"] .masthead { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .06), 0 6px 18px -6px rgba(var(--r3-sombra), .5); position: relative; z-index: 5; }
+
+  /* Entradas en perspectiva: la vista, sus tarjetas en cascada y las ventanas */
+  @keyframes r3dVista { from { opacity: 0; transform: perspective(1200px) translateY(18px) rotateX(7deg); } to { opacity: 1; transform: none; } }
+  @keyframes r3dPieza { from { opacity: 0; transform: perspective(900px) translateY(22px) rotateX(14deg) scale(.97); } to { opacity: 1; } }
+  @keyframes r3dModal { from { opacity: 0; transform: perspective(1000px) translateY(30px) rotateX(-12deg) scale(.94); } to { opacity: 1; transform: none; } }
+  :root[data-tema="relieve"] .view.active { animation: r3dVista .55s cubic-bezier(.2, .8, .2, 1); transform-origin: 50% 0; }
+  :root[data-tema="relieve"] .view.active .card { animation: r3dPieza .6s cubic-bezier(.2, .8, .2, 1) backwards; transform-origin: 50% 0; }
+  :root[data-tema="relieve"] .view.active .kpi { animation: r3dPieza .6s cubic-bezier(.2, .8, .2, 1) backwards; transform-origin: 50% 0; }
+  :root[data-tema="relieve"] .view.active .card:nth-of-type(2), :root[data-tema="relieve"] .view.active .kpi:nth-child(2) { animation-delay: 70ms; }
+  :root[data-tema="relieve"] .view.active .card:nth-of-type(3), :root[data-tema="relieve"] .view.active .kpi:nth-child(3) { animation-delay: 140ms; }
+  :root[data-tema="relieve"] .view.active .card:nth-of-type(4), :root[data-tema="relieve"] .view.active .kpi:nth-child(4) { animation-delay: 210ms; }
+  :root[data-tema="relieve"] .view.active .card:nth-of-type(n+5), :root[data-tema="relieve"] .view.active .kpi:nth-child(n+5) { animation-delay: 280ms; }
+  :root[data-tema="relieve"] .modal-overlay.is-open .modal { animation: r3dModal .45s cubic-bezier(.2, .9, .25, 1.15); }
+  :root[data-tema="relieve"] .modal { background: linear-gradient(180deg, var(--r3-top), var(--r3-bot)); box-shadow: inset 0 1px 0 var(--r3-luz), 0 4px 0 var(--r3-canto), 0 40px 70px -20px rgba(var(--r3-sombra), .55); }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root[data-tema="relieve"] .view.active, :root[data-tema="relieve"] .view.active .card, :root[data-tema="relieve"] .view.active .kpi,
+    :root[data-tema="relieve"] .modal { animation: none !important; }
+    :root[data-tema="relieve"] .kpi, :root[data-tema="relieve"] .viz-card, :root[data-tema="relieve"] .tab-tile,
+    :root[data-tema="relieve"] tbody tr, :root[data-tema="relieve"] button { transition: none !important; transform: none !important; }
+  }
+  @media (max-width: 700px) {
+    /* En el celular: el mismo volumen, más liviano */
+    :root[data-tema="relieve"] .viz-plot svg { filter: drop-shadow(0 3px 3px rgba(var(--r3-sombra), .2)); }
+    :root[data-tema="relieve"] tbody tr:hover { transform: none; }
+  }
 </style>
 <script>
 // Aplica tema y modo guardados antes de dibujar la página (evita el parpadeo).
@@ -9252,7 +9435,8 @@ const TEMAS = [
   { id: "institucional", nombre: "Institucional", colores: ["#0b2545", "#1f4e8c", "#b08d57"] },
   { id: "grafito", nombre: "Grafito", colores: ["#1d232c", "#3a4452", "#8d97a6"] },
   { id: "esmeralda", nombre: "Esmeralda", colores: ["#0d2b22", "#1f6b52", "#a88b4a"] },
-  { id: "bordo", nombre: "Bordó", colores: ["#2b0f16", "#7a2836", "#a88b4a"] }
+  { id: "bordo", nombre: "Bordó", colores: ["#2b0f16", "#7a2836", "#a88b4a"] },
+  { id: "relieve", nombre: "Relieve 3D", colores: ["#111a3a", "#3557d6", "#ff9f43"] }
 ];
 const mqClaro = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
 let preferenciaModo = "claro";
@@ -9331,6 +9515,40 @@ function armarPanelTema() {
     r.addEventListener("change", () => { densidadActual = r.value; guardarPreferencia("lc-densidad", r.value); aplicarApariencia(); });
   });
 }
+
+// Tema Relieve 3D (solo estética): los indicadores y gráficos chicos se inclinan siguiendo el
+// mouse, con un reflejo. Solo con mouse (no en el celular) y sin "reducir movimiento".
+(function inclinar3d() {
+  if (reduceMotion || !(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches)) return;
+  const SEL = ".kpi, .viz-card, .tab-tile";
+  let actual = null, ultimo = null, cuadro = 0;
+  function soltar() {
+    if (!actual) return;
+    ["--rx", "--ry", "--gx", "--gy"].forEach(p => actual.style.removeProperty(p));
+    actual.classList.remove("r3d-on");
+    actual = null;
+  }
+  document.addEventListener("pointermove", e => {
+    ultimo = e;
+    if (cuadro) return;
+    cuadro = requestAnimationFrame(() => {
+      cuadro = 0;
+      const t = document.documentElement.getAttribute("data-tema") === "relieve" && ultimo.target.closest ? ultimo.target.closest(SEL) : null;
+      if (t !== actual) soltar();
+      if (!t) return;
+      actual = t;
+      t.classList.add("r3d-on");
+      const r = t.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const x = Math.min(1, Math.max(0, (ultimo.clientX - r.left) / r.width)), y = Math.min(1, Math.max(0, (ultimo.clientY - r.top) / r.height));
+      t.style.setProperty("--ry", ((x - .5) * 9).toFixed(2) + "deg");
+      t.style.setProperty("--rx", ((.5 - y) * 9).toFixed(2) + "deg");
+      t.style.setProperty("--gx", (x * 100).toFixed(1) + "%");
+      t.style.setProperty("--gy", (y * 100).toFixed(1) + "%");
+    });
+  }, { passive: true });
+  document.documentElement.addEventListener("pointerleave", soltar);
+})();
 
 function abrirPanelTema(abrir) {
   $("panelTema").classList.toggle("is-open", abrir);
