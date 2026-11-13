@@ -154,6 +154,8 @@ const LARGO_MAX_CLAVE = 200;
 function doGet(e) {
   // Suscripción de Google Calendar a los vencimientos (Calendario.gs): ?cal=<enlace secreto>.
   if (e && e.parameter && e.parameter.cal) return feedCalendario_(e.parameter.cal);
+  // Cheques para Excel / Power Query (ExcelCheques.gs): ?xls=<enlace secreto>&tipo=cartera|emitidos.
+  if (e && e.parameter && e.parameter.xls) return feedExcelCheques_(e.parameter.xls, e.parameter.tipo);
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('Tesorería · Andrés Sammartino')
     .setFaviconUrl('https://bgpsammar.com/logo-as-64.png')
@@ -299,6 +301,7 @@ const ACCIONES = {
   // Calendario de vencimientos y su suscripción en Google Calendar (Calendario.gs).
   obtenerCalendario: (d, u) => obtenerCalendario_(d, u),
   suscripcionCalendario: (d, u) => suscripcionCalendario_(d, u),
+  enlaceExcelCheques: (d, u) => enlaceExcelCheques_(d, u), // cheques para Excel (ExcelCheques.gs)
   cotizacionesDolar: cotizacionesDolar_,
   // Vista Análisis: configuración compartida y dólar histórico (Analisis.gs).
   obtenerAnalisis: (d, u) => obtenerAnalisis_(d, u),

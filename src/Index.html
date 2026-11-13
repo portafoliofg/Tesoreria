@@ -2919,6 +2919,7 @@
       <div class="actions" style="margin-top:0">
         <button id="btnFlujo" class="secondary" type="button">Actualizar</button>
         <button id="calGoogle" class="secondary" type="button" title="Ver los vencimientos en tu Google Calendar">Google Calendar</button>
+        <button id="xlsCheques" class="secondary" type="button" title="Traer los cheques en cartera y emitidos a un Excel">Excel</button>
         <button id="btnSaldosImagenFlujo" type="button">Cargar saldos</button>
       </div>
     </div>
@@ -3584,6 +3585,32 @@
 </div>
 
 <!-- ===================== MODAL: IMPORTE RECIBIDO (BOLSA) ===================== -->
+<!-- ===================== MODAL: CHEQUES PARA EXCEL ===================== -->
+<div class="modal-overlay" id="modalXlsCheques">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="xlsChequesTitulo">
+    <div class="modal__head">
+      <div><h3 id="xlsChequesTitulo">Cheques en un Excel</h3><div class="sub-dato">Dos enlaces que Excel lee con Power Query: los cheques de terceros en cartera y los emitidos sin debitar, con la columna Mes de la fecha de pago. Se actualizan al tocar <b>Datos → Actualizar todo</b> o al abrir el archivo.</div></div>
+      <button class="modal__close" data-cerrar="modalXlsCheques" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <ol class="cal-pasos">
+        <li>En Excel de escritorio: <b>Datos → Obtener datos → De otras fuentes → Desde la web</b> y pegá un enlace.</li>
+        <li>Tocá <b>Transformar datos</b>, revisá los tipos y después <b>Cerrar y cargar</b>: queda en una pestaña nueva. Repetí con el otro enlace.</li>
+        <li>En <b>Consultas y conexiones → Propiedades</b> marcá <b>Actualizar datos al abrir el archivo</b>.</li>
+      </ol>
+      <label>Cheques en cartera<input type="text" id="xlsChequesCartera" readonly></label>
+      <div class="cal-google-acc"><button class="secondary" type="button" data-xls-copiar="xlsChequesCartera">Copiar enlace</button></div>
+      <label style="margin-top:10px">Cheques emitidos<input type="text" id="xlsChequesEmitidos" readonly></label>
+      <div class="cal-google-acc"><button class="secondary" type="button" data-xls-copiar="xlsChequesEmitidos">Copiar enlace</button></div>
+      <p class="hint">Los enlaces son secretos: quien los tenga ve los cheques (no puede cambiar nada). Si se compartieron de más, generá uno nuevo: los anteriores dejan de funcionar y hay que cambiarlos en el Excel.</p>
+      <p id="xlsChequesStatus" class="hint"></p>
+    </div>
+    <div class="modal__foot">
+      <button id="xlsChequesNuevo" class="secondary" type="button">Generar enlace nuevo</button>
+      <button data-cerrar="modalXlsCheques" type="button">Listo</button>
+    </div>
+  </div>
+</div>
 <!-- ===================== MODAL: GOOGLE CALENDAR ===================== -->
 <div class="modal-overlay" id="modalCalGoogle">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calGoogleTitulo">
@@ -20938,6 +20965,38 @@ $("calGoogleCopiar").addEventListener("click", async () => {
 $("calGoogleNuevo").addEventListener("click", async () => {
   const ok = await confirmar("Generar enlace nuevo", "El enlace actual deja de funcionar: quien lo tenga agregado en Google Calendar va a tener que agregar el nuevo.", "Generar");
   if (ok) pedirEnlaceCalendario(true);
+});
+
+// ----- Cheques para Excel (ExcelCheques.gs) -----
+async function pedirEnlaceXlsCheques(regenerar) {
+  const st = $("xlsChequesStatus");
+  setStatus(st, regenerar ? "Generando un enlace nuevo…" : "Preparando los enlaces…", "hint");
+  try {
+    const res = await runJson("enlaceExcelCheques", { regenerar: !!regenerar });
+    $("xlsChequesCartera").value = res.cartera;
+    $("xlsChequesEmitidos").value = res.emitidos;
+    setStatus(st, regenerar ? "Listo: estos son los enlaces nuevos. Los anteriores ya no funcionan." : "", regenerar ? "hint msg-ok" : "hint");
+  } catch (err) {
+    setStatus(st, "No se pudieron obtener los enlaces: " + msgErr(err), "hint msg-error");
+  }
+}
+
+$("xlsCheques").addEventListener("click", () => {
+  $("xlsChequesCartera").value = "";
+  $("xlsChequesEmitidos").value = "";
+  abrirModal("modalXlsCheques");
+  pedirEnlaceXlsCheques(false);
+});
+document.querySelectorAll("[data-xls-copiar]").forEach(b => b.addEventListener("click", async () => {
+  const campo = $(b.dataset.xlsCopiar);
+  if (!campo.value) return;
+  try { await navigator.clipboard.writeText(campo.value); }
+  catch (e) { campo.select(); document.execCommand("copy"); }
+  setStatus($("xlsChequesStatus"), "Enlace copiado.", "hint msg-ok");
+}));
+$("xlsChequesNuevo").addEventListener("click", async () => {
+  const ok = await confirmar("Generar enlace nuevo", "Los enlaces actuales dejan de funcionar: en el Excel hay que cambiar el origen de las dos consultas.", "Generar");
+  if (ok) pedirEnlaceXlsCheques(true);
 });
 
 // ----- Rescatar o negociar: el FCI contra el costo de bolsa -----
