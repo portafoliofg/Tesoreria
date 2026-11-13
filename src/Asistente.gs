@@ -293,6 +293,7 @@ function asisTranscribir_(clave, audio) {
  * pregunta de prueba y deja en el registro qué modelo usó y cuánto tardó cada paso.
  */
 function probarAsistente() {
+  soloEditor_(); // sin esto se podría llamar desde el navegador sin sesión (ver Código.gs)
   const u = leerUsuarios_().filter(x => x['Activo'] === 'Sí')[0];
   const t = Date.now();
   const r = asistente_({ op: 'preguntar', mensaje: '¿Cuánta plata tenemos hoy entre cuentas y FCI?', historial: [] }, u);

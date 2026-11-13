@@ -188,6 +188,7 @@ function doPost(e) {
  * permisos de alertas: activadores y conexión con WhatsApp.
  */
 function autorizarPermisos() {
+  soloEditor_();
   ScriptApp.getProjectTriggers();
   UrlFetchApp.fetch('https://api.callmebot.com', { muteHttpExceptions: true });
   DriveApp.getRootFolder();
@@ -261,7 +262,7 @@ const ACCIONES = {
   eliminarFactura: eliminarFactura_,
   obtenerAccesoFacturas: obtenerAccesoFacturas_,
   guardarAccesoFacturas: guardarAccesoFacturas_,
-  normalizarCuentas: normalizarCuentas_,
+  normalizarCuentas: (d, u) => d && d.aplicar && !esAdmin_(u) ? soloAdmin_() : normalizarCuentas_(d, u),
   obtenerFci: obtenerFci_,
   obtenerBolsa: obtenerBolsa_,
   guardarRecibidoBolsa: guardarRecibidoBolsa_,
@@ -1567,6 +1568,7 @@ function obtenerConciliacion_(d) {
 
 /** Anula una conciliación: libera los movimientos y cheques que había marcado. d: {id} */
 function anularConciliacion_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const id = String(d.id || '');
     const hoja = obtenerHoja_(SHEET_CONCILIACIONES, HEADERS_CONCILIACIONES);
@@ -1734,6 +1736,25 @@ function subirComprobante_(d, u) {
   });
 }
 
+/**
+ * true si el archivo está dentro de la carpeta de comprobantes de la app (carpetaRaiz_), en
+ * cualquier subcarpeta (Resúmenes/banco, Salida de cheques…). Sube hasta 6 niveles.
+ */
+function dentroDeCarpetaRaiz_(archivo) {
+  const raiz = propiedades_().getProperty('CARPETA_COMPROBANTES');
+  if (!raiz) return false;
+  let nivel = [];
+  const padres = archivo.getParents();
+  while (padres.hasNext()) nivel.push(padres.next());
+  for (let i = 0; i < 6 && nivel.length; i++) {
+    if (nivel.some(c => c.getId() === raiz)) return true;
+    const siguiente = [];
+    nivel.forEach(c => { const p = c.getParents(); while (p.hasNext()) siguiente.push(p.next()); });
+    nivel = siguiente;
+  }
+  return false;
+}
+
 /** Solo se pueden ver archivos vinculados a un movimiento o cheque de la planilla. */
 function verComprobante_(d) {
   const id = String(d.id || '');
@@ -1742,6 +1763,9 @@ function verComprobante_(d) {
     leerFilas_(SHEET_CHEQUES, HEADERS_CHEQUES).some(f => f['Comprobante'] === id);
   if (!vinculado) return { ok: false, error: 'Ese archivo no está vinculado a ningún registro.' };
   const archivo = DriveApp.getFileById(id);
+  // La columna Comprobante la puede escribir el navegador al guardar un movimiento: sin este
+  // control, cualquier usuario podría anotar el ID de otro archivo del Drive del dueño y bajarlo.
+  if (!dentroDeCarpetaRaiz_(archivo)) return { ok: false, error: 'Ese archivo no está en la carpeta de comprobantes.' };
   const blob = archivo.getBlob();
   return {
     ok: true, nombre: archivo.getName(), mime: blob.getContentType(), url: archivo.getUrl(),
@@ -1985,6 +2009,7 @@ function guardarBanco_(d, u) {
 
 /** Baja de banco (solo si no tiene cuentas). d: {banco} */
 function eliminarBanco_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const nombre = String(d.banco || '').trim();
     const tieneCuentas = leerFilas_(SHEET_CUENTAS, HEADERS_CUENTAS).some(c => c['Banco'] === nombre);
@@ -2031,6 +2056,7 @@ function guardarCuenta_(d, u) {
 
 /** Baja de cuenta. d: {id} */
 function eliminarCuenta_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const id = String(d.id || '');
     const sheet = obtenerHoja_(SHEET_CUENTAS, HEADERS_CUENTAS);
@@ -2717,7 +2743,9 @@ function importarPlanilla_(d, u) {
   return conLock_(() => {
     const destino = String(d.destino || '');
     const filas = d.filas || [];
-    if (d.depurar) return Object.assign({ ok: true }, depurarPlanilla_(destino, d.depurar, d.archivo, u));
+    // Depurar borra filas (las que no vinieron en el archivo): solo un administrador. A los demás
+    // se les importa igual, sin quitar nada; lo viejo se limpia la próxima vez que importe un administrador.
+    if (d.depurar) return esAdmin_(u) ? Object.assign({ ok: true }, depurarPlanilla_(destino, d.depurar, d.archivo, u)) : { ok: true, quitados: 0, omitido: true };
     let res;
     if (destino === 'cuentas') res = importarCuentas_(d, u);
     else if (destino === 'movimientos') res = importarMovimientos_(filas, d, u);
@@ -3115,6 +3143,7 @@ function guardarCompromiso_(d, u) {
 }
 
 function eliminarCompromiso_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const H = HEADERS_COMPROMISOS;
     const hoja = obtenerHoja_(SHEET_COMPROMISOS, H);
@@ -3341,6 +3370,22 @@ function monedaCta_(v) {
   return String(v || '').toUpperCase().indexOf('USD') >= 0 ? 'USD' : 'ARS';
 }
 
+/**
+ * Cuidado: toda función de nivel superior cuyo nombre NO termina en "_" se puede llamar desde
+ * el navegador con google.script.run, sin sesión (la app está publicada para cualquiera y corre
+ * con la cuenta del dueño). Las funciones para correr desde el editor llaman a esto primero:
+ * solo siguen si quien las corre es el mismo que publicó la app. Desde la página, una visita
+ * anónima no tiene usuario activo y una de otra cuenta tiene otro mail, así que se cortan.
+ * Las que corren los activadores (revisarAlertas, revisarReporteMensual) no lo usan: cada aviso
+ * se manda una sola vez por día o por mes, así que llamarlas de más no cambia nada.
+ */
+function soloEditor_() {
+  let activo = '', dueno = '';
+  try { activo = Session.getActiveUser().getEmail(); } catch (e) {}
+  try { dueno = Session.getEffectiveUser().getEmail(); } catch (e) {}
+  if (!activo || activo !== dueno) throw new Error('Esta función solo se ejecuta desde el editor de Apps Script.');
+}
+
 function usuarioEditor_() {
   let mail = '';
   try { mail = Session.getEffectiveUser().getEmail(); } catch (e) {}
@@ -3545,11 +3590,13 @@ function textoInformeCuentas_(r) {
 
 /** Ejecutala desde el editor para ver qué se unificaría (no cambia nada). */
 function revisarCuentasDuplicadas() {
+  soloEditor_();
   Logger.log(textoInformeCuentas_(normalizarCuentas_({ aplicar: false }, usuarioEditor_())));
 }
 
 /** Ejecutala desde el editor para unificar cuentas y operaciones. */
 function unificarCuentasDuplicadas() {
+  soloEditor_();
   Logger.log(textoInformeCuentas_(normalizarCuentas_({ aplicar: true }, usuarioEditor_())));
 }
 
@@ -3620,6 +3667,7 @@ function guardarMovimientosFci_(d, u) {
 
 /** Borra un rescate o suscripción cargado en la app (no los de la planilla). d: {id} */
 function eliminarMovimientoFci_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
   return conLock_(() => {
     const id = String(d.id || '').trim();
     if (id.indexOf('FCIM-') !== 0) return { ok: false, error: 'Solo se pueden borrar los movimientos cargados en la app. Los de la planilla se corrigen en la planilla.' };
@@ -3820,6 +3868,7 @@ function emailsValidos_(texto) {
 
 /** d: {activo, emails, whatsapp} */
 function guardarReporteConfig_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_(); // elige a qué mails sale el reporte
   const emails = emailsValidos_(d.emails);
   if (d.activo && !emails.length && !d.whatsapp) return { ok: false, error: 'Cargá al menos un mail o activá el resumen por WhatsApp.' };
   const p = propiedades_();
@@ -3856,6 +3905,7 @@ function revisarReporteMensual() {
 }
 
 function enviarReporteAhora_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_(); // manda datos de la empresa desde el Gmail del dueño
   const r = enviarReporte_(u, ahoraLocal().hoy);
   return { ok: true, enviados: r };
 }
