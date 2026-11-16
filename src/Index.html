@@ -1247,6 +1247,9 @@
   .modal__body .row { margin-bottom: 14px; }
   .modal__body .row + .row { margin-top: 0; }
   .modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface-2); }
+  .nota-admin-texto { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.55; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); max-height: 55vh; overflow-y: auto; }
+  .nota-admin-pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+  #notaAdminTexto { min-height: 180px; resize: vertical; }
   .confirm-text { color: var(--muted); }
 
   /* ---------- Avisos ---------- */
@@ -2221,6 +2224,7 @@
     <button class="nav-item" data-vista="reportes" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v5h5"/><path d="M9 17v-3M12 17v-6M15 17v-2"/></svg>Reportes</button>
     <button class="nav-item" data-vista="auditoria" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>Auditoría</button>
     <button class="nav-item" data-vista="usuarios" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3.5 3.5 0 0 1 0 6.5M18 14.5a5.5 5.5 0 0 1 3 5.5"/></svg>Usuarios</button>
+    <button class="nav-item nav-admin" data-vista="notas" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8.5 12.5h7M8.5 16h5"/></svg>Notas del administrador</button>
   </div>
   <div class="side-pie">Uso interno · Toda actividad queda registrada en Auditoría.</div>
 </nav>
@@ -3166,6 +3170,30 @@
       <p id="miClaveStatus" class="hint"></p>
     </div>
   </section>
+
+  <!-- ===================== VISTA: NOTAS DEL ADMINISTRADOR ===================== -->
+  <!-- Solo la ven los administradores; lo que se deja marcado le aparece a todos al ingresar. -->
+  <section id="vista-notas" class="view">
+    <div class="page-head">
+      <div>
+        <h1>Notas del administrador</h1>
+        <p class="sub">Recordatorios e información importante. Si está marcado “Mostrar a todos al ingresar”, cada persona la ve en un aviso al entrar a la app y lo puede cerrar.</p>
+      </div>
+    </div>
+    <div class="card" style="max-width:760px">
+      <label>Nota<textarea id="notaAdminTexto" rows="10" maxlength="3000" placeholder="Ej.: El viernes no se emiten cheques. Pasar a firmar las órdenes de pago antes de las 15."></textarea></label>
+      <div class="nota-admin-pie">
+        <label class="check"><input type="checkbox" id="notaAdminMostrar" checked> Mostrar a todos al ingresar</label>
+        <span class="hint" id="notaAdminLargo"></span>
+      </div>
+      <div class="actions">
+        <button id="btnGuardarNotaAdmin" type="button">Guardar</button>
+        <button id="btnVerNotaAdmin" class="secondary" type="button">Ver cómo se ve</button>
+        <button id="btnBorrarNotaAdmin" class="secondary" type="button">Borrar la nota</button>
+      </div>
+      <p id="notaAdminStatus" class="hint"></p>
+    </div>
+  </section>
 </main>
 
 <footer class="pie">
@@ -3174,6 +3202,23 @@
     <span>La información registrada es confidencial.</span>
   </div>
 </footer>
+
+<!-- ===================== MODAL: AVISO DEL ADMINISTRADOR (al ingresar) ===================== -->
+<div class="modal-overlay" id="modalNotaAdmin">
+  <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="notaAdminTitulo">
+    <div class="modal__head">
+      <h3 id="notaAdminTitulo">Aviso del administrador</h3>
+      <button class="modal__close" data-cerrar="modalNotaAdmin" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="nota-admin-texto" id="notaAdminModalTexto"></div>
+      <p class="hint" id="notaAdminModalPie"></p>
+    </div>
+    <div class="modal__foot">
+      <button data-cerrar="modalNotaAdmin" type="button">Entendido</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===================== MODAL: ENTRADA MANUAL ===================== -->
 <div class="modal-overlay" id="modalManual">
@@ -5559,7 +5604,7 @@ function setStatus(node, text, cls) {
 }
 
 // ---------------- Navegación ----------------
-const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "estructura", "analisis", "flujo", "estadisticas", "mercados", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios"];
+const vistas = ["inicio", "cargar", "transferencias", "cheques", "inversiones", "compromisos", "mensuales", "tarjetas", "planes", "efectivo", "facturas", "estructura", "analisis", "flujo", "estadisticas", "mercados", "cuentas", "conciliacion", "reportes", "alertas", "auditoria", "usuarios", "notas"];
 document.querySelectorAll(".nav-item").forEach(btn => {
   btn.addEventListener("click", () => mostrarVista(btn.dataset.vista));
 });
@@ -5592,6 +5637,7 @@ function mostrarVista(nombre) {
   if (nombre === "estructura") cargarEstructura(false);
   if (nombre === "reportes") prepararVistaReportes();
   if (nombre === "usuarios") cargarUsuarios();
+  if (nombre === "notas") cargarNotaAdmin();
   window.scrollTo({ top: 0 });
   if (typeof alCambiarVista === "function") alCambiarVista(nombre);
 }
@@ -9660,7 +9706,7 @@ if (mqClaro) {
 }
 
 // ---------------- Encabezado ----------------
-const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", estructura: "Estructura", inversiones: "FCI y Bolsa", analisis: "Análisis", estadisticas: "Estadísticas", mercados: "Mercados" };
+const TITULOS_VISTA = { inicio: "Inicio", cargar: "Carga de comprobantes", transferencias: "Movimientos", cheques: "Cheques", cuentas: "Bancos y cuentas", alertas: "Alertas", auditoria: "Auditoría", usuarios: "Usuarios", notas: "Notas del administrador", conciliacion: "Conciliación bancaria", flujo: "Saldos y flujo de fondos", reportes: "Reportes", compromisos: "Compromisos", facturas: "Facturas", estructura: "Estructura", inversiones: "FCI y Bolsa", analisis: "Análisis", estadisticas: "Estadísticas", mercados: "Mercados" };
 
 function alCambiarVista(nombre) {
   actualizarBarraSeleccion();
@@ -9727,6 +9773,9 @@ function iniciarApp(usuario, arranque) {
   else promesaCatalogo = cargarCatalogo();
   cargarConfig(arranque.config);
   mostrarVista("inicio");
+  // El aviso del administrador: vino con el arranque o se pide aparte (después del primer usuario).
+  if (arranque.notaAdmin !== undefined) mostrarNotaAdmin(arranque.notaAdmin);
+  else runJson("obtenerNotaAdmin").then(r => { if (r.nota && r.nota.mostrar) mostrarNotaAdmin(r.nota); }).catch(() => {});
 }
 
 // Al salir o vencer la sesión no queda nada a la vista.
@@ -10179,6 +10228,75 @@ $("btnCambiarClave").addEventListener("click", async () => {
     btn.disabled = false;
     btn.classList.remove("is-loading");
   }
+});
+
+// ---------------- Vista: Notas del administrador ----------------
+// Un administrador deja un recordatorio; si lo marca, a todos les aparece al ingresar (modalNotaAdmin).
+let notaAdminGuardada = null;
+
+function pieNotaAdmin(n) {
+  return n && (n.autor || n.fecha) ? "Escrita por " + (n.autor || "un administrador") + (n.fecha ? " · " + n.fecha.slice(0, 16) : "") : "";
+}
+
+function mostrarNotaAdmin(n) {
+  if (!n || !String(n.texto || "").trim()) return;
+  $("notaAdminModalTexto").textContent = n.texto;
+  $("notaAdminModalPie").textContent = pieNotaAdmin(n);
+  $("modalNotaAdmin").classList.add("is-open");
+  setTimeout(() => { const b = document.querySelector("#modalNotaAdmin .modal__foot button"); if (b) b.focus(); }, 50);
+}
+
+function pintarNotaAdmin(n) {
+  notaAdminGuardada = n || { texto: "", mostrar: true };
+  $("notaAdminTexto").value = notaAdminGuardada.texto || "";
+  $("notaAdminMostrar").checked = notaAdminGuardada.texto ? notaAdminGuardada.mostrar !== false : true;
+  contarNotaAdmin();
+  const st = $("notaAdminStatus");
+  if (!notaAdminGuardada.texto) setStatus(st, "No hay ninguna nota guardada.", "hint");
+  else setStatus(st, pieNotaAdmin(notaAdminGuardada) + (notaAdminGuardada.mostrar ? " · se muestra a todos al ingresar." : " · guardada sin mostrar."), "hint");
+}
+
+function contarNotaAdmin() {
+  const largo = $("notaAdminTexto").value.length;
+  $("notaAdminLargo").textContent = largo ? largo + " / 3000" : "";
+}
+
+function cargarNotaAdmin() {
+  if (!usuarioActual || !usuarioActual.admin) { setStatus($("notaAdminStatus"), "Solo un administrador puede ver esta sección.", "hint msg-error"); return; }
+  setStatus($("notaAdminStatus"), "Cargando…", "hint");
+  runJson("obtenerNotaAdmin")
+    .then(r => pintarNotaAdmin(r.nota))
+    .catch(err => setStatus($("notaAdminStatus"), msgErr(err), "hint msg-error"));
+}
+
+async function guardarNotaAdmin(texto, mostrar, boton) {
+  const st = $("notaAdminStatus");
+  boton.disabled = true;
+  boton.classList.add("is-loading");
+  try {
+    const r = await runJson("guardarNotaAdmin", { texto: texto, mostrar: mostrar });
+    pintarNotaAdmin(r.nota);
+    toast(texto.trim() ? (r.nota.mostrar ? "Nota guardada: la van a ver todos al ingresar." : "Nota guardada sin mostrar.") : "Nota borrada.", "ok");
+  } catch (err) {
+    setStatus(st, msgErr(err), "hint msg-error");
+  } finally {
+    boton.disabled = false;
+    boton.classList.remove("is-loading");
+  }
+}
+
+$("notaAdminTexto").addEventListener("input", contarNotaAdmin);
+$("btnGuardarNotaAdmin").addEventListener("click", e => guardarNotaAdmin($("notaAdminTexto").value, $("notaAdminMostrar").checked, e.currentTarget));
+$("btnVerNotaAdmin").addEventListener("click", () => {
+  const texto = $("notaAdminTexto").value;
+  if (!texto.trim()) { setStatus($("notaAdminStatus"), "Escribí algo para ver cómo queda.", "hint msg-error"); return; }
+  mostrarNotaAdmin({ texto: texto, autor: usuarioActual ? usuarioActual.nombre || usuarioActual.usuario : "", fecha: "" });
+});
+$("btnBorrarNotaAdmin").addEventListener("click", async e => {
+  const boton = e.currentTarget;
+  if (!$("notaAdminTexto").value.trim() && !(notaAdminGuardada && notaAdminGuardada.texto)) return;
+  if (!(await confirmar("Borrar la nota", "La nota se borra y deja de aparecer al ingresar.", "Borrar"))) return;
+  guardarNotaAdmin("", false, boton);
 });
 
 // ---------------- Vista: Conciliación bancaria ----------------
@@ -18422,6 +18540,7 @@ function aplicarPermisos() {
   const puede = !!(usuarioActual && usuarioActual.facturas);
   document.querySelectorAll(".nav-restringido").forEach(n => { n.hidden = !puede; });
   document.querySelectorAll(".nav-mercados").forEach(n => { n.hidden = !(usuarioActual && usuarioActual.mercados); }); // MERCADOS
+  document.querySelectorAll(".nav-admin").forEach(n => { n.hidden = !(usuarioActual && usuarioActual.admin); });
 }
 
 function facPagos(f) {

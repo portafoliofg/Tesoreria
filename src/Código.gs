@@ -241,6 +241,8 @@ const ACCIONES = {
   guardarUsuario: guardarUsuario_,
   cambiarEstadoUsuario: cambiarEstadoUsuario_,
   guardarAdministrador: guardarAdministrador_,
+  obtenerNotaAdmin: obtenerNotaAdmin_,
+  guardarNotaAdmin: guardarNotaAdmin_,
   restablecerClave: restablecerClave_,
   cambiarCuenta: cambiarCuenta_,
   historialRegistro: historialRegistro_,
@@ -596,6 +598,50 @@ function guardarAdministrador_(d, u) {
   });
 }
 
+
+// ----- Nota del administrador -----
+// Recordatorios o avisos que deja un administrador (vista Notas, en Control). Si está marcada para
+// mostrarse, a todos les aparece en un cuadro al entrar a la app. Vive en las Propiedades del
+// script (no en la planilla) y solo un administrador la cambia.
+const PROP_NOTA_ADMIN = 'NOTA_ADMINISTRADOR';
+const LARGO_MAX_NOTA = 3000; // una propiedad admite ~9 KB
+
+function leerNotaAdmin_() {
+  try {
+    const v = JSON.parse(propiedades_().getProperty(PROP_NOTA_ADMIN) || 'null');
+    if (v && typeof v === 'object') return { texto: String(v.texto || ''), mostrar: v.mostrar !== false, autor: String(v.autor || ''), fecha: String(v.fecha || '') };
+  } catch (e) {}
+  return { texto: '', mostrar: false, autor: '', fecha: '' };
+}
+
+/** La nota que se muestra al entrar, o null si no hay o está apagada. */
+function notaAdminParaMostrar_() {
+  const n = leerNotaAdmin_();
+  return n.texto.trim() && n.mostrar ? n : null;
+}
+
+function obtenerNotaAdmin_(d, u) {
+  // Solo un administrador ve la nota apagada (la que está editando).
+  return { ok: true, nota: esAdmin_(u) ? leerNotaAdmin_() : notaAdminParaMostrar_() };
+}
+
+/** d: {texto, mostrar}. Texto vacío = borrar la nota. */
+function guardarNotaAdmin_(d, u) {
+  if (!esAdmin_(u)) return soloAdmin_();
+  const texto = String(d.texto == null ? '' : d.texto).replace(/\r\n?/g, '\n').trim();
+  if (texto.length > LARGO_MAX_NOTA) return { ok: false, error: 'La nota es muy larga: el máximo es ' + LARGO_MAX_NOTA + ' caracteres.' };
+  return conLock_(() => {
+    const antes = leerNotaAdmin_();
+    const nota = { texto: texto, mostrar: !!d.mostrar && !!texto, autor: String(u['Nombre'] || u['Usuario'] || ''), fecha: ahoraTexto_() };
+    if (texto) propiedades_().setProperty(PROP_NOTA_ADMIN, JSON.stringify(nota));
+    else propiedades_().deleteProperty(PROP_NOTA_ADMIN);
+    registrar_(u, texto ? 'Nota del administrador' : 'Nota del administrador borrada',
+      texto ? (nota.mostrar ? 'Se muestra a todos al ingresar' : 'Guardada sin mostrar') : 'Se borró la nota', '',
+      antes.texto.slice(0, 500), texto.slice(0, 500));
+    return { ok: true, nota: texto ? nota : leerNotaAdmin_() };
+  });
+}
+
 function ahoraTexto_() {
   return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss');
 }
@@ -645,6 +691,7 @@ function estado_(d, token) {
     r.config = obtenerConfig_(d, u).config;
     const cat = obtenerCatalogo_();
     r.catalogo = { bancos: cat.bancos, cuentas: cat.cuentas };
+    r.notaAdmin = notaAdminParaMostrar_();
   }
   return r;
 }
