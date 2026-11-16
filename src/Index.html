@@ -3218,7 +3218,7 @@
         </div>
         <div class="mov-seccion">Destino</div>
         <div class="row" style="margin-top:10px">
-          <label>Destinatario<input data-campo="Destinatario" type="text" placeholder="Nombre o razón social"></label>
+          <label>Destinatario<input data-campo="Destinatario" type="text" list="listaDestinatarios" autocomplete="off" placeholder="Escribí o elegí un destinatario usado antes"></label>
           <label>CUIT<input data-campo="CUIT Destino" type="text" placeholder="30-12345678-9"></label>
         </div>
         <div class="row">
@@ -3243,10 +3243,11 @@
 
       <datalist id="listaBancosCheque"></datalist>
       <datalist id="listaConceptos"></datalist>
+      <datalist id="listaDestinatarios"></datalist>
       <div id="manualCamposCheque" class="manual-campos" hidden>
         <div class="row">
           <label>N° de cheque<input data-campo="N° de Cheque" type="text"></label>
-          <label>Titular<input data-campo="Titular" type="text"></label>
+          <label>Titular<input data-campo="Titular" id="manualTitularCheque" type="text" autocomplete="off"></label>
         </div>
         <div class="row">
           <label>Importe<input data-campo="Importe" type="text" placeholder="0,00"></label>
@@ -6423,6 +6424,7 @@ function formChequeLeido(r) {
       if (antes !== ahora) render();
     });
     const titulo = c[1] || (r.tipoCheque === "Emitido" ? "Destinatario" : "Librador");
+    if (c[0] === "Titular" && r.tipoCheque === "Emitido") { input.setAttribute("list", "listaDestinatarios"); input.autocomplete = "off"; }
     grid.append(campoForm(titulo, input, c[0] === "Importe" ? "cf-importe" : null));
   });
   // A mano: concepto y banco aceptante (no se leen del comprobante).
@@ -6476,9 +6478,10 @@ function campoCondicion(control) {
   return box;
 }
 
-function campoDestino(d, clave, etiqueta, placeholder, bloqueado, clase) {
+function campoDestino(d, clave, etiqueta, placeholder, bloqueado, clase, lista) {
   const inp = el("input");
   inp.type = "text";
+  if (lista) { inp.setAttribute("list", lista); inp.autocomplete = "off"; }
   inp.placeholder = placeholder;
   inp.value = d[clave] || "";
   inp.disabled = bloqueado;
@@ -6596,7 +6599,7 @@ function formMovimiento(r) {
     campoCondicion(selCond),
     campoForm("Monto", inMonto, "full"),
     seccion("Destino"),
-    campoDestino(d, "Destinatario", "Destinatario", "Nombre o razón social", bloqueado, "span2"),
+    campoDestino(d, "Destinatario", "Destinatario", "Escribí o elegí un destinatario usado antes", bloqueado, "span2", "listaDestinatarios"),
     campoDestino(d, "CUIT Destino", "CUIT", "30-12345678-9", bloqueado),
     campoDestino(d, "Cuenta Destino", "CBU / CVU / cuenta", "22 dígitos o N° de cuenta", bloqueado, "span2"),
     campoDestino(d, "Banco Destino", "Banco", "Ej.: Galicia", bloqueado),
@@ -6957,6 +6960,8 @@ $("btnGuardar").addEventListener("click", async () => {
     setStatus(st, msg, "msg-ok");
     toast(msg, "ok");
     recordarConceptos(pendientesTransferencias.map(r => (r.datos || {})["Concepto"]).concat(pendientesCheques.map(r => (r.manualCheque || {})["Concepto"])));
+    recordarDestinatarios(pendientesTransferencias.filter(r => (r.datos || {})["Condición"] !== "Ingreso").map(r => (r.datos || {})["Destinatario"])
+      .concat(pendientesCheques.filter(r => r.tipoCheque === "Emitido").map(r => ((r.parsed || []).find(p => p.Campo === "Titular") || {}).Valor)));
     transferenciasCargadas = false;
     chequesCargados = false;
   } catch (err) {
@@ -7411,6 +7416,7 @@ $("modalManualGuardar").addEventListener("click", async () => {
       setStatus(st, "Guardado." + numero, "hint msg-ok");
       toast("Comprobante cargado a mano." + numero, "ok");
       recordarConceptos([lookup["Concepto"]]);
+      if (esCheque ? tipoCheque === "Emitido" : lookup["Condición"] !== "Ingreso") recordarDestinatarios([esCheque ? lookup["Titular"] : lookup["Destinatario"]]);
       limpiarCamposManual();
       if (esCheque) {
         chequesCargados = false;
@@ -7749,6 +7755,47 @@ function actualizarListaConceptos() {
   lista.replaceChildren(...orden.map(x => new Option(x.t, x.t)));
   memoConceptos = { ch: chequesDatos, tr: transferenciasDatos, n: conceptosSesion.length };
 }
+
+// ----- Destinatarios históricos -----
+// Igual que los conceptos: todo campo Destinatario (y el titular de un cheque emitido) sugiere
+// a quiénes ya se les pagó, los más usados y recientes primero; al escribir, la lista se filtra.
+let memoDestinatarios = {};
+const destinatariosSesion = [];
+function recordarDestinatarios(lista) {
+  lista.forEach(c => { const t = String(c || "").trim(); if (t.length >= 2) destinatariosSesion.push(t); });
+}
+function actualizarListaDestinatarios() {
+  const lista = $("listaDestinatarios");
+  if (!lista || (memoDestinatarios.ch === chequesDatos && memoDestinatarios.tr === transferenciasDatos && memoDestinatarios.n === destinatariosSesion.length)) return;
+  const por = {};
+  const sumar = (txt, fecha) => {
+    const t = String(txt || "").trim();
+    if (t.length < 2 || /^[\d\s\-.]+$/.test(t)) return;
+    const k = normalizar(t).trim();
+    const x = por[k] || (por[k] = { t: t, n: 0, iso: "" });
+    x.n++;
+    const iso = fechaAOrden(fecha || "");
+    if (iso > x.iso) { x.iso = iso; x.t = t; }
+  };
+  chequesDatos.forEach(c => { if (c["Tipo"] === "Emitido") sumar(c["Titular"], c["Fecha de Emisión"]); });
+  transferenciasDatos.forEach(f => { if (!esPropia(f) && f["Condición"] !== "Ingreso") sumar(f["Destinatario"], fechaMov(f)); });
+  const hoy = hoyIso();
+  destinatariosSesion.forEach(t => { sumar(t, ""); const x = por[normalizar(t).trim()]; x.iso = hoy; x.t = t; });
+  const orden = Object.keys(por).map(k => por[k]).sort((a, b) => b.n - a.n || b.iso.localeCompare(a.iso)).slice(0, 500);
+  lista.replaceChildren(...orden.map(x => new Option(x.t, x.t)));
+  memoDestinatarios = { ch: chequesDatos, tr: transferenciasDatos, n: destinatariosSesion.length };
+}
+
+document.addEventListener("focusin", e => {
+  const t = e.target;
+  if (!t || !t.getAttribute) return;
+  // Titular del alta manual de cheques: sugiere destinatarios solo si es un cheque emitido.
+  if (t.id === "manualTitularCheque") {
+    if ($("manualTipo").value === "Cheque emitido") t.setAttribute("list", "listaDestinatarios");
+    else t.removeAttribute("list");
+  }
+  if (t.getAttribute("list") === "listaDestinatarios") actualizarListaDestinatarios();
+});
 
 /** El último concepto usado con ese titular o destinatario (para proponerlo si el campo está vacío). */
 function ultimoConceptoDe(nombre) {
