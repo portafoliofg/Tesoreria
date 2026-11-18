@@ -245,6 +245,7 @@ const ACCIONES = {
   guardarNotaAdmin: guardarNotaAdmin_,
   restablecerClave: restablecerClave_,
   cambiarCuenta: cambiarCuenta_,
+  editarRegistro: editarRegistro_,
   historialRegistro: historialRegistro_,
   obtenerConciliaciones: obtenerConciliaciones_,
   guardarConciliacion: guardarConciliacion_,
@@ -1273,6 +1274,94 @@ function marcarPropia_(d, u) {
     registrar_(u, 'Cambio de cuentas propias', 'Movimiento N° ' + interno, interno,
       { 'Entre Cuentas Propias': antes }, { 'Entre Cuentas Propias': valor });
     return { ok: true, propia: valor };
+  });
+}
+
+// ======================= Edición de datos =======================
+// Desde el panel de detalle se corrigen los datos de un movimiento o un cheque ya guardado.
+// Banco y cuenta se cambian con cambiarCuenta_, la condición con cambiarCondicion_ y el estado de
+// un cheque con actualizarEstadoCheque_. Si está conciliado no se tocan importe, fechas ni número.
+const EDITABLES_MOV = ['Fecha del Movimiento', 'Monto', 'N° de Referencia', 'Concepto', 'Destinatario', 'CUIT Destino', 'Cuenta Destino',
+  'Banco Destino', 'Persona', 'Clase', 'Factura Asociada'];
+const EDITABLES_CHEQUE = ['N° de Cheque', 'Titular', 'CUIT', 'Fecha de Emisión', 'Fecha de Pago', 'Importe', 'Concepto', 'Banco Emisor',
+  'Banco Aceptante', 'Persona', 'Destino', 'Chequera'];
+const FIJOS_SI_CONCILIADO = ['Fecha del Movimiento', 'Monto', 'N° de Referencia', 'N° de Cheque', 'Fecha de Emisión', 'Fecha de Pago', 'Importe'];
+
+function fechaDmaValida_(t) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t);
+  return !!m && +m[1] >= 1 && +m[1] <= 31 && +m[2] >= 1 && +m[2] <= 12;
+}
+
+/** d: {tipo: 'mov'|'cheque', id (N° interno o el id de la selección del cheque), cambios: {columna: valor}} */
+function editarRegistro_(d, u) {
+  const esCheque = d.tipo === 'cheque';
+  const H = esCheque ? HEADERS_CHEQUES : HEADERS_TRANSFERENCIAS;
+  const permitidos = esCheque ? EDITABLES_CHEQUE : EDITABLES_MOV;
+  const pedidos = d.cambios || {};
+  const campos = Object.keys(pedidos).filter(h => permitidos.indexOf(h) >= 0);
+  if (!campos.length) return { ok: false, error: 'No hay cambios.' };
+  const cambios = {};
+  for (const h of campos) {
+    let v = String(pedidos[h] == null ? '' : pedidos[h]).trim().substring(0, 500);
+    if (/^Fecha/.test(h)) {
+      if (!v && (h === 'Fecha del Movimiento' || h === 'Fecha de Pago')) return { ok: false, error: 'La ' + h.toLowerCase() + ' no puede quedar vacía.' };
+      if (v && !fechaDmaValida_(v)) return { ok: false, error: 'La ' + h.toLowerCase() + ' va como dd/mm/aaaa.' };
+    }
+    if (h === 'Monto' || h === 'Importe') {
+      const n = Math.abs(importeANumero(v));
+      if (!(n > 0)) return { ok: false, error: 'El importe tiene que ser mayor a cero.' };
+      v = v.replace(/^[-+\s]+/, '');
+    }
+    if (h === 'N° de Cheque' && !v) return { ok: false, error: 'El número de cheque no puede quedar vacío.' };
+    cambios[h] = v;
+  }
+  return conLock_(() => {
+    const hoja = obtenerHoja_(esCheque ? SHEET_CHEQUES : SHEET_TRANSFERENCIAS, H);
+    const ult = hoja.getLastRow();
+    const filas = ult > 1 ? hoja.getRange(2, 1, ult - 1, H.length).getDisplayValues() : [];
+    const iBanco = H.indexOf('Banco'), iIdPl = H.indexOf('ID Planilla'), iConc = H.indexOf('Conciliación'), iTipo = H.indexOf('Tipo');
+    const idDe = f => esCheque ? (String(f[iIdPl] || '').trim() ? 'P:' + String(f[iIdPl]).trim() : claveCheque_(f[iBanco], f[COL_NUMERO_CHEQUE])) : String(f[COL_INTERNO]).trim();
+    const id = String(d.id || '').trim();
+    const idx = id ? filas.findIndex(f => idDe(f) === id) : -1;
+    if (idx < 0) return { ok: false, error: 'No se encontró el registro. Tocá Actualizar y volvé a intentar.' };
+    const viejo = filas[idx];
+    const nueva = viejo.slice();
+    Object.keys(cambios).forEach(h => {
+      let v = cambios[h];
+      if (h === 'Monto') v = montoConSigno(v, viejo[COL_CONDICION]);
+      nueva[H.indexOf(h)] = v;
+    });
+    const cambiados = H.filter((h, i) => nueva[i] !== viejo[i]);
+    if (!cambiados.length) return { ok: true, sinCambios: true, fila: filaComoObjeto_(H, viejo) };
+    if (String(viejo[iConc] || '').trim()) {
+      const fijos = cambiados.filter(h => FIJOS_SI_CONCILIADO.indexOf(h) >= 0);
+      if (fijos.length) return { ok: false, error: 'Está conciliado (' + viejo[iConc] + '): ' + fijos.join(', ').toLowerCase() + ' no se puede cambiar. Anulá la conciliación primero.' };
+    }
+    // Que el número nuevo no repita otro registro.
+    const otros = filas.filter((_, i) => i !== idx);
+    if (!esCheque && cambiados.indexOf('N° de Referencia') >= 0) {
+      const ref = nueva[COL_REFERENCIA];
+      if (ref && otros.some(f => claveTexto(f[iBanco]) === claveTexto(nueva[iBanco]) && String(f[COL_REFERENCIA]).trim() === ref)) {
+        return { ok: false, error: 'En ' + nueva[iBanco] + ' ya hay un movimiento con el N° de referencia ' + ref + '.' };
+      }
+    }
+    if (esCheque && (cambiados.indexOf('N° de Cheque') >= 0 || cambiados.indexOf('CUIT') >= 0)) {
+      const num = String(nueva[COL_NUMERO_CHEQUE]).trim();
+      const iCuit = H.indexOf('CUIT');
+      const repetido = nueva[iTipo] === 'De terceros'
+        ? soloDigitos(nueva[iCuit]) && otros.some(f => f[iTipo] === 'De terceros' && String(f[COL_NUMERO_CHEQUE]).trim() === num && soloDigitos(f[iCuit]) === soloDigitos(nueva[iCuit]))
+        : otros.some(f => f[iTipo] !== 'De terceros' && claveTexto(f[iBanco]) === claveTexto(nueva[iBanco]) && String(f[COL_NUMERO_CHEQUE]).trim() === num);
+      if (repetido) return { ok: false, error: 'Ya hay otro cheque cargado con el N° ' + num + (nueva[iTipo] === 'De terceros' ? ' del mismo librador.' : ' en ' + nueva[iBanco] + '.') };
+    }
+    hoja.getRange(idx + 2, 1, 1, H.length).setNumberFormat('@').setValues([nueva]);
+    const antes = {}, despues = {};
+    cambiados.forEach(h => { antes[h] = viejo[H.indexOf(h)]; despues[h] = nueva[H.indexOf(h)]; });
+    const numViejo = esCheque ? String(viejo[COL_NUMERO_CHEQUE]).trim() : '';
+    const ref = esCheque ? [String(nueva[COL_NUMERO_CHEQUE]).trim()].concat(numViejo !== String(nueva[COL_NUMERO_CHEQUE]).trim() ? [numViejo] : []).join(', ') : viejo[COL_INTERNO];
+    registrar_(u, esCheque ? 'Edición de cheque' : 'Edición de movimiento',
+      (esCheque ? (nueva[iTipo] || 'Cheque') + ' N° ' + nueva[COL_NUMERO_CHEQUE] : 'Movimiento N° ' + viejo[COL_INTERNO]) + ': ' + cambiados.join(', ').toLowerCase(),
+      ref, antes, despues);
+    return { ok: true, fila: filaComoObjeto_(H, nueva), id: idDe(nueva), cambiados: cambiados };
   });
 }
 

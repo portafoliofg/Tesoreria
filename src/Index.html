@@ -3456,6 +3456,25 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: EDITAR DATOS DE UN MOVIMIENTO O CHEQUE ===================== -->
+<div class="modal-overlay" id="modalEditarRegistro">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edRegTitulo">
+    <div class="modal__head">
+      <div><h3 id="edRegTitulo">Editar datos</h3><div class="sub-dato" id="edRegSub"></div></div>
+      <button class="modal__close" data-cerrar="modalEditarRegistro" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal__body">
+      <div class="manual-campos" id="edRegCampos"></div>
+      <p id="edRegAviso" class="hint"></p>
+      <p id="edRegStatus" class="hint"></p>
+    </div>
+    <div class="modal__foot">
+      <button class="secondary" data-cerrar="modalEditarRegistro" type="button">Cancelar</button>
+      <button id="edRegGuardar" type="button">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: CUENTAS DUPLICADAS ===================== -->
 <div class="modal-overlay" id="modalDuplicadas">
   <div class="modal ancho" role="dialog" aria-modal="true" aria-labelledby="dupTitulo">
@@ -14821,6 +14840,11 @@ function renderDetalle(f, recargar) {
   // Acciones
   const acc = $("detalleAcciones");
   acc.replaceChildren();
+  const be = el("button", "small", "Editar datos");
+  be.type = "button";
+  be.title = esCheque ? "Corregir número, titular, fechas, importe, concepto…" : "Corregir fecha, importe, referencia, concepto, destinatario…";
+  be.addEventListener("click", () => abrirEditarRegistro(detalle.vista, f));
+  acc.append(be);
   if (!esCheque) acc.append(botonCambioCondicion(f), botonPropia(f));
   if (!esCheque && usuarioActual && usuarioActual.admin) acc.append(botonBorrarMovimiento(f));
   if (esCheque) {
@@ -14890,6 +14914,103 @@ function pintarHistorial(box, registros) {
   });
   box.append(ul);
 }
+
+// ---------------- Editar datos de un movimiento o cheque guardado ----------------
+// Mismos campos que acepta editarRegistro_ en el servidor. tipo: fecha (input date), importe
+// (se normaliza como en la carga manual) o texto; lista: datalist de sugerencias.
+const CAMPOS_EDITAR = {
+  transferencias: [
+    { h: "Fecha del Movimiento", t: "Fecha", tipo: "fecha" }, { h: "Monto", t: "Importe", tipo: "importe" },
+    { h: "N° de Referencia", t: "N° de referencia" }, { h: "Concepto", t: "Concepto", lista: "listaConceptos", ancho: true },
+    { h: "Destinatario", t: "Destinatario", lista: "listaDestinatarios" }, { h: "CUIT Destino", t: "CUIT destino" },
+    { h: "Cuenta Destino", t: "CBU / cuenta destino" }, { h: "Banco Destino", t: "Banco destino" },
+    { h: "Persona", t: "Persona" }, { h: "Clase", t: "Clase" }, { h: "Factura Asociada", t: "Factura asociada" }
+  ],
+  cheques: [
+    { h: "N° de Cheque", t: "N° de cheque" }, { h: "Importe", t: "Importe", tipo: "importe" },
+    { h: "Fecha de Emisión", t: "Fecha de emisión", tipo: "fecha" }, { h: "Fecha de Pago", t: "Fecha de pago", tipo: "fecha" },
+    { h: "Titular", t: "Titular", lista: "listaDestinatarios" }, { h: "CUIT", t: "CUIT" },
+    { h: "Concepto", t: "Concepto", lista: "listaConceptos", ancho: true },
+    { h: "Banco Emisor", t: "Banco del cheque" }, { h: "Banco Aceptante", t: "Banco aceptante" },
+    { h: "Persona", t: "Persona" }, { h: "Destino", t: "Destino" }, { h: "Chequera", t: "Chequera" }
+  ]
+};
+const FIJOS_CONCILIADO = ["Fecha del Movimiento", "Monto", "N° de Referencia", "N° de Cheque", "Fecha de Emisión", "Fecha de Pago", "Importe"];
+let edicionAbierta = null;
+
+function abrirEditarRegistro(vista, f) {
+  const esCheque = vista === "cheques";
+  const conciliado = !!f["Conciliación"];
+  edicionAbierta = { vista: vista, f: f, id: idSeleccion(vista, f), inputs: {} };
+  $("edRegTitulo").textContent = esCheque ? "Editar cheque N° " + f["N° de Cheque"] : "Editar movimiento N° " + f["N° Interno"];
+  $("edRegSub").textContent = esCheque
+    ? (f["Tipo"] === "Emitido" ? "Emitido" : "De terceros") + (f["Banco"] ? " · " + f["Banco"] : "")
+    : (f["Condición"] || "") + " · " + (f["Banco"] || "") + " · " + (f["Moneda"] || "");
+  const box = $("edRegCampos");
+  box.replaceChildren();
+  let fila = null;
+  CAMPOS_EDITAR[vista].forEach(c => {
+    if (esCheque && c.h === "Destino" && f["Tipo"] !== "De terceros") return;
+    const lab = el("label", c.ancho ? "ed-ancho" : null, c.t);
+    const inp = el("input");
+    inp.dataset.campo = c.h === "Titular" ? "Titular" : c.h;
+    const valor = String(f[c.h] || "");
+    if (c.tipo === "fecha") { inp.type = "date"; inp.value = fechaAOrden(valor); }
+    else {
+      inp.type = "text";
+      inp.value = c.tipo === "importe" ? formatMonto(Math.abs(parseImporte(valor))) : valor;
+      if (c.tipo === "importe") { inp.classList.add("monto"); inp.inputMode = "decimal"; }
+      if (c.lista) inp.setAttribute("list", c.lista);
+    }
+    if (conciliado && FIJOS_CONCILIADO.indexOf(c.h) >= 0) { inp.disabled = true; lab.title = "Está conciliado: anulá la conciliación para cambiarlo"; }
+    lab.append(inp);
+    edicionAbierta.inputs[c.h] = { inp: inp, c: c, original: inp.value };
+    if (c.ancho) { box.append(el("div", "row")); box.lastChild.append(lab); fila = null; return; }
+    if (!fila) { fila = el("div", "row"); box.append(fila); fila.append(lab); }
+    else { fila.append(lab); fila = null; }
+  });
+  $("edRegAviso").textContent = (conciliado ? "Está conciliado: el importe, las fechas y el número quedan fijos. " : "") +
+    (f["ID Planilla"] ? "Vino de la planilla de flujo: si la planilla sigue con el dato viejo, al volver a importarla se pisa (salvo que esté conciliado)." : "") +
+    (esCheque ? " El estado se cambia con «Estado, fecha y hora» y la cuenta con «Cambiar cuenta»." : " Ingreso o egreso se cambia con «Pasar a…» y la cuenta con «Cambiar cuenta».");
+  setStatus($("edRegStatus"), "", "hint");
+  abrirModal("modalEditarRegistro");
+}
+
+$("edRegGuardar").addEventListener("click", async () => {
+  const x = edicionAbierta;
+  if (!x) return;
+  const st = $("edRegStatus");
+  const cambios = {};
+  Object.keys(x.inputs).forEach(h => {
+    const { inp, c, original } = x.inputs[h];
+    if (inp.disabled) return;
+    if (c.tipo === "importe") normalizarCampoImporte(inp);
+    const v = inp.value.trim();
+    if (v === original.trim()) return;
+    cambios[h] = c.tipo === "fecha" ? isoADma(v) : v;
+  });
+  if (!Object.keys(cambios).length) { cerrarModal("modalEditarRegistro"); toast("No había cambios.", "ok"); return; }
+  const btn = $("edRegGuardar");
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  try {
+    const res = await runJson("editarRegistro", { tipo: x.vista === "cheques" ? "cheque" : "mov", id: x.id, cambios: cambios });
+    if (res.fila) CAMPOS_EDITAR[x.vista].forEach(c => { x.f[c.h] = res.fila[c.h] || ""; });
+    if (x.vista === "transferencias" && res.fila) x.f["Monto"] = res.fila["Monto"] || x.f["Monto"];
+    edicionAbierta = null;
+    cerrarModal("modalEditarRegistro");
+    const esCheque = x.vista === "cheques";
+    toast((esCheque ? "Cheque N° " + x.f["N° de Cheque"] : "Movimiento N° " + x.f["N° Interno"]) + " actualizado.", "ok");
+    if (esCheque) { if (detalle) detalle.id = idSeleccion("cheques", x.f); aplicarFiltrosCheques(); }
+    else aplicarFiltrosTransferencias();
+    if (detalle) { detalle.historialId = null; const f = registroDetalle(); if (f) renderDetalle(f, false); }
+  } catch (err) {
+    setStatus(st, "No se pudo guardar: " + msgErr(err), "hint msg-error");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+  }
+});
 
 $("detalleCerrar").addEventListener("click", cerrarDetalle);
 $("detalleOverlay").addEventListener("click", cerrarDetalle);
